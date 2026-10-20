@@ -15,18 +15,32 @@ elif [ -n "${2:-}" ]; then
     exit 1
 fi
 
-FONT=/System/Library/Fonts/Supplemental/Arial.ttf
-if [ ! -f "$FONT" ]; then
-    FONT=/System/Library/Fonts/Helvetica.ttc
-fi
+for tool in ffmpeg ffprobe; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "error: $tool not found on PATH" >&2
+        exit 1
+    fi
+done
+
+FONT=""
+for candidate in /System/Library/Fonts/Supplemental/Arial.ttf /System/Library/Fonts/Helvetica.ttc; do
+    if [ -f "$candidate" ]; then
+        FONT="$candidate"
+        break
+    fi
+done
 
 ROOT="$OUT/cable-twii"
 
+FILTERS=$(ffmpeg -hide_banner -filters 2>/dev/null || true)
 HAS_DRAWTEXT=0
-if ffmpeg -hide_banner -filters 2>/dev/null | grep -q ' drawtext '; then
-    HAS_DRAWTEXT=1
-else
-    echo "warning: ffmpeg has no drawtext filter, labels are skipped (testsrc2 still shows its own timecode)" >&2
+case "$FILTERS" in
+    *" drawtext "*) HAS_DRAWTEXT=1 ;;
+    *) echo "warning: ffmpeg has no drawtext filter, labels are skipped (testsrc2 still shows its own timecode)" >&2 ;;
+esac
+if [ "$HAS_DRAWTEXT" = 1 ] && [ -z "$FONT" ]; then
+    HAS_DRAWTEXT=0
+    echo "warning: no usable font file found, labels are skipped" >&2
 fi
 
 encode() {
@@ -46,14 +60,16 @@ encode() {
         -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
         -c:v mpeg1video -r 30 -g 15 -b:v 1500k -maxrate 2000k -bufsize 1000k \
         -c:a mp2 -ar 48000 -ac 2 -b:a 192k \
-        -f mpeg "$file"
+        -f mpeg "$file.part"
+    mv "$file.part" "$file"
     echo "$file"
 }
 
 png() {
     local file="$1" color="$2"
     mkdir -p "$(dirname "$file")"
-    ffmpeg -nostdin -v error -y -f lavfi -i "color=c=${color}:s=128x128" -frames:v 1 "$file"
+    ffmpeg -nostdin -v error -y -f lavfi -i "color=c=${color}:s=128x128" -frames:v 1 -f image2 "$file.part"
+    mv "$file.part" "$file"
     echo "$file"
 }
 
