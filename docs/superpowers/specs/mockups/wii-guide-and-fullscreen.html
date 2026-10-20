@@ -1,0 +1,70 @@
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  .tv { font-family: 'M PLUS Rounded 1c', sans-serif; aspect-ratio: 16/9; width: 100%; max-width: 860px; border-radius: 10px; overflow: hidden; position: relative; margin: 0 auto 8px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+  .a { background: repeating-linear-gradient(180deg, #f4f5f7 0 3px, #eceef1 3px 6px); color: #555; }
+  .a .grid { position:absolute; inset: 4% 3% 4% 3%; display:grid; grid-template-columns: 42% 1fr; grid-template-rows: 1fr 1fr; gap: 3%; }
+  .a .list { grid-row: 1 / 3; background:#fff; border-radius: 18px; border: 2px solid #d6dbe0; padding: 3%; display:flex; flex-direction:column; gap: 3%; box-shadow: inset 0 -3px 0 #e4e8ec; }
+  .a .ch { display:flex; align-items:center; gap: 4%; padding: 3% 4%; border-radius: 12px; border: 2px solid transparent; font-size: clamp(8px,1.35vw,12px); }
+  .a .ch .num { width: 2.2em; height: 2.2em; border-radius: 50%; background: linear-gradient(#fff,#e3e7eb); border:1px solid #c9cfd5; display:flex; align-items:center; justify-content:center; font-weight:800; color:#34beed; flex-shrink:0; }
+  .a .ch b { display:block; color:#444; }
+  .a .ch small { color:#999; }
+  .a .ch.on { border-color:#34beed; background:#eefaff; box-shadow: 0 0 0 3px rgba(52,190,237,.25); }
+  .a .prev { background:#222; border-radius: 18px; border: 3px solid #fff; box-shadow: 0 0 0 2px #d6dbe0; display:flex; align-items:center; justify-content:center; color:#aaa; font-size: clamp(9px,1.4vw,13px); }
+  .a .info { background:#fff; border-radius: 18px; border: 2px solid #d6dbe0; padding: 4%; font-size: clamp(8px,1.3vw,12px); line-height:1.4; }
+  .a .info h4 { margin:0; color:#34beed; font-size:1.25em; font-weight:800; }
+  .a .info .show { font-weight:700; color:#444; margin-top: 2%; }
+  .a .info p { margin: 2% 0 0; color:#888; }
+  .bar { height: 5px; background:#e1e5e9; border-radius: 3px; margin-top: 3%; overflow:hidden; } .bar i { display:block; height:100%; width:45%; background:#34beed; }
+  .cursor { position:absolute; width: 4%; aspect-ratio:1; left: 30%; top: 30%; background: radial-gradient(circle at 35% 30%, #fff, #cfe9f7 60%, #8fc9e6); border-radius: 50% 50% 50% 8%; transform: rotate(-20deg); border:1px solid #6fb3d6; box-shadow: 0 2px 4px rgba(0,0,0,.3); }
+  .fs { background:#2b3a4a; color:#fff; font-family:'M PLUS Rounded 1c', sans-serif; }
+  .fs .vid { position:absolute; inset:0; background: linear-gradient(135deg,#3d5a73,#1e2b38); display:flex; align-items:center; justify-content:center; color:#8aa; font-size: clamp(10px,1.6vw,14px); }
+  .fs .chip { position:absolute; top:5%; right:4%; background: rgba(255,255,255,.92); color:#34beed; font-weight:800; font-size: clamp(14px,3vw,28px); padding: .2em .7em; border-radius: 999px; border:2px solid #d6dbe0; }
+  .fs .osd { position:absolute; left:4%; right:4%; bottom:5%; background: rgba(255,255,255,.95); color:#555; border-radius: 18px; border:2px solid #d6dbe0; padding: 2.5% 3%; display:flex; gap:3%; align-items:center; font-size: clamp(8px,1.3vw,12px); }
+  .fs .osd .txt { flex:1; } .fs .osd h4 { margin:0; color:#34beed; font-weight:800; }
+  .btn { background: linear-gradient(#fff,#e6eaee); border:2px solid #c9cfd5; border-radius: 999px; padding: .5em 1.1em; font-weight:700; color:#555; white-space:nowrap; }
+  .cap { text-align:center; color:#888; font-size: 13px; margin-bottom: 26px; }
+</style>
+
+<h2>Guide screen in Wii Menu style</h2>
+<p class="subtitle">This is my first guess at an authentic Wii look: striped light-grey background, white rounded panels, Wii blue highlights, a pill-shaped button and a Wii-style hand cursor. The text is placeholder.</p>
+
+<div class="tv a">
+  <div class="grid">
+    <div class="list">
+      <div class="ch"><span class="num">1</span><span><b>Retro Cartoons</b><small>14:30 · Pinky Episode 4</small></span></div>
+      <div class="ch on"><span class="num">2</span><span><b>Late Night Movies</b><small>14:05 · The Big Heist</small></span></div>
+      <div class="ch"><span class="num">3</span><span><b>Music Box</b><small>14:42 · 90s Hits Mix</small></span></div>
+      <div class="ch"><span class="num">4</span><span><b>Cooking Corner</b><small>14:15 · Pasta Night</small></span></div>
+      <div class="ch"><span class="num">5</span><span><b>Ads 24/7</b><small>14:44 · Commercial Block</small></span></div>
+    </div>
+    <div class="prev">▶ live preview of channel 2</div>
+    <div class="info">
+      <h4>Late Night Movies</h4>
+      <div class="show">The Big Heist · Part 1</div>
+      <p>A crew of retired thieves reunites for one last job.</p>
+      <div class="bar"><i></i></div>
+    </div>
+  </div>
+  <div class="cursor"></div>
+</div>
+<p class="cap">Guide: channel list on the left, a live preview top right, show info bottom right</p>
+
+<div class="split">
+  <div>
+    <div class="tv fs">
+      <div class="vid">fullscreen video</div>
+      <div class="chip">CH 3</div>
+    </div>
+    <p class="cap">D-pad channel change: the number shows briefly</p>
+  </div>
+  <div>
+    <div class="tv fs">
+      <div class="vid">fullscreen video</div>
+      <div class="osd">
+        <div class="txt"><h4>Late Night Movies</h4>The Big Heist · Part 1 · 14:05–15:40<div class="bar"><i></i></div></div>
+        <span class="btn">◀ CH</span><span class="btn">CH ▶</span><span class="btn">Guide</span>
+      </div>
+    </div>
+    <p class="cap">Pointing at the screen shows the info panel and controls</p>
+  </div>
+</div>

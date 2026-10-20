@@ -1,0 +1,81 @@
+<style>
+  .ed { display:grid; grid-template-columns: 230px 1fr; gap: 14px; font-size: 13px; }
+  .pane { border:1px solid #d6dbe0; border-radius: 10px; background:#fff; color:#444; overflow:hidden; }
+  .pane h4 { margin:0; padding: 8px 10px; background:#f1f4f7; border-bottom:1px solid #d6dbe0; font-size: 12px; text-transform: uppercase; letter-spacing:.04em; color:#667; }
+  .lib { padding: 6px 8px; }
+  .lib details { margin: 2px 0; } .lib summary { cursor:pointer; font-weight:600; padding: 3px 0; }
+  .ep { margin: 3px 0 3px 14px; padding: 4px 7px; border-radius: 6px; background:#eefaff; border:1px solid #bfe6f6; cursor:grab; display:flex; justify-content:space-between; font-size: 12px; }
+  .ep span:last-child { color:#889; }
+  .rule { margin: 3px 0 3px 14px; padding: 4px 7px; border-radius: 6px; border:1px dashed #34beed; color:#2a8fb3; cursor:grab; font-size:12px; }
+  .ad { background:#fff6e6; border-color:#f3cf8a; }
+  .top { display:flex; gap:8px; align-items:center; padding: 8px 10px; border-bottom:1px solid #d6dbe0; background:#f1f4f7; flex-wrap: wrap; }
+  .pill { border:1px solid #c9cfd5; border-radius:999px; padding: 3px 10px; background:#fff; font-size:12px; }
+  .pill.on { background:#34beed; color:#fff; border-color:#34beed; }
+  .tl { position:relative; display:grid; grid-template-columns: 52px 1fr; }
+  .hours div { height: 120px; border-top:1px solid #e6e9ed; font-size: 11px; color:#99a; padding-left:6px; box-sizing:border-box; }
+  .track { position:relative; border-left:1px solid #e6e9ed; background: repeating-linear-gradient(180deg, transparent 0 59px, #f2f4f6 59px 60px); }
+  .blk { position:absolute; left: 8px; right: 8px; border-radius: 7px; padding: 4px 8px; box-sizing:border-box; font-size: 12px; overflow:hidden; border:1px solid; }
+  .blk b { display:block; } .blk small { color:#778; }
+  .show { background:#eefaff; border-color:#7fd0ef; }
+  .adb { background:#fff6e6; border-color:#f3cf8a; }
+  .rand { background: repeating-linear-gradient(45deg,#f4fbff 0 8px,#e8f6fd 8px 16px); border:1px dashed #34beed; color:#2a8fb3; }
+  .over { background:#ffecec; border-color:#f19a9a; }
+  .warn { position:absolute; right: 14px; font-size: 11px; color:#c44; font-weight:600; }
+  .slotline { position:absolute; left:0; right:0; border-top:2px solid #34beed; }
+  .slotline span { position:absolute; right: 6px; top:-18px; font-size: 11px; color:#34beed; font-weight:700; }
+  .cap { color:#888; font-size: 13px; margin-top: 10px; }
+</style>
+
+<h2>Schedule editor (rough layout)</h2>
+<p class="subtitle">A simple editor on your Mac. The library on the left is read from the drive. Drag episodes, random picks or ads onto the timeline, and each block's height matches its real length. Scale here: 1 hour = 120 px.</p>
+
+<div class="ed">
+  <div class="pane">
+    <h4>Library · Cartoon Network</h4>
+    <div class="lib">
+      <details open><summary>Gumball</summary>
+        <div class="ep"><span>S01E01 The DVD</span><span>11:05</span></div>
+        <div class="ep"><span>S01E02 The Responsible</span><span>11:12</span></div>
+        <div class="ep"><span>S01E03 The Third</span><span>10:58</span></div>
+        <div class="rule">🎲 random episode</div>
+        <div class="rule">🎲 random sequential run</div>
+      </details>
+      <details open><summary>Adventure Time</summary>
+        <div class="ep"><span>S05E01 Finn the Human</span><span>11:20</span></div>
+        <div class="rule">🎲 random · season 5</div>
+      </details>
+      <details><summary>Ben 10</summary></details>
+      <details open><summary>Ads</summary>
+        <div class="ep ad"><span>soda-commercial</span><span>0:30</span></div>
+        <div class="rule ad">🎲 random ad</div>
+      </details>
+    </div>
+  </div>
+
+  <div class="pane">
+    <div class="top">
+      <span class="pill on">CH1 Cartoon Network</span><span class="pill">CH2 MTV</span>
+      <span style="flex:1"></span>
+      <span class="pill on">Timed</span><span class="pill">Looping</span>
+    </div>
+    <div class="tl">
+      <div class="hours"><div>19:00</div><div>20:00</div><div>21:00</div></div>
+      <div class="track">
+        <div class="slotline" style="top:0"><span>slot 19:00</span></div>
+        <div class="blk show" style="top:2px;height:22px"><b>Adventure Time S05E01 · Finn the Human</b></div>
+        <div class="blk adb" style="top:25px;height:6px"></div>
+        <div class="blk rand" style="top:32px;height:22px"><b>🎲 Adventure Time · random S5</b></div>
+        <div class="blk adb" style="top:55px;height:6px"></div>
+        <div class="blk show" style="top:62px;height:22px"><b>Gumball S01E01 · The DVD</b></div>
+        <div class="blk show" style="top:85px;height:22px"><b>Gumball S01E02 · The Responsible</b></div>
+        <div class="blk adb" style="top:108px;height:10px"><small>ads fill to 20:00</small></div>
+        <div class="slotline" style="top:120px"><span>slot 20:00</span></div>
+        <div class="blk rand" style="top:122px;height:66px"><b>🎲 Gumball · random sequential run ×3</b><small>about 33 min</small></div>
+        <div class="blk over" style="top:189px;height:70px"><b>Ben 10 · movie</b><small>1:10:00 · runs into the 21:00 slot</small></div>
+        <span class="warn" style="top:240px">⚠ 19 min overlap</span>
+        <div class="slotline" style="top:240px"><span>slot 21:00</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="cap">Random blocks are striped, with their height based on a typical episode length. Ads are orange. Red marks a block that runs into the next slot.</p>

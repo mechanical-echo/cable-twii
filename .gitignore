@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+*.dol
+*.elf
+.superpowers/
+.DS_Store
+._*
+samples/out/
