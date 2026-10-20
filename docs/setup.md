@@ -12,6 +12,8 @@ brew install ffmpeg node@22
 brew install --cask dolphin
 ```
 
+The default ffmpeg build has no `drawtext` filter, and the project does not need it.
+
 `node@22` is keg-only, so it is not on your PATH until you add it (see Environment).
 
 ## devkitPro
@@ -40,13 +42,19 @@ GRRLIB is built from source.
 git clone https://github.com/GRRLIB/GRRLIB.git ~/src/GRRLIB
 ```
 
-Its install target writes into `/opt/devkitpro/portlibs/ppc`, which is owned by root:
+Build as your normal user:
 
 ```bash
-sudo -E make -C ~/src/GRRLIB/GRRLIB clean all install
+make -C ~/src/GRRLIB/GRRLIB clean all
 ```
 
-`sudo -E` keeps `DEVKITPRO` and `DEVKITPPC` from your shell. This installs `libgrrlib.a` and `libpngu.a` into `/opt/devkitpro/portlibs/ppc/lib` (not `portlibs/wii/lib`), and the headers into `/opt/devkitpro/portlibs/ppc/include`.
+The install writes into root-owned `/opt/devkitpro/portlibs`, so run only the install under sudo:
+
+```bash
+sudo -E make -C ~/src/GRRLIB/GRRLIB install
+```
+
+`sudo -E` keeps `DEVKITPRO` and `DEVKITPPC` from your shell. `libgrrlib.a` and the GRRLIB headers go to `/opt/devkitpro/portlibs/wii/{lib,include}`. `libpngu.a` and `pngu.h` go to `/opt/devkitpro/portlibs/ppc/{lib,include}`.
 
 ## Environment
 
@@ -61,7 +69,7 @@ export DEVKITPPC=$DEVKITPRO/devkitPPC
 ```
 
 ```bash
-export PATH=$DEVKITPRO/tools/bin:$DEVKITPPC/bin:/opt/homebrew/opt/node@22/bin:$PATH
+export PATH="$DEVKITPRO/tools/bin:$DEVKITPPC/bin:/opt/homebrew/opt/node@22/bin:$PATH"
 ```
 
 ## Dolphin
@@ -75,7 +83,7 @@ You need a Wii that has:
 - Homebrew Channel installed
 - Wi-Fi set up and connected
 
-Find the Wii's IP address (in the Homebrew Channel, press the home button, or check your router). Then set it in your shell, and add it to `~/.zprofile` if the IP is fixed:
+Find the Wii's IP address in Wii Settings → Internet → Console Information, or in the Homebrew Channel's network status. Then set it in your shell, and add it to `~/.zprofile` if the IP is fixed:
 
 ```bash
 export WIILOAD=tcp:<wii-ip>
@@ -86,7 +94,19 @@ Open the Homebrew Channel on the Wii before sending a build. `wiiload app.dol` t
 ## Verify
 
 ```bash
-powerpc-eabi-gcc --version | head -1; wiiload 2>&1 | head -1; ffmpeg -version | head -1; node --version
+powerpc-eabi-gcc --version | head -1
+```
+
+```bash
+wiiload 2>&1 | head -1
+```
+
+```bash
+ffmpeg -version | head -1
+```
+
+```bash
+node --version
 ```
 
 Expected: four lines, with node showing `v22.x`. With `WIILOAD` unset, `wiiload` prints a hint to set it, which is fine.
