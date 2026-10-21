@@ -2,10 +2,11 @@ import sharp from "sharp";
 import { atomicWriteContained } from "./contain.js";
 
 const ICON_SIZE = 128;
+const RASTER_FORMATS = new Set(["png", "jpeg", "webp", "gif", "tiff", "heif"]);
 
 export class NotImageError extends Error {
   constructor() {
-    super("That file is not an image. Use a PNG, JPEG, GIF, WebP or SVG file.");
+    super("That file is not an image. Use a PNG, JPEG, GIF, WebP, TIFF, HEIF or AVIF file.");
     this.name = "NotImageError";
   }
 }
@@ -14,7 +15,7 @@ export async function makeIcon(root: string, input: Buffer, dst: string): Promis
   let png: Buffer;
   try {
     const meta = await sharp(input).metadata();
-    if (!meta.format || !meta.width || !meta.height) throw new NotImageError();
+    if (!meta.format || !RASTER_FORMATS.has(meta.format) || !meta.width || !meta.height) throw new NotImageError();
     png = await sharp(input)
       .resize(ICON_SIZE, ICON_SIZE, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()

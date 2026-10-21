@@ -239,7 +239,7 @@ export function ChannelsPage() {
             )}
             <label className="desc">
               Icon (saved right away as {draftFolder(draft) || "<folder>"}/channel.png)
-              <input type="file" accept="image/*" disabled={busy} onChange={(e) => void chooseIcon(e.target.files?.[0])} />
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/tiff,image/heif,image/avif" disabled={busy} onChange={(e) => void chooseIcon(e.target.files?.[0])} />
             </label>
           </div>
           {iconError !== null && <div className="banner error">{iconError}</div>}

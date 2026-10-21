@@ -106,7 +106,7 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
         </label>
         <label>
           Show icon
-          <input type="file" accept="image/*" onChange={(e) => setIcon(e.target.files?.[0] ?? null)} />
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/tiff,image/heif,image/avif" onChange={(e) => setIcon(e.target.files?.[0] ?? null)} />
         </label>
       </div>
       <p className="muted">{dir}</p>
