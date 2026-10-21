@@ -13,6 +13,7 @@
 #include "ui/cursor.h"
 #include "ui/sfx.h"
 #include "screens/error.h"
+#include "media/player.h"
 
 static app g_app;
 
@@ -124,8 +125,22 @@ int main(int argc, char **argv)
                 in_rumble_pulse(30);
             }
             was_hot = hot;
-            logo_placeholder_draw(&g_app);
-            ui_pill(pill_x, pill_y, pill_w, pill_h, g_app.root[0] != '\0' ? g_app.root : "no root", hot);
+
+            if (in_pressed(WPAD_BUTTON_A)) pl_open("sd:/test.mpg", 0);
+            if (in_pressed(WPAD_BUTTON_1)) pl_open("sd:/test.mpg", 5000);
+            if (in_pressed(WPAD_BUTTON_B)) pl_close();
+            if (in_pressed(WPAD_BUTTON_PLUS)) pl_set_volume(100);
+            if (in_pressed(WPAD_BUTTON_MINUS)) pl_set_volume(30);
+
+            if (pl_status() != PL_IDLE) {
+                pl_draw(120, 60, 400, 225, 1.0f);
+                char buf[32];
+                snprintf(buf, sizeof buf, "%u ms", (unsigned)pl_position_ms());
+                ui_text(FONT_BODY, 16, 120, 300, buf, THEME_TEXT_PRIMARY, ALIGN_LEFT);
+            } else {
+                logo_placeholder_draw(&g_app);
+                ui_pill(pill_x, pill_y, pill_w, pill_h, g_app.root[0] != '\0' ? g_app.root : "no root", hot);
+            }
             break;
         }
         }
