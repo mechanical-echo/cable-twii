@@ -3,20 +3,27 @@
 #include <string.h>
 #include "internal.h"
 
-static void join_path(char *out, size_t n, const char *root, const char *name)
+#define CTW_DB_MAX_FILE_BYTES (16u * 1024u * 1024u)
+#define CTW_DB_PATH_MAX 1024u
+
+typedef enum { READ_OK, READ_MISSING, READ_ERROR, READ_TOO_LARGE, READ_NUL } read_result;
+
+static int join_path(char *out, size_t n, const char *root, const char *name)
 {
     size_t len = strlen(root);
     const char *sep = (len > 0 && root[len - 1] == '/') ? "" : "/";
-    snprintf(out, n, "%s%s%s", root, sep, name);
+    int w = snprintf(out, n, "%s%s%s", root, sep, name);
+    return (w < 0 || (size_t)w >= n) ? -1 : 0;
 }
 
-static int read_all(const char *path, char **text)
+static read_result read_all(const char *path, char **text)
 {
     FILE *f = fopen(path, "rb");
     size_t cap = 4096;
     size_t len = 0;
     char *buf;
-    if (!f) return 1;
+    read_result rr = READ_OK;
+    if (!f) return READ_MISSING;
     buf = malloc(cap);
     while (buf) {
         size_t got;
@@ -25,6 +32,7 @@ static int read_all(const char *path, char **text)
             if (!grown) {
                 free(buf);
                 buf = NULL;
+                rr = READ_ERROR;
                 break;
             }
             buf = grown;
@@ -32,36 +40,64 @@ static int read_all(const char *path, char **text)
         }
         got = fread(buf + len, 1, cap - len - 1, f);
         len += got;
+        if (len > CTW_DB_MAX_FILE_BYTES) {
+            free(buf);
+            buf = NULL;
+            rr = READ_TOO_LARGE;
+            break;
+        }
         if (got == 0) {
             if (ferror(f)) {
                 free(buf);
                 buf = NULL;
+                rr = READ_ERROR;
             }
             break;
         }
     }
     fclose(f);
-    if (!buf) return -1;
+    if (!buf) return rr == READ_OK ? READ_ERROR : rr;
     buf[len] = '\0';
+    if (strlen(buf) != len) {
+        free(buf);
+        return READ_NUL;
+    }
     *text = buf;
-    return 0;
+    return READ_OK;
 }
 
 static int load_file(const char *root, const char *name, const char *label, char **text,
                      ctw_issues *issues)
 {
-    char path[1024];
-    int rc;
-    join_path(path, sizeof path, root, name);
-    rc = read_all(path, text);
-    if (rc == 1) {
+    char path[CTW_DB_PATH_MAX];
+    read_result rr;
+    if (join_path(path, sizeof path, root, name)) {
+        ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, label,
+                       "path too long: %s", name);
+        return -1;
+    }
+    rr = read_all(path, text);
+    switch (rr) {
+    case READ_OK:
+        return 0;
+    case READ_MISSING:
         ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, label,
                        "%s not found", name);
-    } else if (rc < 0) {
+        break;
+    case READ_TOO_LARGE:
+        ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, label,
+                       "%s is too large", name);
+        break;
+    case READ_NUL:
+        ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, label,
+                       "%s contains a NUL byte", name);
+        break;
+    default:
         ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, label,
                        "cannot read %s", name);
+        break;
     }
-    return rc;
+    return -1;
 }
 
 int ctw_db_load(const char *root, ctw_db **out, ctw_issues *issues)
@@ -88,9 +124,13 @@ int ctw_db_load(const char *root, ctw_db **out, ctw_issues *issues)
 
 static int check_one(const char *root, const char *rel, ctw_issues *issues)
 {
-    char path[1024];
+    char path[CTW_DB_PATH_MAX];
     FILE *f;
-    join_path(path, sizeof path, root, rel);
+    if (join_path(path, sizeof path, root, rel)) {
+        ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_MISSING_FILE, -1, -1, -1, 0, "library",
+                       "path too long: %s", rel);
+        return -1;
+    }
     f = fopen(path, "rb");
     if (f) {
         fclose(f);
