@@ -146,5 +146,8 @@ void ctw_issues_free(ctw_issues *l);
 int ctw_lineup_build(const ctw_db *db, const ctw_channel *ch, ctw_date day, ctw_lineup *out);
 void ctw_lineup_free(ctw_lineup *l);
 uint64_t ctw_lineup_hash(const ctw_lineup *l);
+const ctw_airing *ctw_lineup_at(const ctw_lineup *today, const ctw_lineup *yesterday,
+                                uint32_t ms_of_day, uint32_t *offset_ms);
+const ctw_airing *ctw_lineup_next(const ctw_lineup *l, const ctw_airing *a);
 
 #endif

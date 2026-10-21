@@ -369,15 +369,7 @@ SUITE(pool_suite)
 
 static const ctw_date tl_day = {2026, 10, 20};
 
-static int build_day(const char *cfg, ctw_date day, ctw_lineup *l)
-{
-    ctw_db *db = load_config(cfg);
-    int rc;
-    if (!db) return -99;
-    rc = ctw_lineup_build(db, ctw_db_channel(db, 1), day, l);
-    ctw_db_free(db);
-    return rc;
-}
+#define build_day(cfg, day, l) build_lineup(cfg, 1, day, l)
 
 static ctw_db *build_keep(const char *cfg, ctw_date day, ctw_lineup *l)
 {

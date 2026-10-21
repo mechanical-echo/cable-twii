@@ -155,3 +155,47 @@ uint64_t ctw_lineup_hash(const ctw_lineup *l)
     }
     return h;
 }
+
+static const ctw_airing *find_airing(const ctw_lineup *l, int64_t t)
+{
+    size_t lo = 0;
+    size_t hi;
+    if (!l || !l->items) return NULL;
+    hi = l->count;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2u;
+        const ctw_airing *a = &l->items[mid];
+        if (t < a->start_ms) {
+            hi = mid;
+        } else if (t >= a->start_ms + (int64_t)a->duration_ms) {
+            lo = mid + 1u;
+        } else {
+            return a;
+        }
+    }
+    return NULL;
+}
+
+const ctw_airing *ctw_lineup_at(const ctw_lineup *today, const ctw_lineup *yesterday,
+                                uint32_t ms_of_day, uint32_t *offset_ms)
+{
+    const ctw_airing *a;
+    int64_t t = (int64_t)ms_of_day;
+    if (offset_ms) *offset_ms = 0u;
+    if (!today || ms_of_day >= CTW_DAY_MS) return NULL;
+    a = find_airing(today, t);
+    if (!a) {
+        t += (int64_t)CTW_DAY_MS;
+        a = find_airing(yesterday, t);
+    }
+    if (a && offset_ms) *offset_ms = (uint32_t)(t - a->start_ms);
+    return a;
+}
+
+const ctw_airing *ctw_lineup_next(const ctw_lineup *l, const ctw_airing *a)
+{
+    if (!l || !l->items || !a) return NULL;
+    if (a < l->items || a >= l->items + l->count) return NULL;
+    if (a + 1 >= l->items + l->count) return NULL;
+    return a + 1;
+}

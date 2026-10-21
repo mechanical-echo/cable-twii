@@ -55,6 +55,16 @@ ctw_db *load_config(const char *cfg)
     return db;
 }
 
+int build_lineup(const char *cfg, int channel, ctw_date day, ctw_lineup *l)
+{
+    ctw_db *db = load_config(cfg);
+    int rc;
+    if (!db) return -99;
+    rc = ctw_lineup_build(db, ctw_db_channel(db, channel), day, l);
+    ctw_db_free(db);
+    return rc;
+}
+
 enum greatest_test_res assert_contiguous(const ctw_lineup *l, int64_t from, int64_t to)
 {
     ASSERT(l->count > 0);

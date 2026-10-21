@@ -20,15 +20,7 @@
 
 static const ctw_date lp_day = {2026, 10, 20};
 
-static int build_loop(const char *cfg, ctw_date day, ctw_lineup *l)
-{
-    ctw_db *db = load_config(cfg);
-    int rc;
-    if (!db) return -99;
-    rc = ctw_lineup_build(db, ctw_db_channel(db, 2), day, l);
-    ctw_db_free(db);
-    return rc;
-}
+#define build_loop(cfg, day, l) build_lineup(cfg, 2, day, l)
 
 TEST loop_covers_day(void)
 {
