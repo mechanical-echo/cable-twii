@@ -4,6 +4,8 @@
 #include <string.h>
 #include "internal.h"
 
+#define CTW_TOML_MAX_DEPTH 64
+
 void ctw_pctx_init(ctw_pctx *pc, ctw_db *db, ctw_issues *issues, const char *file,
                    ctw_code type_code)
 {
@@ -117,12 +119,78 @@ static int parse_error_line(const char *errbuf)
     return 0;
 }
 
+static const char *skip_string(const char *p, char quote)
+{
+    while (*p != '\0' && *p != '\n') {
+        if (quote == '"' && *p == '\\' && p[1] != '\0' && p[1] != '\n') {
+            p += 2;
+            continue;
+        }
+        if (*p == quote) return p + 1;
+        p++;
+    }
+    return p;
+}
+
+static const char *skip_multiline(const char *p, char quote, int *line)
+{
+    while (*p != '\0') {
+        if (quote == '"' && *p == '\\' && p[1] != '\0') {
+            if (p[1] == '\n') (*line)++;
+            p += 2;
+            continue;
+        }
+        if (p[0] == quote && p[1] == quote && p[2] == quote) {
+            p += 3;
+            if (*p == quote) p++;
+            if (*p == quote) p++;
+            return p;
+        }
+        if (*p == '\n') (*line)++;
+        p++;
+    }
+    return p;
+}
+
+static int nesting_too_deep(const char *p, int *out_line)
+{
+    int depth = 0;
+    int line = 1;
+    while (*p != '\0') {
+        char c = *p;
+        if (c == '\n') {
+            line++;
+            p++;
+        } else if (c == '#') {
+            while (*p != '\0' && *p != '\n') p++;
+        } else if (c == '"' || c == '\'') {
+            if (p[1] == c && p[2] == c) p = skip_multiline(p + 3, c, &line);
+            else p = skip_string(p + 1, c);
+        } else if (c == '[' || c == '{') {
+            if (++depth > CTW_TOML_MAX_DEPTH) {
+                *out_line = line;
+                return 1;
+            }
+            p++;
+        } else {
+            if ((c == ']' || c == '}') && depth > 0) depth--;
+            p++;
+        }
+    }
+    return 0;
+}
+
 toml_table_t *ctw_toml_open(ctw_pctx *pc, const char *text)
 {
     char errbuf[200];
     char *copy;
     toml_table_t *root;
+    int line = 0;
     if (strncmp(text, "\xEF\xBB\xBF", 3) == 0) text += 3;
+    if (nesting_too_deep(text, &line)) {
+        ctw_pctx_error(pc, CTW_E_PARSE, line, "nesting too deep");
+        return NULL;
+    }
     copy = malloc(strlen(text) + 1);
     if (!copy) {
         ctw_pctx_oom(pc);

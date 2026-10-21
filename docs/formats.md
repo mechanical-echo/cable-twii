@@ -9,6 +9,7 @@ Sources: design spec sections 5, 6.5, 6.7 and 8.1a; engine plan 01 Task 9 and th
 - **Versioning.** Everything is `version = 1`. Any change to any format bumps `version` and updates the engine and Studio in the same commit.
 - **Encoding.** UTF-8. The engine accepts an optional UTF-8 BOM at the start and CRLF (`\r\n`) line endings, and treats them exactly like a clean file. Studio writes no BOM and uses LF.
 - **Syntax.** TOML. Parsed with `tomlc99` in the engine and `smol-toml` in Studio.
+- **Nesting.** Brackets `[` and braces `{` outside strings and comments may nest at most 64 deep (a table header such as `[[channel.slot]]` counts only while it is open). Deeper input is `parse` with the message `nesting too deep` and `line` set to the line where the limit was passed; the file is not parsed further. This keeps the parser's recursion small enough for the Wii's stack.
 - **Paths** are relative to the `/cable-twii/` root and use `/` as the separator, on every platform. Never a leading `/`, never `..`.
 - **Names** (show, folder, channel) are matched byte for byte, including accents (`Pokémon`).
 - **Time** is written `HH:MM`, 24-hour, two digits each, from `00:00` to `23:59`. `24:00`, `7:00` and `07:00:00` are all `bad_time`.
