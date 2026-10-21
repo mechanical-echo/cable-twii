@@ -270,12 +270,70 @@ test("serializeLibrary emits the frozen shape", () => {
   expect(text).toContain("[[ad]]");
   expect(text).toContain("[[show.episode]]");
   expect(text).toContain("duration_ms = 665120");
-  expect(/\.\d/.test(text.replace(/\d+\.mpg|\w\.mpg/g, ""))).toBe(false);
+  expect(text).not.toMatch(/duration_ms = \d+\.\d/);
+  expect(text).not.toMatch(/(season|episode) = \d+\.\d/);
   expect(/ +\n/.test(text)).toBe(false);
   const doc = parse(text) as { show: { channel: string; name: string; episode: { description: string }[] }[] };
   expect(doc.show[0]!.channel).toBe("Cartoon \"Net\"");
   expect(doc.show[0]!.name).toBe("The Gumball\\Show");
   expect(doc.show[0]!.episode[0]!.description).toBe("Line\nbreak");
+});
+
+test("duplicate episode in one folder keeps first", async () => {
+  await put("ch/Show/Season 1/S01E01 - A.mpg");
+  await put("ch/Show/Season 1/S01E01 - B.mpg");
+  await put("ch/Show/Season 1/S01E02 - C.mpg");
+  const { library, skipped } = await buildLibrary(root, [], fakeProbe());
+  expect(library.show[0]!.episode.map((e) => e.title)).toEqual(["A", "C"]);
+  expect(skipped).toEqual([
+    { path: "ch/Show/Season 1/S01E01 - B.mpg", reason: "duplicate S01E01 (kept ch/Show/Season 1/S01E01 - A.mpg)" },
+  ]);
+});
+
+test("duplicate episode across Season 1 and season 01", async () => {
+  await put("ch/Show/Season 1/S01E01 - A.mpg");
+  await put("ch/Show/season 01/S01E01 - B.mpg");
+  await put("ch/Show/season 01/S01E02 - C.mpg");
+  const { library, skipped } = await buildLibrary(root, [], fakeProbe());
+  const eps = library.show[0]!.episode;
+  expect(eps.map((e) => [e.season, e.episode])).toEqual([[1, 1], [1, 2]]);
+  expect(skipped).toHaveLength(1);
+  expect(skipped[0]!.reason).toMatch(/^duplicate S01E01 \(kept ch\/Show\/(Season 1|season 01)\/S01E01 - [AB]\.mpg\)$/);
+});
+
+test("Season 0 folder files skipped with reason", async () => {
+  await put("ch/Show/Season 1/S01E01 - A.mpg");
+  await put("ch/Show/Season 0/Special.mpg");
+  const { library, skipped } = await buildLibrary(root, [], fakeProbe());
+  expect(library.show[0]!.episode.map((e) => e.path)).toEqual(["ch/Show/Season 1/S01E01 - A.mpg"]);
+  expect(skipped).toEqual([
+    {
+      path: "ch/Show/Season 0/Special.mpg",
+      reason: "Season 0 folder is not supported; put these files directly in the show folder",
+    },
+  ]);
+});
+
+test("serializeLibrary escapes control characters and emoji", async () => {
+  await put("ch/Show/Season 1/S01E01 - A.mpg");
+  const { library } = await buildLibrary(root, [], fakeProbe(60000));
+  library.show[0]!.episode[0]!.title = "Tab\there \u0001 \u{1F600} \ud800 end";
+  library.show[0]!.name = "Del\u007f";
+  const text = serializeLibrary(library);
+  expect(text).toContain("\\u0009");
+  expect(text).toContain("\\u0001");
+  expect(text).toContain("\\uFFFD");
+  expect(text).toContain("\u{1F600}");
+  const doc = parse(text) as { show: { name: string; episode: { title: string }[] }[] };
+  expect(doc.show[0]!.episode[0]!.title).toBe("Tab\there \u0001 \u{1F600} \uFFFD end");
+  expect(doc.show[0]!.name).toBe("Del\u007f");
+  await writeLibrary(root, library);
+  await writeFile(
+    path.join(root, "config.toml"),
+    'version = 1\nseed = 1\n\n[[channel]]\nnumber = 1\nname = "C"\ncategory = "K"\nfolder = "ch"\nads = false\nmode = "looping"\nloop = [ { type = "random-run", show = "Show", count = 1 } ]\n',
+  );
+  const validated = await run(SCHED, ["validate", root]);
+  expect((JSON.parse(validated.stdout) as { ok: boolean }).ok).toBe(true);
 });
 
 test("library round trip through engine", async () => {
@@ -304,7 +362,7 @@ test("library round trip through engine", async () => {
     await run("make", ["-C", path.resolve(import.meta.dirname, "../../engine"), "cli"]);
   }
   const validated = await run(SCHED, ["validate", root]);
-  expect(validated.stdout).toBeDefined();
+  expect((JSON.parse(validated.stdout) as { ok: boolean }).ok).toBe(true);
   const lineup = await run(SCHED, ["lineup", root, "--channel", "1", "--date", "2026-10-20"]);
   const result = JSON.parse(lineup.stdout) as { airings: { start_ms: number; duration_ms: number }[] };
   expect(result.airings.length).toBeGreaterThan(0);

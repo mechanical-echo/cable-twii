@@ -198,17 +198,39 @@ async function scanShow(scan: Scan, root: string, channel: string, folder: strin
   const showDir = path.join(root, channel, folder);
   const { dirs, files } = await listEntries(showDir);
   const meta = await readShowMeta(showDir);
-  const seasons = dirs
+  const matched = dirs
     .map((dir) => ({ dir, match: SEASON_DIR.exec(dir) }))
     .filter((s): s is { dir: string; match: RegExpExecArray } => s.match !== null)
     .map((s) => ({ dir: s.dir, season: Number(s.match[1]) }))
-    .filter((s) => s.season >= 1)
     .sort((a, b) => a.season - b.season || natural(a.dir, b.dir));
-  const episodes: LibEpisode[] = [];
-  for (const s of seasons) {
-    episodes.push(...(await scanSeason(scan, root, showRel, s.dir, s.season, meta.episodes)));
+  const seasons = matched.filter((s) => s.season >= 1);
+  for (const zero of matched.filter((s) => s.season < 1)) {
+    const inner = await listEntries(path.join(showDir, zero.dir));
+    for (const file of mpgFiles(inner.files)) {
+      scan.skipped.push({
+        path: posix(showRel, zero.dir, file),
+        reason: "Season 0 folder is not supported; put these files directly in the show folder",
+      });
+    }
   }
-  episodes.push(...(await scanSeasonless(scan, root, showRel, files, meta.episodes)));
+  const found: LibEpisode[] = [];
+  for (const s of seasons) {
+    found.push(...(await scanSeason(scan, root, showRel, s.dir, s.season, meta.episodes)));
+  }
+  found.push(...(await scanSeasonless(scan, root, showRel, files, meta.episodes)));
+  const kept = new Map<string, LibEpisode>();
+  const episodes: LibEpisode[] = [];
+  for (const ep of found) {
+    const id = `${ep.season}:${ep.episode}`;
+    const first = kept.get(id);
+    if (first) {
+      const code = `S${String(ep.season).padStart(2, "0")}E${String(ep.episode).padStart(2, "0")}`;
+      scan.skipped.push({ path: ep.path, reason: `duplicate ${code} (kept ${first.path})` });
+      continue;
+    }
+    kept.set(id, ep);
+    episodes.push(ep);
+  }
   if (seasons.length === 0 && mpgFiles(files).length === 0) return null;
   episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
   const icon = (await exists(path.join(showDir, ICON_FILE))) ? posix(channel, folder, ICON_FILE) : "";
@@ -250,7 +272,25 @@ export async function buildLibrary(
 }
 
 function str(value: string): string {
-  return JSON.stringify(value);
+  let out = '"';
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length && value.charCodeAt(i + 1) >= 0xdc00 && value.charCodeAt(i + 1) <= 0xdfff) {
+      out += value[i]! + value[i + 1]!;
+      i++;
+    } else if (code >= 0xd800 && code <= 0xdfff) {
+      out += "\\uFFFD";
+    } else if (code === 0x22) {
+      out += '\\"';
+    } else if (code === 0x5c) {
+      out += "\\\\";
+    } else if (code < 0x20 || code === 0x7f) {
+      out += `\\u${code.toString(16).toUpperCase().padStart(4, "0")}`;
+    } else {
+      out += value[i]!;
+    }
+  }
+  return `${out}"`;
 }
 
 function two(value: number): string {

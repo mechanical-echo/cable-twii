@@ -114,12 +114,13 @@ test("rejects target outside root", () => {
   expect(q.list()).toEqual([]);
 });
 
-test("duplicate enqueue returns existing job", () => {
+test("duplicate enqueue returns existing job", async () => {
   const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
   const first = q.enqueue(srcFile, "a.mpg", "4:3");
   const second = q.enqueue(srcFile, "a.mpg", "4:3");
   expect(second.id).toBe(first.id);
   expect(q.list()).toHaveLength(1);
+  await q.stop();
 });
 
 test("stop requeues running jobs and persists them", async () => {
@@ -207,13 +208,14 @@ test.each(["a\\..\\..\\b.mpg", ".", "", ".studio/x.mpg", ".STUDIO/x.mpg", "Movie
   expect(() => q.enqueue(srcFile, target, "4:3")).toThrow();
 });
 
-test("targets are normalised and deduplicated", () => {
+test("targets are normalised and deduplicated", async () => {
   const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
   const a = q.enqueue(srcFile, "a.mpg", "4:3");
   expect(q.enqueue(srcFile, "./a.mpg", "4:3").id).toBe(a.id);
   expect(q.enqueue(srcFile, "x//a.mpg", "4:3").target).toBe("x/a.mpg");
   expect(q.enqueue(srcFile, "x\\a.mpg", "4:3").target).toBe("x/a.mpg");
   expect(q.list().map((j) => j.target)).toEqual(["a.mpg", "x/a.mpg"]);
+  await q.stop();
 });
 
 test("stop then start runs each job exactly once", async () => {
@@ -259,6 +261,7 @@ test("reload with duplicates gives no duplicates", async () => {
   );
   const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
   expect(q.list().map((j) => [j.id, j.target])).toEqual([["1", "a.mpg"], ["3", "c.mpg"]]);
+  await q.stop();
 });
 
 test("loaded invalid job is dropped with error", async () => {
