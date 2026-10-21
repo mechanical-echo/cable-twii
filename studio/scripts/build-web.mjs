@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const studio = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-if (!existsSync(path.join(studio, "index.html"))) {
+if (!existsSync(path.join(studio, "src", "web", "index.html"))) {
   console.log("No web UI entry yet, starting the server only.");
   process.exit(0);
 }

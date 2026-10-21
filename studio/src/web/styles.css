@@ -1,0 +1,327 @@
+:root {
+  --wii: #34beed;
+  --wii-dark: #2a8fb3;
+  --border: #d6dbe0;
+  --bg: #f1f4f7;
+  --text: #333;
+  --muted: #889;
+  --error: #c44;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  min-height: 100vh;
+}
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  background: #fff;
+  border-right: 1px solid var(--border);
+}
+
+.tabs h1 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--wii-dark);
+}
+
+.tab {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.tab.active {
+  background: var(--wii);
+  color: #fff;
+  font-weight: 600;
+}
+
+.content {
+  padding: 20px 28px;
+  max-width: 980px;
+}
+
+h2 {
+  margin: 0 0 12px;
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+h4 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.row.end {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+button {
+  font: inherit;
+  border: 1px solid #c9cfd5;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--wii);
+  border-color: var(--wii);
+  color: #fff;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+select {
+  font: inherit;
+  border: 1px solid #c9cfd5;
+  border-radius: 6px;
+  padding: 5px 8px;
+  min-width: 0;
+}
+
+input.num {
+  width: 56px;
+}
+
+.banner {
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 10px 0;
+  border: 1px solid;
+}
+
+.banner.error {
+  background: #ffecec;
+  border-color: #f19a9a;
+  color: #a33;
+}
+
+.banner.ok {
+  background: #eaf8ee;
+  border-color: #9bd6ac;
+  color: #276a3c;
+}
+
+.banner.warn {
+  background: #fff6e6;
+  border-color: #f3cf8a;
+  color: #7a5a14;
+}
+
+.banner ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 14px;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+ul.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.show > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.season {
+  margin-left: 14px;
+}
+
+.ep {
+  display: flex;
+  justify-content: space-between;
+  margin: 3px 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eefaff;
+  border: 1px solid #bfe6f6;
+  font-size: 13px;
+}
+
+.ep.ad {
+  background: #fff6e6;
+  border-color: #f3cf8a;
+}
+
+.job {
+  margin: 6px 0;
+}
+
+.job-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.job progress {
+  width: 100%;
+  height: 8px;
+}
+
+.state.done {
+  color: #276a3c;
+}
+
+.state.failed {
+  color: var(--error);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.dialog {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 18px;
+  width: min(900px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-grid {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.form-grid label,
+.desc {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.desc {
+  margin: 6px 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px;
+}
+
+td {
+  padding: 3px 4px;
+}
+
+td input:not([type="checkbox"]) {
+  width: 100%;
+}
+
+td input.num {
+  width: 56px;
+}
+
+.blocked {
+  opacity: 0.55;
+}

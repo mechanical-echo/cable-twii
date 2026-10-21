@@ -13,5 +13,6 @@
     "isolatedModules": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": ["src", "test", "vitest.config.ts", "vite.config.ts"],
+  "exclude": ["src/web"]
 }
