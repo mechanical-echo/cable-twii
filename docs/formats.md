@@ -52,7 +52,9 @@ Codes appear in the CLI JSON as lowercase names, from the engine's `ctw_code` na
 | `partial` | warning | A `random` or `random-run` item could not place all `count` episodes in the time that was left. |
 | `loop_empty` | warning | A looping channel placed nothing in a full pass (for example only `ads` items on a channel with `ads = false`). The day is one "Up next" card. |
 
-Each issue carries `channel` (channel number), `slot` and `item` (zero-based), `line`, the `file` (`config` or `library`) and a human message. When an issue is not tied to a channel, slot or item, those fields are `-1`. `line` is `0` when unknown.
+Each issue carries `channel` (channel number), `slot` and `item` (zero-based), `line`, the `file` (`config` or `library`) and a human message. When an issue is not tied to a channel, slot or item, those fields are `-1`. `line` is `0` when unknown. Slot indexes in issues refer to the slots sorted by `at`; Studio always writes slots sorted.
+
+A key with the wrong TOML type is `parse`; a value of the right type outside its allowed range is `bad_value`.
 
 ---
 

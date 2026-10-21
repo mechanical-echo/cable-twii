@@ -203,6 +203,20 @@ TEST library_duration_range(void)
     PASS();
 }
 
+TEST library_wrong_type_is_parse(void)
+{
+    ctw_issues is = {0};
+    ASSERT_EQ(-1, parse_episode("season = \"1\"\nepisode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ctw_issues_free(&is);
+    memset(&is, 0, sizeof is);
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\npath = 5\nduration_ms = 1", &is));
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ctw_issues_free(&is);
+    PASS();
+}
+
 TEST library_season_episode_range(void)
 {
     ctw_issues is = {0};
@@ -466,6 +480,7 @@ SUITE(library_suite)
     RUN_TEST(library_missing_duration);
     RUN_TEST(library_rejects_zero_duration);
     RUN_TEST(library_duration_range);
+    RUN_TEST(library_wrong_type_is_parse);
     RUN_TEST(library_season_episode_range);
     RUN_TEST(library_missing_required_fields);
     RUN_TEST(library_collects_all_errors);

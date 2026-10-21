@@ -248,6 +248,8 @@ TEST config_random_season_zero_is_all(void)
     SETUP();
     ASSERT_EQ(0, run_config(MTV_LOOP(
         "{ type = \"random\", show = \"Music Videos\", season = 0, count = 2 }"), &db, &is));
+    ASSERT_EQ(0, ctw_db_channel(db, 2)->loop[0].season);
+    ASSERT_EQ(2, ctw_db_channel(db, 2)->loop[0].count);
     TEARDOWN();
     PASS();
 }
@@ -294,9 +296,11 @@ TEST config_dup_slot(void)
 {
     SETUP();
     ASSERT_EQ(-1, run_config(HEAD CN_HEAD
+        "[[channel.slot]]\nat = \"19:00\"\nitems = [ { type = \"ads\" } ]\n"
         "[[channel.slot]]\nat = \"07:00\"\nitems = [ { type = \"ads\" } ]\n"
         "[[channel.slot]]\nat = \"07:00\"\nitems = [ { type = \"ads\" } ]\n", &db, &is));
-    ASSERT(has_code(&is, CTW_E_DUP_SLOT));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_DUP_SLOT, is.items[0].code);
     ASSERT_EQ(1, is.items[0].channel);
     ASSERT_EQ(1, is.items[0].slot);
     TEARDOWN();
@@ -315,6 +319,19 @@ TEST config_unknown_show(void)
     ASSERT_EQ(0, is.items[0].item);
     ASSERT_EQ(0, is.items[0].line);
     ASSERT_STR_EQ("config", is.items[0].file);
+    TEARDOWN();
+    PASS();
+}
+
+TEST config_slot_issues_use_sorted_index(void)
+{
+    SETUP();
+    ASSERT_EQ(-1, run_config(HEAD CN_HEAD
+        "[[channel.slot]]\nat = \"19:00\"\nitems = [ { type = \"random\", show = \"Nope\" } ]\n"
+        "[[channel.slot]]\nat = \"07:00\"\nitems = [ { type = \"ads\" } ]\n", &db, &is));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_UNKNOWN_SHOW, is.items[0].code);
+    ASSERT_EQ(1, is.items[0].slot);
     TEARDOWN();
     PASS();
 }
@@ -481,8 +498,8 @@ TEST config_item_ranges(void)
 {
     SETUP();
     ASSERT_EQ(-1, run_config(CN_ONE_SLOT(
-        "{ type = \"ads\", count = 0 }, { type = \"ads\", count = 51 }, "
-        "{ type = \"fill\", show = \"Gumball\", ads_between = 6 }, "
+        "{ type = \"ads\", count = 0 }, { type = \"ads\", count = 65536 }, "
+        "{ type = \"fill\", show = \"Gumball\", ads_between = 65536 }, "
         "{ type = \"random\", show = \"Gumball\", season = 65536 }, "
         "{ type = \"episode\", show = \"Gumball\", season = 1, episode = 0 }, "
         "{ type = \"episode\", show = \"Gumball\", season = 1, episode = 65536 }"), &db, &is));
@@ -496,10 +513,16 @@ TEST config_item_ranges(void)
 TEST config_item_range_edges(void)
 {
     SETUP();
+    const ctw_slot *s;
     ASSERT_EQ(0, run_config(CN_ONE_SLOT(
-        "{ type = \"ads\", count = 50 }, "
+        "{ type = \"ads\", count = 65535 }, "
         "{ type = \"random\", show = \"Gumball\", count = 1, season = 2 }, "
-        "{ type = \"fill\", show = \"Gumball\", ads_between = 5 }"), &db, &is));
+        "{ type = \"fill\", show = \"Gumball\", ads_between = 65535 }, "
+        "{ type = \"fill\", show = \"Gumball\", ads_between = 0 }"), &db, &is));
+    s = &ctw_db_channel(db, 1)->slots[0];
+    ASSERT_EQ(65535, s->items[0].count);
+    ASSERT_EQ(65535, s->items[2].ads_between);
+    ASSERT_EQ(0, s->items[3].ads_between);
     TEARDOWN();
     PASS();
 }
@@ -548,7 +571,7 @@ TEST config_missing_fields(void)
     SETUP();
     ASSERT_EQ(-1, run_config(HEAD "[[channel]]\n", &db, &is));
     ASSERT(has_code(&is, CTW_E_PARSE));
-    ASSERT(is.count >= 5);
+    ASSERT_EQ(5u, is.count);
     TEARDOWN();
     PASS();
 }
@@ -783,6 +806,7 @@ SUITE(config_suite)
     RUN_TEST(config_dup_channel);
     RUN_TEST(config_dup_slot);
     RUN_TEST(config_unknown_show);
+    RUN_TEST(config_slot_issues_use_sorted_index);
     RUN_TEST(config_unknown_show_in_loop_indexes);
     RUN_TEST(config_unknown_show_from);
     RUN_TEST(config_missing_episode);

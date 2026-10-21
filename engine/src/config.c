@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "internal.h"
 
@@ -93,7 +94,7 @@ static void parse_random_item(ctw_pctx *pc, const toml_table_t *t, const ctw_cha
     it->show = resolve_show(pc, t, ch, where, &name);
     bad = pc->bad;
     parse_optional_int(pc, t, "season", 0, 65535, 0, &it->season, where);
-    parse_optional_int(pc, t, "count", 1, 50, 1, &it->count, where);
+    parse_optional_int(pc, t, "count", 1, 65535, 1, &it->count, where);
     if (pc->bad == bad && it->show) check_pool(pc, it, where);
 }
 
@@ -105,7 +106,7 @@ static void parse_fill_item(ctw_pctx *pc, const toml_table_t *t, const ctw_chann
     it->show = resolve_show(pc, t, ch, where, &name);
     bad = pc->bad;
     parse_optional_int(pc, t, "season", 0, 65535, 0, &it->season, where);
-    parse_optional_int(pc, t, "ads_between", 0, 5, 0, &it->ads_between, where);
+    parse_optional_int(pc, t, "ads_between", 0, 65535, 0, &it->ads_between, where);
     if (pc->slot < 0)
         ctw_pctx_error(pc, CTW_E_FILL_IN_LOOP, 0, "%s: fill is not allowed in a looping channel",
                        where);
@@ -145,7 +146,7 @@ static void parse_item(ctw_pctx *pc, const toml_table_t *t, const ctw_channel *c
         parse_random_item(pc, t, ch, it, where);
     } else if (strcmp(type, "ads") == 0) {
         it->type = CTW_ITEM_ADS;
-        parse_optional_int(pc, t, "count", 1, 50, 1, &it->count, where);
+        parse_optional_int(pc, t, "count", 1, 65535, 1, &it->count, where);
     } else if (strcmp(type, "ad") == 0) {
         it->type = CTW_ITEM_AD;
         it->count = 0;
@@ -200,7 +201,7 @@ static void parse_slot(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, int
     const char *at;
     uint32_t at_ms = 0;
     int ok = 1;
-    int j;
+    size_t j;
     toml_array_t *items;
     ctw_slot slot;
     int bad = pc->bad;
@@ -212,7 +213,7 @@ static void parse_slot(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, int
         ctw_pctx_error(pc, CTW_E_BAD_TIME, 0, "%s: at must be HH:MM, got %s", where, at);
         ok = 0;
     } else {
-        for (j = 0; j < (int)*seen_count; j++) {
+        for (j = 0; j < *seen_count; j++) {
             if (seen[j] == at_ms) {
                 ctw_pctx_error(pc, CTW_E_DUP_SLOT, 0, "%s: another slot already starts at %s",
                                where, at);
@@ -236,14 +237,37 @@ static void parse_slot(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, int
     ch->slots[ch->slot_count++] = slot;
 }
 
-static void sort_slots(ctw_slot *s, size_t n)
+static uint64_t slot_key(const toml_table_t *t)
 {
-    size_t a, b;
-    for (a = 1; a < n; a++) {
-        ctw_slot cur = s[a];
-        for (b = a; b > 0 && cur.at_ms < s[b - 1].at_ms; b--) s[b] = s[b - 1];
-        s[b] = cur;
+    toml_datum_t d = toml_string_in(t, "at");
+    uint32_t ms;
+    uint64_t key = (uint64_t)UINT32_MAX + 1;
+    if (d.ok) {
+        if (ctw_parse_hhmm(d.u.s, &ms) == 0) key = ms;
+        free(d.u.s);
     }
+    return key;
+}
+
+static int *slot_order(ctw_pctx *pc, const toml_array_t *arr, int n)
+{
+    int *order = ctw_arena_alloc(&pc->db->arena, (size_t)n * sizeof *order);
+    uint64_t *keys = ctw_arena_alloc(&pc->db->arena, (size_t)n * sizeof *keys);
+    int a, b;
+    if (!order || !keys) {
+        ctw_pctx_oom(pc);
+        return NULL;
+    }
+    for (a = 0; a < n; a++) {
+        toml_table_t *t = toml_table_at(arr, a);
+        keys[a] = t ? slot_key(t) : (uint64_t)UINT32_MAX + 2;
+    }
+    for (a = 0; a < n; a++) {
+        int cur = a;
+        for (b = a; b > 0 && keys[cur] < keys[order[b - 1]]; b--) order[b] = order[b - 1];
+        order[b] = cur;
+    }
+    return order;
 }
 
 static void parse_timed(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, const char *where)
@@ -252,6 +276,7 @@ static void parse_timed(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, co
     int n, i;
     size_t seen_count = 0;
     uint32_t *seen;
+    int *order;
     if (toml_key_exists(t, "loop"))
         ctw_pctx_error(pc, CTW_E_BAD_VALUE, 0, "%s: loop is not allowed on a timed channel", where);
     arr = toml_array_in(t, "slot");
@@ -274,8 +299,10 @@ static void parse_timed(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, co
         ctw_pctx_oom(pc);
         return;
     }
+    order = slot_order(pc, arr, n);
+    if (!order) return;
     for (i = 0; i < n; i++) {
-        toml_table_t *st = toml_table_at(arr, i);
+        toml_table_t *st = toml_table_at(arr, order[i]);
         char swhere[80];
         pc->slot = i;
         if (!st) {
@@ -286,7 +313,6 @@ static void parse_timed(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, co
         parse_slot(pc, st, ch, i, seen, &seen_count);
     }
     pc->slot = -1;
-    sort_slots(ch->slots, ch->slot_count);
 }
 
 static void parse_looping(ctw_pctx *pc, const toml_table_t *t, ctw_channel *ch, const char *where)

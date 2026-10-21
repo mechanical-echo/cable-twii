@@ -101,10 +101,7 @@ static void parse_ads(ctw_pctx *pc, const toml_array_t *arr)
         if (ctw_get_str(pc, t, "path", 1, &ad.path, where)) failed = 1;
         if (ctw_get_str(pc, t, "channel", 1, &ad.channel_folder, where)) failed = 1;
         if (ctw_get_int(pc, t, "duration_ms", 1, 4294967295LL, &dur, where)) failed = 1;
-        if (failed) {
-            pc->bad = 1;
-            continue;
-        }
+        if (failed) continue;
         ad.duration_ms = (uint32_t)dur;
         ads[count++] = ad;
     }
@@ -139,10 +136,7 @@ static void parse_episodes(ctw_pctx *pc, ctw_show *show, const toml_array_t *arr
         if (ctw_get_str(pc, t, "title", 0, &ep.title, where)) failed = 1;
         if (ctw_get_str(pc, t, "description", 0, &ep.description, where)) failed = 1;
         if (ctw_get_int(pc, t, "duration_ms", 1, 4294967295LL, &dur, where)) failed = 1;
-        if (failed) {
-            pc->bad = 1;
-            continue;
-        }
+        if (failed) continue;
         ep.season = (uint16_t)season;
         ep.episode = (uint16_t)episode;
         ep.duration_ms = (uint32_t)dur;
@@ -200,10 +194,7 @@ static void parse_shows(ctw_pctx *pc, const toml_array_t *arr)
         } else {
             parse_episodes(pc, &s, eps, where);
         }
-        if (failed) {
-            pc->bad = 1;
-            continue;
-        }
+        if (failed) continue;
         shows[count++] = s;
     }
     pc->db->shows = shows;
@@ -215,7 +206,7 @@ int ctw_library_parse(ctw_db *db, const char *toml_text, ctw_issues *issues)
     toml_table_t *root;
     toml_array_t *arr;
     ctw_pctx pc;
-    ctw_pctx_init(&pc, db, issues, LIB_FILE, CTW_E_BAD_VALUE);
+    ctw_pctx_init(&pc, db, issues, LIB_FILE, CTW_E_PARSE);
     root = ctw_toml_open(&pc, toml_text);
     if (!root) return -1;
     ctw_check_version(&pc, root);
