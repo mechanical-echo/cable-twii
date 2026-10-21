@@ -8,7 +8,7 @@ endif
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -I../source -I../../engine/vendor -I../../engine/include
 BUILD = build
 
-SRC = ../source/ui/tween.c
+SRC = ../source/ui/tween.c ../source/ui/textfit.c
 TEST_SRC = $(wildcard *.c)
 
 .PHONY: test clean

@@ -14,6 +14,7 @@ void in_init(void)
 {
     WPAD_Init();
     WPAD_SetDataFormat(WPAD_CHAN_ALL, WPAD_FMT_BTNS_ACC_IR);
+    WPAD_SetVRes(WPAD_CHAN_ALL, 640, 480);
     WPAD_SetIdleTimeout(3600);
 }
 

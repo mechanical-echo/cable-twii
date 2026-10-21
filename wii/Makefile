@@ -21,7 +21,7 @@ CXXFLAGS	=	$(CFLAGS)
 LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map
 
 #---------------------------------------------------------------------------------
-LIBS	:=	-lgrrlib -lfreetype -lpngu -lpng -ljpeg -lbz2 -lbrotlidec -lbrotlicommon -lz -lfat -lwiiuse -lbte -logc -lm
+LIBS	:=	-lgrrlib -lfreetype -lpngu -lpng -ljpeg -lbz2 -lbrotlidec -lbrotlicommon -lz -lasnd -lfat -lwiiuse -lbte -logc -lm
 
 #---------------------------------------------------------------------------------
 LIBDIRS	:=	$(PORTLIBS)
@@ -93,6 +93,24 @@ $(OUTPUT).dol: $(OUTPUT).elf
 $(OUTPUT).elf: $(OFILES)
 
 $(OFILES_SOURCES) : $(HFILES)
+
+#---------------------------------------------------------------------------------
+%.ttf.o %_ttf.h :	%.ttf
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	$(bin2o)
+
+#---------------------------------------------------------------------------------
+%.png.o %_png.h :	%.png
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	$(bin2o)
+
+#---------------------------------------------------------------------------------
+%.pcm.o %_pcm.h :	%.pcm
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	$(bin2o)
 
 -include $(DEPENDS)
 
