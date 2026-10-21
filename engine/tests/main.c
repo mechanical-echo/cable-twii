@@ -5,6 +5,7 @@ SUITE_EXTERN(hash_suite);
 SUITE_EXTERN(time_suite);
 SUITE_EXTERN(library_suite);
 SUITE_EXTERN(config_suite);
+SUITE_EXTERN(pool_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -16,5 +17,6 @@ int main(int argc, char **argv)
     RUN_SUITE(time_suite);
     RUN_SUITE(library_suite);
     RUN_SUITE(config_suite);
+    RUN_SUITE(pool_suite);
     GREATEST_MAIN_END();
 }
