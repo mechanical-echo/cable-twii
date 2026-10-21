@@ -9,6 +9,7 @@ SUITE_EXTERN(pool_suite);
 SUITE_EXTERN(timed_suite);
 SUITE_EXTERN(loop_suite);
 SUITE_EXTERN(at_suite);
+SUITE_EXTERN(db_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -24,5 +25,6 @@ int main(int argc, char **argv)
     RUN_SUITE(timed_suite);
     RUN_SUITE(loop_suite);
     RUN_SUITE(at_suite);
+    RUN_SUITE(db_suite);
     GREATEST_MAIN_END();
 }

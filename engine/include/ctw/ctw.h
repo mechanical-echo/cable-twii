@@ -133,6 +133,8 @@ const ctw_show *ctw_db_show_at(const ctw_db *db, size_t i);
 size_t ctw_db_ad_count(const ctw_db *db);
 const ctw_ad *ctw_db_ad_at(const ctw_db *db, size_t i);
 int ctw_config_parse(ctw_db *db, const char *toml_text, ctw_issues *issues);
+int ctw_db_load(const char *root, ctw_db **out, ctw_issues *issues);
+int ctw_db_check_files(const ctw_db *db, const char *root, ctw_issues *issues);
 uint32_t ctw_db_seed(const ctw_db *db);
 size_t ctw_db_channel_count(const ctw_db *db);
 const ctw_channel *ctw_db_channel_at(const ctw_db *db, size_t i);

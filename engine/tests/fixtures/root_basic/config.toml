@@ -1,0 +1,41 @@
+version = 1
+seed = 1
+
+[[channel]]
+number = 1
+name = "Cartoon Network"
+category = "Kids"
+ads = true
+mode = "timed"
+
+  [[channel.slot]]
+  at = "07:00"
+  items = [
+    { type = "random-run", show = "Gumball", count = 3 },
+    { type = "ads", count = 1 },
+    { type = "random", show = "Adventure Time", season = 5, count = 5 },
+    { type = "ads", count = 2 },
+    { type = "episode", show = "Ben 10", season = 1, episode = 5 },
+    { type = "random", show = "Gumball", count = 2 },
+  ]
+
+  [[channel.slot]]
+  at = "19:00"
+  items = [
+    { type = "ad", path = "ads/ad-b.mpg" },
+    { type = "fill", show = "Adventure Time", ads_between = 2 },
+  ]
+
+[[channel]]
+number = 2
+name = "MTV"
+category = "Music"
+folder = "mtv-00s"
+ads = false
+mode = "looping"
+loop = [
+  { type = "random", show = "Music Videos", count = 3 },
+  { type = "random-run", show = "Music Videos", count = 2 },
+  { type = "ads", count = 1 },
+  { type = "episode", show = "Music Videos", season = 0, episode = 3 },
+]
