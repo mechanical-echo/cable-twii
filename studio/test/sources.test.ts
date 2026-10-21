@@ -56,3 +56,12 @@ test("upsertSource replaces by target and survives parallel calls", async () => 
   const recs = await readSources(dir);
   expect(recs.map((r) => r.target)).toEqual(["a.mpg", "b.mpg", "c.mpg"]);
 });
+
+test("non-integer numbers make sources.toml damaged", async () => {
+  await mkdir(path.join(dir, ".studio"));
+  await writeFile(
+    path.join(dir, ".studio", "sources.toml"),
+    'version = 1\n[[source]]\ntarget = "a.mpg"\nsource = "/s"\nsize = 1.5\nmtimeMs = 1\ndurationMs = 1\n',
+  );
+  await expect(readSources(dir)).rejects.toThrow(/damaged/);
+});

@@ -19,6 +19,18 @@ export interface QueueOptions {
 
 type Aspect = "16:9" | "4:3";
 
+function normaliseTarget(root: string, target: string): string {
+  const rel = path.relative(root, path.resolve(root, target.replace(/\\/g, "/"))).split(path.sep).join("/");
+  const first = rel.split("/")[0] ?? "";
+  if (
+    rel === "" || rel === "." || rel === ".." || rel.startsWith("../") || path.isAbsolute(rel) ||
+    first.toLowerCase() === ".studio" || !rel.toLowerCase().endsWith(".mpg")
+  ) {
+    throw new Error(`invalid target: ${target}`);
+  }
+  return rel;
+}
+
 export class ConversionQueue extends EventEmitter {
   private readonly jobs = new Map<string, Job>();
   private readonly controllers = new Map<string, AbortController>();
@@ -30,6 +42,8 @@ export class ConversionQueue extends EventEmitter {
   private started = false;
   private stopping = false;
   private writeChain: Promise<void> = Promise.resolve();
+  private stopPromise: Promise<void> | undefined;
+  private loadErrors: Error[] = [];
 
   constructor(private readonly root: string, opts: QueueOptions = {}) {
     super();
@@ -38,6 +52,8 @@ export class ConversionQueue extends EventEmitter {
     this.convertFn = opts.convertFn ?? convert;
     this.probeFn = opts.probeFn ?? probe;
     this.load();
+    const pending = this.loadErrors;
+    queueMicrotask(() => pending.forEach((e) => this.emit("error", e)));
   }
 
   private queueFile(): string {
@@ -46,6 +62,7 @@ export class ConversionQueue extends EventEmitter {
 
   private load(): void {
     const file = this.queueFile();
+    const dropped: string[] = [];
     let text: string;
     try {
       text = readFileSync(file, "utf8");
@@ -55,14 +72,33 @@ export class ConversionQueue extends EventEmitter {
     try {
       const doc = parse(text);
       if (doc.version !== 1 || !Array.isArray(doc.job)) throw new Error("unsupported queue file");
+      const seenTargets = new Set<string>();
       for (const raw of doc.job as Record<string, unknown>[]) {
+        const label = `${String(raw.id)} (${String(raw.target)})`;
         if (
           typeof raw.id !== "string" || typeof raw.source !== "string" || typeof raw.target !== "string" ||
           (raw.aspect !== "16:9" && raw.aspect !== "4:3")
         ) {
-          throw new Error("invalid job entry");
+          dropped.push(`dropped invalid job ${label}`);
+          continue;
         }
-        this.jobs.set(raw.id, { id: raw.id, source: raw.source, target: raw.target, aspect: raw.aspect, state: "queued", progress: 0 });
+        let rel: string;
+        try {
+          rel = normaliseTarget(this.root, raw.target);
+        } catch {
+          dropped.push(`dropped job ${label}: invalid target`);
+          continue;
+        }
+        if (this.jobs.has(raw.id) || seenTargets.has(rel)) {
+          dropped.push(`dropped duplicate job ${label}`);
+          continue;
+        }
+        seenTargets.add(rel);
+        this.jobs.set(raw.id, { id: raw.id, source: raw.source, target: rel, aspect: raw.aspect, state: "queued", progress: 0 });
+      }
+      if (dropped.length > 0) {
+        this.loadErrors = dropped.map((m) => new Error(m));
+        this.persist();
       }
     } catch {
       this.jobs.clear();
@@ -75,18 +111,12 @@ export class ConversionQueue extends EventEmitter {
     }
   }
 
-  /**
-   * @throws {Error} when the target is absolute or leaves the root
-   */
   enqueue(source: string, target: string, aspect: Aspect): Job {
-    const parts = target.split(/[\\/]+/);
-    if (target === "" || path.isAbsolute(target) || target.startsWith("/") || target.startsWith("\\") || parts.includes("..")) {
-      throw new Error(`target must be a relative path inside the cable-twii folder: ${target}`);
-    }
+    const rel = normaliseTarget(this.root, target);
     for (const existing of this.jobs.values()) {
-      if (existing.target === target && (existing.state === "queued" || existing.state === "running")) return { ...existing };
+      if (existing.target === rel && (existing.state === "queued" || existing.state === "running")) return { ...existing };
     }
-    const job: Job = { id: randomUUID(), source, target, aspect, state: "queued", progress: 0 };
+    const job: Job = { id: randomUUID(), source, target: rel, aspect, state: "queued", progress: 0 };
     this.jobs.set(job.id, job);
     this.persist();
     this.emitChange(job);
@@ -103,13 +133,18 @@ export class ConversionQueue extends EventEmitter {
     this.pump();
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise;
     this.stopping = true;
     this.started = false;
     for (const controller of this.controllers.values()) controller.abort();
-    while (this.active.size > 0) await Promise.allSettled([...this.active]);
-    await this.writeChain;
-    this.stopping = false;
+    this.stopPromise = (async () => {
+      while (this.active.size > 0) await Promise.allSettled([...this.active]);
+      await this.writeChain;
+      this.stopping = false;
+      this.stopPromise = undefined;
+    })();
+    return this.stopPromise;
   }
 
   private emitChange(job: Job): void {
@@ -146,16 +181,19 @@ export class ConversionQueue extends EventEmitter {
     job.state = "running";
     job.progress = 0;
     delete job.error;
-    this.persist();
-    this.emitChange(job);
+    let ended = false;
     const dst = path.join(this.root, job.target);
     try {
+      this.persist();
+      this.emitChange(job);
       await mkdir(path.dirname(dst), { recursive: true });
+      if (controller.signal.aborted) throw new Error("conversion aborted");
       await this.convertFn(
         job.source,
         dst,
         job.aspect,
         (ratio) => {
+          if (ended) return;
           job.progress = ratio;
           const now = Date.now();
           const last = this.lastProgress.get(job.id);
@@ -174,12 +212,14 @@ export class ConversionQueue extends EventEmitter {
       } catch (err) {
         this.emit("error", err);
       }
+      ended = true;
       job.state = "done";
       job.progress = 1;
       this.persist();
       this.emitChange(job);
       this.emit("converted", rec);
     } catch (err) {
+      ended = true;
       if (controller.signal.aborted && this.stopping) {
         job.state = "queued";
         job.progress = 0;

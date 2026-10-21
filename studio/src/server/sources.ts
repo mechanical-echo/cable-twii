@@ -7,9 +7,6 @@ import type { SourceRecord } from "./types.js";
 const STUDIO_DIR = ".studio";
 const SOURCES_FILE = "sources.toml";
 
-/**
- * @throws {Error} when the file cannot be written
- */
 export async function atomicWriteFile(file: string, text: string): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${randomBytes(6).toString("hex")}.tmp`);
@@ -42,18 +39,15 @@ function toRecord(file: string, raw: unknown): SourceRecord {
     typeof r !== "object" || r === null ||
     typeof r.target !== "string" ||
     typeof r.source !== "string" ||
-    typeof r.size !== "number" ||
-    typeof r.mtimeMs !== "number" ||
-    typeof r.durationMs !== "number"
+    !Number.isInteger(r.size) ||
+    !Number.isInteger(r.mtimeMs) ||
+    !Number.isInteger(r.durationMs)
   ) {
     throw damaged(file, "invalid [[source]] entry");
   }
-  return { target: r.target, source: r.source, size: r.size, mtimeMs: r.mtimeMs, durationMs: r.durationMs };
+  return { target: r.target, source: r.source, size: r.size as number, mtimeMs: r.mtimeMs as number, durationMs: r.durationMs as number };
 }
 
-/**
- * @throws {Error} when the file exists but is damaged or has an unsupported version
- */
 export async function readSources(root: string): Promise<SourceRecord[]> {
   const file = sourcesPath(root);
   let text: string;
@@ -75,9 +69,6 @@ export async function readSources(root: string): Promise<SourceRecord[]> {
   return list.map((entry) => toRecord(file, entry));
 }
 
-/**
- * @throws {Error} when the file cannot be written
- */
 export async function writeSources(root: string, recs: SourceRecord[]): Promise<void> {
   const sorted = [...recs].sort((a, b) => (a.target < b.target ? -1 : a.target > b.target ? 1 : 0));
   const text = stringify({
@@ -104,9 +95,6 @@ export function needsConversion(
 
 let upsertChain: Promise<unknown> = Promise.resolve();
 
-/**
- * @throws {Error} when the sources file is damaged or cannot be written
- */
 export function upsertSource(root: string, rec: SourceRecord): Promise<void> {
   const run = async (): Promise<void> => {
     const recs = await readSources(root);

@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -131,8 +131,13 @@ test("stop requeues running jobs and persists them", async () => {
   q.start();
   q.enqueue(srcFile, "a.mpg", "4:3");
   q.enqueue(srcFile, "b.mpg", "4:3");
-  await sleep(30);
-  expect(q.list().map((j) => j.state)).toEqual(["running", "running"]);
+  await new Promise<void>((resolve) => {
+    const check = () => {
+      if (q.list().every((j) => j.state === "running")) resolve();
+    };
+    q.on("change", check);
+    check();
+  });
   await q.stop();
   expect(q.list().map((j) => j.state)).toEqual(["queued", "queued"]);
   const again = new ConversionQueue(dir, { convertFn: quick, probeFn });
@@ -195,4 +200,76 @@ test("progress events throttled", async () => {
   await q.stop();
   expect(events.length).toBeLessThanOrEqual(3);
   expect(events.length).toBeGreaterThanOrEqual(1);
+});
+
+test.each(["a\\..\\..\\b.mpg", ".", "", ".studio/x.mpg", ".STUDIO/x.mpg", "Movie.mkv", "x/..", "./"])("rejects invalid target %j", (target) => {
+  const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
+  expect(() => q.enqueue(srcFile, target, "4:3")).toThrow();
+});
+
+test("targets are normalised and deduplicated", () => {
+  const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
+  const a = q.enqueue(srcFile, "a.mpg", "4:3");
+  expect(q.enqueue(srcFile, "./a.mpg", "4:3").id).toBe(a.id);
+  expect(q.enqueue(srcFile, "x//a.mpg", "4:3").target).toBe("x/a.mpg");
+  expect(q.enqueue(srcFile, "x\\a.mpg", "4:3").target).toBe("x/a.mpg");
+  expect(q.list().map((j) => j.target)).toEqual(["a.mpg", "x/a.mpg"]);
+});
+
+test("stop then start runs each job exactly once", async () => {
+  const calls: string[] = [];
+  let hang = true;
+  const convertFn: typeof convert = (_s, dst, _a, _p, signal) => {
+    calls.push(path.basename(dst));
+    if (!hang) return Promise.resolve();
+    return new Promise((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(new Error("conversion aborted")));
+    });
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+  const running = new Promise<void>((resolve) => {
+    q.on("change", (j: Job) => {
+      if (j.state === "running") resolve();
+    });
+  });
+  q.start();
+  q.enqueue(srcFile, "a.mpg", "4:3");
+  q.enqueue(srcFile, "b.mpg", "4:3");
+  await running;
+  const stops = [q.stop(), q.stop()];
+  await Promise.all(stops);
+  hang = false;
+  calls.length = 0;
+  q.start();
+  await idle(q, 2);
+  expect(calls.sort()).toEqual(["a.mpg", "b.mpg"]);
+  await q.stop();
+});
+
+async function writeQueueFile(text: string): Promise<void> {
+  await mkdir(path.join(dir, ".studio"), { recursive: true });
+  await writeFile(path.join(dir, ".studio", "queue.toml"), text);
+}
+
+const jobToml = (id: string, target: string) => `[[job]]\nid = "${id}"\nsource = "/s.mkv"\ntarget = ${JSON.stringify(target)}\naspect = "4:3"\n`;
+
+test("reload with duplicates gives no duplicates", async () => {
+  await writeQueueFile(
+    "version = 1\n" + jobToml("1", "a.mpg") + jobToml("1", "b.mpg") + jobToml("2", "./a.mpg") + jobToml("3", "c.mpg"),
+  );
+  const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
+  expect(q.list().map((j) => [j.id, j.target])).toEqual([["1", "a.mpg"], ["3", "c.mpg"]]);
+});
+
+test("loaded invalid job is dropped with error", async () => {
+  await writeQueueFile("version = 1\n" + jobToml("1", "../evil.mpg") + jobToml("2", ".studio/x.mpg") + jobToml("3", "ok.mpg") + jobToml("4", "m.mkv"));
+  const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
+  const errors: Error[] = [];
+  q.on("error", (e: Error) => errors.push(e));
+  await sleep(5);
+  expect(q.list().map((j) => j.target)).toEqual(["ok.mpg"]);
+  expect(errors.map((e) => e.message).join("\n")).toMatch(/evil/);
+  expect(errors).toHaveLength(3);
+  await q.stop();
+  expect(await readFile(path.join(dir, ".studio", "queue.toml"), "utf8")).not.toContain("evil");
 });
