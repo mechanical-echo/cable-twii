@@ -413,7 +413,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const rejected: Rejected[] = [];
     const descriptions: Record<string, string> = {};
     const showRel = `${channelFolder}/${showFolder}`;
-    await assertContained(root, inside(root, channelFolder, showFolder));
+    assertContained(root, inside(root, channelFolder, showFolder));
     for (const ep of episodes) {
       const problem = await checkSource(ep.source);
       if (problem !== null) {

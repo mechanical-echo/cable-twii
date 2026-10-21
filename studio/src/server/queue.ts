@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { mkdirSync, readFileSync, renameSync } from "node:fs";
+import { readFileSync, renameSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 import { convert, probe } from "./ffmpeg.js";
-import { mkdirContained } from "./contain.js";
-import { atomicWriteFile, upsertSource } from "./sources.js";
+import { assertContained, atomicWriteContained, checkRename, mkdirContained, prepareScratchFile } from "./contain.js";
+import { upsertSource } from "./sources.js";
 import type { Job, SourceRecord } from "./types.js";
 
 const PROGRESS_INTERVAL_MS = 250;
@@ -104,7 +104,7 @@ export class ConversionQueue extends EventEmitter {
     } catch {
       this.jobs.clear();
       try {
-        mkdirSync(path.dirname(file), { recursive: true });
+        assertContained(this.root, path.dirname(file));
         renameSync(file, `${file}.damaged`);
       } catch {
         return;
@@ -157,7 +157,7 @@ export class ConversionQueue extends EventEmitter {
       .filter((j) => j.state === "queued" || j.state === "running")
       .map((j) => ({ id: j.id, source: j.source, target: j.target, aspect: j.aspect }));
     const text = stringify({ version: 1, job: stored });
-    this.writeChain = this.writeChain.then(() => atomicWriteFile(this.queueFile(), text)).catch((err) => {
+    this.writeChain = this.writeChain.then(() => atomicWriteContained(this.root, this.queueFile(), text)).catch((err) => {
       this.emit("error", err);
     });
   }
@@ -187,7 +187,7 @@ export class ConversionQueue extends EventEmitter {
     try {
       this.persist();
       this.emitChange(job);
-      await mkdirContained(this.root, path.dirname(dst));
+      mkdirContained(this.root, path.dirname(dst));
       if (controller.signal.aborted) throw new Error("conversion aborted");
       await this.convertFn(
         job.source,
@@ -204,6 +204,10 @@ export class ConversionQueue extends EventEmitter {
           }
         },
         controller.signal,
+        {
+          beforeWrite: (part) => prepareScratchFile(this.root, part),
+          beforeRename: (part, final) => checkRename(this.root, part, final),
+        },
       );
       const { durationMs } = await this.probeFn(dst);
       const st = await stat(job.source);

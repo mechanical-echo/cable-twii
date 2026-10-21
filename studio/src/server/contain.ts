@@ -1,6 +1,6 @@
-import { lstat, mkdir, realpath, stat } from "node:fs/promises";
+import { lstatSync, mkdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { atomicWriteFile } from "./sources.js";
+import { atomicWriteFile } from "./fsutil.js";
 
 export class ContainmentError extends Error {
   constructor(message: string) {
@@ -14,52 +14,87 @@ function within(base: string, full: string): boolean {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
-async function nearestExisting(full: string): Promise<string> {
+function exists(full: string): boolean {
+  try {
+    lstatSync(full);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function nearestExisting(full: string): string {
   let current = full;
-  for (;;) {
-    if (await lstat(current).then(() => true, () => false)) return current;
+  while (!exists(current)) {
     const parent = path.dirname(current);
     if (parent === current) return current;
     current = parent;
   }
+  return current;
 }
 
-export async function assertContained(root: string, dest: string): Promise<void> {
-  const realRoot = await realpath(root);
-  const rootDev = (await stat(realRoot)).dev;
+export function assertContained(root: string, dest: string): void {
+  const realRoot = realpathSync(root);
+  const rootDev = statSync(realRoot).dev;
   const target = path.resolve(dest);
   if (!within(path.resolve(root), target)) throw new ContainmentError("That path is outside the cable-twii folder.");
-  const existing = await nearestExisting(target);
   let real: string;
   try {
-    real = await realpath(existing);
+    real = realpathSync(nearestExisting(target));
   } catch {
     throw new ContainmentError("That path leads outside the cable-twii folder.");
   }
   if (!within(realRoot, real)) throw new ContainmentError("That path leads outside the cable-twii folder.");
-  if ((await stat(real)).dev !== rootDev) throw new ContainmentError("That path is on a different drive.");
+  if (statSync(real).dev !== rootDev) throw new ContainmentError("That path is on a different drive.");
 }
 
-export async function mkdirContained(root: string, dir: string): Promise<void> {
+export function mkdirContained(root: string, dir: string): void {
   const base = path.resolve(root);
   const target = path.resolve(dir);
-  await assertContained(root, target);
+  assertContained(root, target);
   const parts = path.relative(base, target).split(path.sep).filter((p) => p !== "");
   let current = base;
   for (const part of parts) {
     current = path.join(current, part);
-    await assertContained(root, current);
-    if (!(await lstat(current).then(() => true, () => false))) {
-      await mkdir(current).catch((err: NodeJS.ErrnoException) => {
-        if (err.code !== "EEXIST") throw err;
-      });
-      await assertContained(root, current);
+    assertContained(root, current);
+    if (exists(current)) {
+      if (!statSync(current).isDirectory()) throw new ContainmentError(`${path.basename(current)} is not a folder.`);
+      continue;
     }
+    try {
+      mkdirSync(current);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    }
+    assertContained(root, current);
+    if (!statSync(current).isDirectory()) throw new ContainmentError(`${path.basename(current)} is not a folder.`);
   }
 }
 
+function regularOrMissing(file: string): boolean {
+  try {
+    return lstatSync(file).isFile();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return true;
+    throw err;
+  }
+}
+
+export function prepareScratchFile(root: string, file: string): void {
+  assertContained(root, path.dirname(file));
+  if (!regularOrMissing(file)) throw new ContainmentError(`${path.basename(file)} is not a regular file.`);
+  if (exists(file)) unlinkSync(file);
+}
+
+export function checkRename(root: string, from: string, to: string): void {
+  assertContained(root, path.dirname(to));
+  assertContained(root, path.dirname(from));
+  if (!exists(from) || !lstatSync(from).isFile()) throw new ContainmentError(`${path.basename(from)} is not a regular file.`);
+  if (!regularOrMissing(to)) throw new ContainmentError(`${path.basename(to)} is not a regular file.`);
+}
+
 export async function atomicWriteContained(root: string, file: string, data: string | Uint8Array): Promise<void> {
-  await mkdirContained(root, path.dirname(file));
-  await assertContained(root, file);
+  mkdirContained(root, path.dirname(file));
+  assertContained(root, file);
   await atomicWriteFile(file, data);
 }

@@ -613,3 +613,12 @@ test("PUT /api/show-meta on a symlinked show folder is 400 and writes nothing ou
   expect(res.statusCode).toBe(400);
   expect(await readdir(outside)).toEqual([]);
 });
+
+test("icon upload where a channel folder should be a file is 400", async () => {
+  await useFixture();
+  await writeFile(path.join(root, "Blocked"), "x");
+  const { payload, headers } = multipart({ kind: "show", channelFolder: "Blocked", showFolder: "Show" }, { name: "logo.png", data: await png(20, 20) });
+  const res = await app.inject({ method: "POST", url: "/api/icon", payload, headers });
+  expect(res.statusCode).toBe(400);
+  expect((await stat(path.join(root, "Blocked"))).isFile()).toBe(true);
+});

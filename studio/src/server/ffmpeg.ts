@@ -158,18 +158,25 @@ export function conversionArgs(src: string, dst: string, aspect: Aspect, videoSt
   ];
 }
 
+export interface ConvertGuard {
+  beforeWrite(part: string): void | Promise<void>;
+  beforeRename(part: string, dst: string): void | Promise<void>;
+}
+
 export async function convert(
   src: string,
   dst: string,
   aspect: Aspect,
   onProgress: (ratio: number) => void,
   signal?: AbortSignal,
+  guard?: ConvertGuard,
 ): Promise<void> {
   const abortError = () => new Error("conversion aborted");
   if (signal?.aborted) throw abortError();
   const { durationMs, videoStreamIndex } = await probe(src);
   if (signal?.aborted) throw abortError();
   const part = dst + ".part";
+  await guard?.beforeWrite(part);
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn("ffmpeg", conversionArgs(src, part, aspect, videoStreamIndex));
@@ -215,6 +222,12 @@ export async function convert(
       if (error) {
         await rm(part, { force: true });
         reject(error);
+        return;
+      }
+      try {
+        await guard?.beforeRename(part, dst);
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error(String(e)));
         return;
       }
       try {

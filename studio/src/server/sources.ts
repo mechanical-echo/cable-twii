@@ -1,29 +1,14 @@
-import { randomBytes } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
+import { atomicWriteContained } from "./contain.js";
+import { atomicWriteFile } from "./fsutil.js";
 import type { SourceRecord } from "./types.js";
+
+export { atomicWriteFile };
 
 const STUDIO_DIR = ".studio";
 const SOURCES_FILE = "sources.toml";
-
-export async function atomicWriteFile(file: string, data: string | Uint8Array): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true });
-  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${randomBytes(6).toString("hex")}.tmp`);
-  try {
-    const handle = await open(tmp, "w");
-    try {
-      await handle.writeFile(data);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    await rename(tmp, file);
-  } catch (err) {
-    await rm(tmp, { force: true }).catch(() => undefined);
-    throw err;
-  }
-}
 
 function sourcesPath(root: string): string {
   return path.join(root, STUDIO_DIR, SOURCES_FILE);
@@ -81,7 +66,7 @@ export async function writeSources(root: string, recs: SourceRecord[]): Promise<
       durationMs: Math.trunc(r.durationMs),
     })),
   });
-  await atomicWriteFile(sourcesPath(root), text);
+  await atomicWriteContained(root, sourcesPath(root), text);
 }
 
 export function needsConversion(

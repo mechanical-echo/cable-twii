@@ -1,9 +1,11 @@
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { spawnSync } from "node:child_process";
 import { ConversionQueue } from "../src/server/queue.js";
-import { readSources } from "../src/server/sources.js";
+import { readSources, writeSources } from "../src/server/sources.js";
+import { convert as realConvert } from "../src/server/ffmpeg.js";
 import type { convert, probe } from "../src/server/ffmpeg.js";
 import type { Job, SourceRecord } from "../src/server/types.js";
 
@@ -296,6 +298,71 @@ test("queue job whose target folder is a symlink out of root fails and writes no
     expect(converted).toBe(false);
     expect(await readdir(outside)).toEqual([]);
     await q.stop();
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+function makeVideo(): string {
+  const out = path.join(dir, "real.mkv");
+  const r = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x240:d=1", "-f", "lavfi", "-i", "sine=d=1", "-shortest", out]);
+  if (r.status !== 0) throw new Error(String(r.stderr));
+  return out;
+}
+
+test("queue refuses a pre-planted .part symlink and never writes through it", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-outside-"));
+  try {
+    const victim = path.join(outside, "victim");
+    await writeFile(victim, "keep");
+    await mkdir(path.join(dir, "Show"));
+    await symlink(victim, path.join(dir, "Show", "a.mpg.part"));
+    const q = new ConversionQueue(dir, { concurrency: 1, convertFn: realConvert, probeFn });
+    q.start();
+    q.enqueue(makeVideo(), "Show/a.mpg", "4:3");
+    await idle(q, 1);
+    expect(q.list()[0]).toMatchObject({ state: "failed" });
+    expect(q.list()[0]!.error).toContain("not a regular file");
+    expect(await readFile(victim, "utf8")).toBe("keep");
+    expect(await readdir(outside)).toEqual(["victim"]);
+    expect((await lstat(path.join(dir, "Show", "a.mpg.part"))).isSymbolicLink()).toBe(true);
+    await q.stop();
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("queue refuses a destination that is a symlink and writes nothing through it", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-outside-"));
+  try {
+    const victim = path.join(outside, "victim");
+    await writeFile(victim, "keep");
+    await mkdir(path.join(dir, "Show"));
+    await symlink(victim, path.join(dir, "Show", "a.mpg"));
+    const q = new ConversionQueue(dir, { concurrency: 1, convertFn: realConvert, probeFn });
+    q.start();
+    q.enqueue(makeVideo(), "Show/a.mpg", "4:3");
+    await idle(q, 1);
+    expect(q.list()[0]!.state).toBe("failed");
+    expect(q.list()[0]!.error).toContain("not a regular file");
+    expect(await readFile(victim, "utf8")).toBe("keep");
+    await q.stop();
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("a symlinked .studio folder gets no queue or sources writes", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-outside-"));
+  try {
+    await symlink(outside, path.join(dir, ".studio"));
+    const q = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
+    q.start();
+    q.enqueue(srcFile, "Show/a.mpg", "4:3");
+    await idle(q, 1);
+    await q.stop();
+    await expect(writeSources(dir, [])).rejects.toThrow("cable-twii folder");
+    expect(await readdir(outside)).toEqual([]);
   } finally {
     await rm(outside, { recursive: true, force: true });
   }
