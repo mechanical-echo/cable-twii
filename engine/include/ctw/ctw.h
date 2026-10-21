@@ -124,4 +124,18 @@ ctw_date ctw_date_prev(ctw_date d);
 ctw_date ctw_date_next(ctw_date d);
 int ctw_date_parse(const char *s, ctw_date *out);
 
+ctw_db *ctw_db_new(void);
+void ctw_db_free(ctw_db *db);
+int ctw_library_parse(ctw_db *db, const char *toml_text, ctw_issues *issues);
+const ctw_show *ctw_db_show(const ctw_db *db, const char *channel_folder, const char *folder);
+size_t ctw_db_show_count(const ctw_db *db);
+const ctw_show *ctw_db_show_at(const ctw_db *db, size_t i);
+size_t ctw_db_ad_count(const ctw_db *db);
+const ctw_ad *ctw_db_ad_at(const ctw_db *db, size_t i);
+
+void ctw_issues_add(ctw_issues *l, ctw_level lv, ctw_code c, int channel, int slot, int item,
+                    int line, const char *file, const char *fmt, ...);
+bool ctw_issues_has_errors(const ctw_issues *l);
+void ctw_issues_free(ctw_issues *l);
+
 #endif

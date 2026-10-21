@@ -1,0 +1,185 @@
+version = 1
+generated = 2026-10-20T14:00:00
+
+[[ad]]
+path = "ads/ad-a.mpg"
+channel = ""
+duration_ms = 30000
+
+[[ad]]
+path = "ads/ad-b.mpg"
+channel = ""
+duration_ms = 15000
+
+[[ad]]
+path = "ads/ad-c.mpg"
+channel = ""
+duration_ms = 60000
+
+[[show]]
+channel = "Cartoon Network"
+folder = "Gumball"
+name = "The Amazing World of Gumball"
+icon = "Cartoon Network/Gumball/show.png"
+
+  [[show.episode]]
+  season = 1
+  episode = 1
+  title = "Gumball 1"
+  description = ""
+  path = "Cartoon Network/Gumball/Season 1/S01E01 - Gumball 1.mpg"
+  duration_ms = 600000
+
+  [[show.episode]]
+  season = 1
+  episode = 2
+  title = "Gumball 2"
+  description = ""
+  path = "Cartoon Network/Gumball/Season 1/S01E02 - Gumball 2.mpg"
+  duration_ms = 600000
+
+  [[show.episode]]
+  season = 1
+  episode = 3
+  title = "Gumball 3"
+  description = ""
+  path = "Cartoon Network/Gumball/Season 1/S01E03 - Gumball 3.mpg"
+  duration_ms = 600000
+
+  [[show.episode]]
+  season = 1
+  episode = 4
+  title = "Gumball 4"
+  description = ""
+  path = "Cartoon Network/Gumball/Season 1/S01E04 - Gumball 4.mpg"
+  duration_ms = 600000
+
+  [[show.episode]]
+  season = 2
+  episode = 1
+  title = "Gumball 5"
+  description = ""
+  path = "Cartoon Network/Gumball/Season 2/S02E01 - Gumball 5.mpg"
+  duration_ms = 600000
+
+  [[show.episode]]
+  season = 2
+  episode = 2
+  title = "Gumball 6"
+  description = ""
+  path = "Cartoon Network/Gumball/Season 2/S02E02 - Gumball 6.mpg"
+  duration_ms = 600000
+
+[[show]]
+channel = "Cartoon Network"
+folder = "Adventure Time"
+name = "Adventure Time"
+icon = "Cartoon Network/Adventure Time/show.png"
+
+  [[show.episode]]
+  season = 5
+  episode = 1
+  title = "Time 1"
+  description = ""
+  path = "Cartoon Network/Adventure Time/Season 5/S05E01 - Time 1.mpg"
+  duration_ms = 660000
+
+  [[show.episode]]
+  season = 5
+  episode = 2
+  title = "Time 2"
+  description = ""
+  path = "Cartoon Network/Adventure Time/Season 5/S05E02 - Time 2.mpg"
+  duration_ms = 660000
+
+  [[show.episode]]
+  season = 5
+  episode = 3
+  title = "Time 3"
+  description = ""
+  path = "Cartoon Network/Adventure Time/Season 5/S05E03 - Time 3.mpg"
+  duration_ms = 660000
+
+  [[show.episode]]
+  season = 5
+  episode = 4
+  title = "Time 4"
+  description = ""
+  path = "Cartoon Network/Adventure Time/Season 5/S05E04 - Time 4.mpg"
+  duration_ms = 660000
+
+  [[show.episode]]
+  season = 5
+  episode = 5
+  title = "Time 5"
+  description = ""
+  path = "Cartoon Network/Adventure Time/Season 5/S05E05 - Time 5.mpg"
+  duration_ms = 660000
+
+[[show]]
+channel = "Cartoon Network"
+folder = "Ben 10"
+name = "Ben 10"
+icon = "Cartoon Network/Ben 10/show.png"
+
+  [[show.episode]]
+  season = 1
+  episode = 5
+  title = "Ben Ten"
+  description = ""
+  path = "Cartoon Network/Ben 10/Season 1/S01E05 - Ben Ten.mpg"
+  duration_ms = 1320000
+
+[[show]]
+channel = "mtv-00s"
+folder = "Music Videos"
+name = "Music Videos"
+icon = ""
+
+  [[show.episode]]
+  season = 0
+  episode = 1
+  title = "Artist 1 - Song 1"
+  description = ""
+  path = "mtv-00s/Music Videos/Artist 1 - Song 1.mpg"
+  duration_ms = 200000
+
+  [[show.episode]]
+  season = 0
+  episode = 2
+  title = "Artist 2 - Song 2"
+  description = ""
+  path = "mtv-00s/Music Videos/Artist 2 - Song 2.mpg"
+  duration_ms = 200000
+
+  [[show.episode]]
+  season = 0
+  episode = 3
+  title = "Artist 3 - Song 3"
+  description = ""
+  path = "mtv-00s/Music Videos/Artist 3 - Song 3.mpg"
+  duration_ms = 200000
+
+  [[show.episode]]
+  season = 0
+  episode = 4
+  title = "Artist 4 - Song 4"
+  description = ""
+  path = "mtv-00s/Music Videos/Artist 4 - Song 4.mpg"
+  duration_ms = 200000
+
+  [[show.episode]]
+  season = 0
+  episode = 5
+  title = "Artist 5 - Song 5"
+  description = ""
+  path = "mtv-00s/Music Videos/Artist 5 - Song 5.mpg"
+  duration_ms = 200000
+
+  [[show.episode]]
+  season = 0
+  episode = 6
+  title = "Artist 6 - Song 6"
+  description = ""
+  path = "mtv-00s/Music Videos/Artist 6 - Song 6.mpg"
+  duration_ms = 200000
