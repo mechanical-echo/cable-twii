@@ -53,3 +53,35 @@ void ctw_issues_free(ctw_issues *l)
     l->count = 0;
     l->cap = 0;
 }
+
+const char *ctw_code_name(ctw_code c)
+{
+    switch (c) {
+    case CTW_E_PARSE: return "parse";
+    case CTW_E_VERSION: return "version";
+    case CTW_E_BAD_VALUE: return "bad_value";
+    case CTW_E_BAD_TIME: return "bad_time";
+    case CTW_E_DUP_CHANNEL: return "dup_channel";
+    case CTW_E_UNKNOWN_SHOW: return "unknown_show";
+    case CTW_E_MISSING_EPISODE: return "missing_episode";
+    case CTW_E_UNKNOWN_AD: return "unknown_ad";
+    case CTW_E_FILL_IN_LOOP: return "fill_in_loop";
+    case CTW_E_NO_SLOTS: return "no_slots";
+    case CTW_E_DUP_SLOT: return "dup_slot";
+    case CTW_E_MISSING_FILE: return "missing_file";
+    case CTW_E_EMPTY_POOL: return "empty_pool";
+    case CTW_W_CUT: return "cut";
+    case CTW_W_PARTIAL: return "partial";
+    case CTW_W_LOOP_EMPTY: return "loop_empty";
+    }
+    return "unknown";
+}
+
+const char *ctw_level_name(ctw_level l)
+{
+    switch (l) {
+    case CTW_LEVEL_ERROR: return "error";
+    case CTW_LEVEL_WARNING: return "warning";
+    }
+    return "unknown";
+}

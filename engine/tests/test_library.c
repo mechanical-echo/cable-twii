@@ -469,6 +469,37 @@ TEST issues_message_truncates(void)
     PASS();
 }
 
+TEST issues_code_names(void)
+{
+    static const struct { ctw_code code; const char *name; } names[] = {
+        {CTW_E_PARSE, "parse"},
+        {CTW_E_VERSION, "version"},
+        {CTW_E_BAD_VALUE, "bad_value"},
+        {CTW_E_BAD_TIME, "bad_time"},
+        {CTW_E_DUP_CHANNEL, "dup_channel"},
+        {CTW_E_UNKNOWN_SHOW, "unknown_show"},
+        {CTW_E_MISSING_EPISODE, "missing_episode"},
+        {CTW_E_UNKNOWN_AD, "unknown_ad"},
+        {CTW_E_FILL_IN_LOOP, "fill_in_loop"},
+        {CTW_E_NO_SLOTS, "no_slots"},
+        {CTW_E_DUP_SLOT, "dup_slot"},
+        {CTW_E_MISSING_FILE, "missing_file"},
+        {CTW_E_EMPTY_POOL, "empty_pool"},
+        {CTW_W_CUT, "cut"},
+        {CTW_W_PARTIAL, "partial"},
+        {CTW_W_LOOP_EMPTY, "loop_empty"},
+    };
+    size_t n = sizeof names / sizeof names[0];
+    ASSERT_EQ((size_t)CTW_W_LOOP_EMPTY + 1u, n);
+    for (size_t i = 0; i < n; i++) {
+        ASSERT_EQ((ctw_code)i, names[i].code);
+        ASSERT_STR_EQ(names[i].name, ctw_code_name(names[i].code));
+    }
+    ASSERT_STR_EQ("error", ctw_level_name(CTW_LEVEL_ERROR));
+    ASSERT_STR_EQ("warning", ctw_level_name(CTW_LEVEL_WARNING));
+    PASS();
+}
+
 TEST arena_basics(void)
 {
     ctw_arena a;
@@ -522,5 +553,6 @@ SUITE(library_suite)
     RUN_TEST(db_empty_accessors);
     RUN_TEST(issues_helpers);
     RUN_TEST(issues_message_truncates);
+    RUN_TEST(issues_code_names);
     RUN_TEST(arena_basics);
 }

@@ -144,6 +144,8 @@ void ctw_issues_add(ctw_issues *l, ctw_level lv, ctw_code c, int channel, int sl
                     int line, const char *file, const char *fmt, ...);
 bool ctw_issues_has_errors(const ctw_issues *l);
 void ctw_issues_free(ctw_issues *l);
+const char *ctw_code_name(ctw_code c);
+const char *ctw_level_name(ctw_level l);
 
 int ctw_lineup_build(const ctw_db *db, const ctw_channel *ch, ctw_date day, ctw_lineup *out);
 void ctw_lineup_free(ctw_lineup *l);
