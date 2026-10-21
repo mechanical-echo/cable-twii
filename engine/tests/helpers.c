@@ -55,6 +55,20 @@ ctw_db *load_config(const char *cfg)
     return db;
 }
 
+ctw_db *load_inline(const char *lib, const char *cfg)
+{
+    ctw_issues is = {0};
+    ctw_db *db = ctw_db_new();
+    int rc = db ? ctw_library_parse(db, lib, &is) : -1;
+    if (rc == 0) rc = ctw_config_parse(db, cfg, &is);
+    ctw_issues_free(&is);
+    if (rc) {
+        ctw_db_free(db);
+        return NULL;
+    }
+    return db;
+}
+
 int build_lineup(const char *cfg, int channel, ctw_date day, ctw_lineup *l)
 {
     ctw_db *db = load_config(cfg);
@@ -97,4 +111,32 @@ size_t count_warnings(const ctw_lineup *l, ctw_code code)
         if (l->warnings.items[i].code == code) n++;
     }
     return n;
+}
+
+enum greatest_test_res assert_capped(const ctw_lineup *l, int channel, int64_t from, int64_t to)
+{
+    const ctw_airing *last;
+    size_t cap_warnings = 0;
+    ASSERT(l->count <= 20000u);
+    CHECK_CALL(assert_contiguous(l, from, to));
+    for (size_t i = 0; i < l->warnings.count; i++) {
+        const ctw_issue *w = &l->warnings.items[i];
+        if (strcmp(w->message, "lineup reached 20000 airings") != 0) continue;
+        ASSERT_EQ(CTW_LEVEL_WARNING, w->level);
+        ASSERT_EQ(CTW_W_PARTIAL, w->code);
+        ASSERT_EQ(channel, w->channel);
+        ASSERT_EQ(-1, w->slot);
+        ASSERT_EQ(-1, w->item);
+        ASSERT_EQ(0, w->line);
+        ASSERT_STR_EQ("lineup", w->file);
+        cap_warnings++;
+    }
+    ASSERT_EQ(1u, cap_warnings);
+    last = &l->items[l->count - 1];
+    ASSERT_EQ(CTW_AIR_UPNEXT, last->kind);
+    ASSERT_EQ(-1, last->slot_index);
+    ASSERT_EQ(-1, last->item_index);
+    ASSERT_EQ_FMT(to, last->start_ms + (int64_t)last->duration_ms, "%lld");
+    for (size_t i = 0; i + 1 < l->count; i++) ASSERT(l->items[i].kind != CTW_AIR_UPNEXT);
+    PASS();
 }

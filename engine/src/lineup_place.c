@@ -30,15 +30,18 @@ static int place_fixed(ctw_build *b, int64_t end, ctw_air_kind kind, const ctw_s
                        int slot, int item)
 {
     uint32_t left = ctw_build_left(b, end);
+    int cut = 0;
     if (left == 0u) {
         ctw_build_warn(b, CTW_W_PARTIAL, slot, item, msg_partial);
         return 0;
     }
     if (duration_ms > left) {
         duration_ms = left;
-        ctw_build_warn(b, CTW_W_CUT, slot, item, msg_cut);
+        cut = 1;
     }
     if (ctw_build_push(b, duration_ms, kind, show, episode, ad, slot, item)) return -1;
+    if (b->capped) return 0;
+    if (cut) ctw_build_warn(b, CTW_W_CUT, slot, item, msg_cut);
     if (ad) mark_last_ad(b, ad);
     return 0;
 }
@@ -47,7 +50,7 @@ static int place_random(ctw_build *b, const ctw_item *it, int64_t end, int slot,
 {
     ctw_bag *bag = ctw_bagset_get(&b->bags, it->show, it->season);
     if (!bag) return -1;
-    for (uint32_t k = 0; k < it->count; k++) {
+    for (uint32_t k = 0; k < it->count && !b->capped; k++) {
         const ctw_episode *e = ctw_bag_draw_fitting(bag, &b->rng, ctw_build_left(b, end));
         if (!e) {
             ctw_build_warn(b, CTW_W_PARTIAL, slot, item, msg_partial);
@@ -89,7 +92,7 @@ static int place_random_run(ctw_build *b, const ctw_item *it, int64_t end, int s
         }
         taken++;
     }
-    if (rc == 0 && (partial || taken < count)) {
+    if (rc == 0 && !b->capped && (partial || taken < count)) {
         ctw_build_warn(b, CTW_W_PARTIAL, slot, item, msg_partial);
     }
     free(list);
@@ -98,7 +101,7 @@ static int place_random_run(ctw_build *b, const ctw_item *it, int64_t end, int s
 
 static int place_ads(ctw_build *b, uint32_t count, int64_t end, int slot, int item)
 {
-    for (uint32_t k = 0; k < count; k++) {
+    for (uint32_t k = 0; k < count && !b->capped; k++) {
         const ctw_ad *a = ctw_ads_draw_fitting(b->db, b->ch, &b->bags, &b->rng,
                                                ctw_build_left(b, end));
         if (!a) break;
@@ -111,7 +114,7 @@ static int place_fill(ctw_build *b, const ctw_item *it, int64_t end, int slot, i
 {
     ctw_bag *bag = ctw_bagset_get(&b->bags, it->show, it->season);
     if (!bag) return -1;
-    for (;;) {
+    while (!b->capped) {
         const ctw_episode *e = ctw_bag_draw_fitting(bag, &b->rng, ctw_build_left(b, end));
         if (!e) break;
         if (ctw_build_push(b, e->duration_ms, CTW_AIR_EPISODE, it->show, e, NULL, slot, item)) {
@@ -125,6 +128,7 @@ static int place_fill(ctw_build *b, const ctw_item *it, int64_t end, int slot, i
 int ctw_place_item(ctw_build *b, const ctw_item *it, int64_t end, int slot, int item)
 {
     const ctw_episode *e;
+    if (b->capped) return 0;
     switch (it->type) {
     case CTW_ITEM_EPISODE:
         if (!it->show) return -1;

@@ -6,6 +6,7 @@
 #include "tomlc99/toml.h"
 
 #define LIB_FILE "library"
+#define CTW_MIN_DURATION_MS 1000LL
 
 ctw_db *ctw_db_new(void)
 {
@@ -100,7 +101,8 @@ static void parse_ads(ctw_pctx *pc, const toml_array_t *arr)
         }
         if (ctw_get_str(pc, t, "path", 1, &ad.path, where)) failed = 1;
         if (ctw_get_str(pc, t, "channel", 1, &ad.channel_folder, where)) failed = 1;
-        if (ctw_get_int(pc, t, "duration_ms", 1, 4294967295LL, &dur, where)) failed = 1;
+        if (ctw_get_int(pc, t, "duration_ms", CTW_MIN_DURATION_MS, 4294967295LL, &dur, where))
+            failed = 1;
         if (failed) continue;
         ad.duration_ms = (uint32_t)dur;
         ads[count++] = ad;
@@ -135,7 +137,8 @@ static void parse_episodes(ctw_pctx *pc, ctw_show *show, const toml_array_t *arr
         if (ctw_get_str(pc, t, "path", 1, &ep.path, where)) failed = 1;
         if (ctw_get_str(pc, t, "title", 0, &ep.title, where)) failed = 1;
         if (ctw_get_str(pc, t, "description", 0, &ep.description, where)) failed = 1;
-        if (ctw_get_int(pc, t, "duration_ms", 1, 4294967295LL, &dur, where)) failed = 1;
+        if (ctw_get_int(pc, t, "duration_ms", CTW_MIN_DURATION_MS, 4294967295LL, &dur, where))
+            failed = 1;
         if (failed) continue;
         ep.season = (uint16_t)season;
         ep.episode = (uint16_t)episode;

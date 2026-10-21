@@ -5,6 +5,8 @@
 #include "ctw/ctw.h"
 #include "pool.h"
 
+#define CTW_LINEUP_MAX_AIRINGS 20000u
+
 typedef struct {
     const ctw_db *db;
     const ctw_channel *ch;
@@ -13,6 +15,8 @@ typedef struct {
     ctw_rng rng;
     int64_t cursor;
     int64_t limit;
+    int64_t cover_end;
+    int capped;
 } ctw_build;
 
 uint32_t ctw_build_left(const ctw_build *b, int64_t end);

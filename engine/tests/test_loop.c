@@ -204,6 +204,31 @@ TEST loop_known_lineup_pinned(void)
     PASS();
 }
 
+#define LP_CAP_LIB \
+    "version = 1\n" \
+    "[[ad]]\npath = \"ads/a.mpg\"\nchannel = \"\"\nduration_ms = 1000\n" \
+    "[[ad]]\npath = \"ads/b.mpg\"\nchannel = \"\"\nduration_ms = 1000\n" \
+    "[[show]]\nchannel = \"Cap\"\nfolder = \"Show\"\nname = \"Show\"\nicon = \"\"\n" \
+    "[[show.episode]]\nseason = 1\nepisode = 1\npath = \"Cap/Show/e1.mpg\"\nduration_ms = 600000\n"
+
+TEST loop_lineup_capped(void)
+{
+    ctw_lineup l = {0};
+    ctw_db *db = load_inline(LP_CAP_LIB,
+        "version = 1\nseed = 1\n[[channel]]\nnumber = 5\nname = \"Cap\"\ncategory = \"T\"\n"
+        "ads = true\nmode = \"looping\"\nloop = [ "
+        "{ type = \"episode\", show = \"Show\", season = 1, episode = 1 }, "
+        "{ type = \"ads\", count = 500 } ]\n");
+    ASSERT(db);
+    ASSERT_EQ(0, ctw_lineup_build(db, ctw_db_channel(db, 5), lp_day, &l));
+    ASSERT_EQ(CTW_AIR_EPISODE, l.items[0].kind);
+    CHECK_CALL(assert_capped(&l, 5, 0, LP_DAY_MS));
+    ASSERT_EQ(1u, l.warnings.count);
+    ctw_lineup_free(&l);
+    ctw_db_free(db);
+    PASS();
+}
+
 SUITE(loop_suite)
 {
     RUN_TEST(loop_covers_day);
@@ -217,4 +242,5 @@ SUITE(loop_suite)
     RUN_TEST(loop_random_run_in_order);
     RUN_TEST(loop_deterministic);
     RUN_TEST(loop_known_lineup_pinned);
+    RUN_TEST(loop_lineup_capped);
 }

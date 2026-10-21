@@ -50,7 +50,7 @@ Codes appear in the CLI JSON as lowercase names, from the engine's `ctw_code` na
 | `empty_pool` | error | A `random`, `random-run` or `fill` item whose show and season have no episodes. |
 | `missing_file` | error | A file listed in the library does not exist on the drive. Only checked with `validate --check-files`. |
 | `cut` | warning | A fixed episode or ad was cut at the next slot's start. |
-| `partial` | warning | A `random`/`random-run` item placed fewer than `count` episodes, or a fixed item could not start because its slot was already full. |
+| `partial` | warning | A `random`/`random-run` item placed fewer than `count` episodes, or a fixed item could not start because its slot was already full, or the lineup reached its cap of 20000 airings (slot and item `-1`, message `lineup reached 20000 airings`). |
 | `loop_empty` | warning | A looping channel placed nothing in a full pass (for example only `ads` items on a channel with `ads = false`). The day is one "Up next" card. |
 
 Each issue carries `channel` (channel number), `slot` and `item` (zero-based), `line`, the `file` (`config` or `library`) and a human message. When an issue is not tied to a channel, slot or item, those fields are `-1`. `line` is `0` when unknown. Slot indexes in issues refer to the slots sorted by `at`; Studio always writes slots sorted.
@@ -196,7 +196,7 @@ loop = [
 |---|---|---|---|---|
 | `path` | string | yes | none | relative to `/cable-twii/`, for example `ads/soda-commercial.mpg` |
 | `channel` | string | yes | none | `""` for a shared ad, otherwise the channel folder name that owns it |
-| `duration_ms` | integer | yes | none | 1 to 4294967295 (outside the range is `bad_value`) |
+| `duration_ms` | integer | yes | none | 1000 to 4294967295, so at least one second (outside the range is `bad_value`) |
 
 ### `[[show]]`
 
@@ -219,11 +219,11 @@ A show is identified by the pair (`channel`, `folder`).
 | `title` | string | no | `""` | |
 | `description` | string | no | `""` | |
 | `path` | string | yes | none | relative to `/cable-twii/`, `/` separators, FAT-safe |
-| `duration_ms` | integer | yes | none | 1 to 4294967295 (outside the range is `bad_value`, a missing value is `parse`) |
+| `duration_ms` | integer | yes | none | 1000 to 4294967295, so at least one second (outside the range is `bad_value`, a missing value is `parse`) |
 
 ### Validation
 
-`parse` (including a missing `duration_ms`), `version`, `bad_value` (`duration_ms` outside 1 to 4294967295), `missing_file` (with `--check-files`).
+`parse` (including a missing `duration_ms`), `version`, `bad_value` (`duration_ms` outside 1000 to 4294967295), `missing_file` (with `--check-files`).
 
 ### Complete example
 
@@ -442,6 +442,7 @@ cable-twii-sched lineup <root> --channel N --date YYYY-MM-DD
 
 - `start_ms`: milliseconds since local midnight (no gaps). A timed channel's lineup covers [first slot `at`, first slot `at` + 86400000) and spills past midnight into the early hours of the next date; a looping channel's lineup covers [0, 86400000).
 - `kind`: `"episode"`, `"ad"` or `"upnext"`.
+- Size cap: one lineup holds at most 20000 airings. When placing would go past that, the engine stops placing, covers the rest of the lineup (to the first slot `at` + 86400000 on a timed channel, to 86400000 on a looping channel) with one `upnext` airing (`slot` and `item` `-1`), and adds one `partial` warning with `slot` and `item` `-1` and the message `lineup reached 20000 airings`. Coverage stays contiguous. With the 1000 ms minimum `duration_ms`, a normal schedule stays far below the cap.
 - `hash`: 16 lowercase hex digits. Exact encoding: FNV-1a 64 (offset basis `0xcbf29ce484222325`, prime `0x100000001b3`) over every airing in order: `start_ms` as 8 big-endian bytes, `duration_ms` as 4 big-endian bytes, `kind` as 1 byte (episode 0, ad 1, upnext 2), then for an episode or ad its `path` as UTF-8 bytes followed by one 0 byte (up-next adds nothing). Same inputs give the same hash on the Mac and the Wii. Studio treats the hash as opaque and only compares it with values the engine produced.
 - `path`, `show`, `season`, `episode`, `title` are `null` for up-next airings. `slot` and `item` are `-1` for filler airings. In a looping channel `slot` is `-1` and `item` is the loop item index.
 - `warnings`: same shape as `issues` in `validate`.

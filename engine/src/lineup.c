@@ -21,17 +21,11 @@ uint32_t ctw_build_left(const ctw_build *b, int64_t end)
     return (uint32_t)left;
 }
 
-int ctw_build_push(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const ctw_show *show,
-                   const ctw_episode *episode, const ctw_ad *ad, int slot, int item)
+static int append(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const ctw_show *show,
+                  const ctw_episode *episode, const ctw_ad *ad, int slot, int item)
 {
     ctw_lineup *l = b->out;
     ctw_airing *a;
-    if (b->limit > 0) {
-        if (b->cursor >= b->limit) return 0;
-        if ((int64_t)duration_ms > b->limit - b->cursor) {
-            duration_ms = (uint32_t)(b->limit - b->cursor);
-        }
-    }
     if (l->count == l->cap) {
         size_t cap = l->cap ? l->cap * 2u : CTW_LINEUP_INITIAL_CAP;
         ctw_airing *grown = realloc(l->items, cap * sizeof *grown);
@@ -52,6 +46,32 @@ int ctw_build_push(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const 
     return 0;
 }
 
+static int cap_lineup(ctw_build *b)
+{
+    b->capped = 1;
+    ctw_issues_add(&b->out->warnings, CTW_LEVEL_WARNING, CTW_W_PARTIAL, b->ch->number, -1, -1, 0,
+                   "lineup", "lineup reached %u airings", (unsigned)CTW_LINEUP_MAX_AIRINGS);
+    if (b->cursor >= b->cover_end) return 0;
+    return append(b, ctw_build_left(b, b->cover_end), CTW_AIR_UPNEXT, NULL, NULL, NULL, -1, -1);
+}
+
+int ctw_build_push(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const ctw_show *show,
+                   const ctw_episode *episode, const ctw_ad *ad, int slot, int item)
+{
+    if (b->capped) return 0;
+    if (b->limit > 0) {
+        if (b->cursor >= b->limit) return 0;
+        if ((int64_t)duration_ms > b->limit - b->cursor) {
+            duration_ms = (uint32_t)(b->limit - b->cursor);
+        }
+    }
+    if (b->out->count + 1u >= CTW_LINEUP_MAX_AIRINGS &&
+        !(kind == CTW_AIR_UPNEXT && b->cursor + (int64_t)duration_ms == b->cover_end)) {
+        return cap_lineup(b);
+    }
+    return append(b, duration_ms, kind, show, episode, ad, slot, item);
+}
+
 void ctw_build_warn(ctw_build *b, ctw_code code, int slot, int item, const char *message)
 {
     ctw_issues_add(&b->out->warnings, CTW_LEVEL_WARNING, code, b->ch->number, slot, item, 0,
@@ -60,15 +80,16 @@ void ctw_build_warn(ctw_build *b, ctw_code code, int slot, int item, const char 
 
 int ctw_build_fill_leftover(ctw_build *b, int64_t end)
 {
+    if (b->capped) return 0;
     if (b->ch->ads) {
-        for (;;) {
+        while (!b->capped) {
             const ctw_ad *a = ctw_ads_draw_fitting(b->db, b->ch, &b->bags, &b->rng,
                                                    ctw_build_left(b, end));
             if (!a) break;
             if (ctw_build_push(b, a->duration_ms, CTW_AIR_AD, NULL, NULL, a, -1, -1)) return -1;
         }
     }
-    if (b->cursor < end) {
+    if (!b->capped && b->cursor < end) {
         return ctw_build_push(b, ctw_build_left(b, end), CTW_AIR_UPNEXT, NULL, NULL, NULL, -1, -1);
     }
     return 0;

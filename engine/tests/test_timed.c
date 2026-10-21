@@ -778,6 +778,50 @@ TEST timed_known_lineup_pinned(void)
     PASS();
 }
 
+#define CAP_LIB \
+    "version = 1\n" \
+    "[[ad]]\npath = \"ads/a.mpg\"\nchannel = \"\"\nduration_ms = 1000\n" \
+    "[[ad]]\npath = \"ads/b.mpg\"\nchannel = \"\"\nduration_ms = 1000\n" \
+    "[[show]]\nchannel = \"Cap\"\nfolder = \"Show\"\nname = \"Show\"\nicon = \"\"\n" \
+    "[[show.episode]]\nseason = 1\nepisode = 1\npath = \"Cap/Show/e1.mpg\"\nduration_ms = 600000\n"
+
+TEST timed_lineup_capped(void)
+{
+    ctw_lineup l = {0};
+    ctw_db *db = load_inline(CAP_LIB,
+        "version = 1\nseed = 1\n[[channel]]\nnumber = 4\nname = \"Cap\"\ncategory = \"T\"\n"
+        "ads = true\nmode = \"timed\"\n"
+        TL_SLOT("07:00", "{ type = \"episode\", show = \"Show\", season = 1, episode = 1 }"));
+    ASSERT(db);
+    ASSERT_EQ(0, ctw_lineup_build(db, ctw_db_channel(db, 4), tl_day, &l));
+    ASSERT_EQ(CTW_AIR_EPISODE, l.items[0].kind);
+    ASSERT_EQ(600000u, l.items[0].duration_ms);
+    ASSERT_EQ(CTW_AIR_AD, l.items[1].kind);
+    CHECK_CALL(assert_capped(&l, 4, 25200000, 25200000 + TL_DAY_MS));
+    ASSERT_EQ(1u, l.warnings.count);
+    ctw_lineup_free(&l);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST timed_lineup_capped_later_slots_skipped(void)
+{
+    ctw_lineup l = {0};
+    ctw_db *db = load_inline(CAP_LIB,
+        "version = 1\nseed = 1\n[[channel]]\nnumber = 4\nname = \"Cap\"\ncategory = \"T\"\n"
+        "ads = true\nmode = \"timed\"\n"
+        TL_SLOT("00:00", "{ type = \"ads\", count = 30000 }")
+        TL_SLOT("20:00", "{ type = \"episode\", show = \"Show\", season = 1, episode = 1 }"));
+    ASSERT(db);
+    ASSERT_EQ(0, ctw_lineup_build(db, ctw_db_channel(db, 4), tl_day, &l));
+    CHECK_CALL(assert_capped(&l, 4, 0, TL_DAY_MS));
+    ASSERT_EQ(1u, l.warnings.count);
+    for (size_t i = 0; i < l.count; i++) ASSERT(l.items[i].kind != CTW_AIR_EPISODE);
+    ctw_lineup_free(&l);
+    ctw_db_free(db);
+    PASS();
+}
+
 TEST lineup_hash_encoding(void)
 {
     ctw_episode ep = {0};
@@ -853,6 +897,8 @@ SUITE(timed_suite)
     RUN_TEST(timed_seed_changes);
     RUN_TEST(timed_day_changes);
     RUN_TEST(timed_known_lineup_pinned);
+    RUN_TEST(timed_lineup_capped);
+    RUN_TEST(timed_lineup_capped_later_slots_skipped);
     RUN_TEST(lineup_hash_encoding);
     RUN_TEST(lineup_free_null_safe);
 }

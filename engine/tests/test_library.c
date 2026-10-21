@@ -139,9 +139,9 @@ TEST library_unsorted_input_sorted(void)
 {
     const char *text =
         "version = 1\n[[show]]\nchannel = \"c\"\nfolder = \"f\"\nname = \"n\"\nicon = \"\"\n"
-        "[[show.episode]]\nseason = 2\nepisode = 1\npath = \"p21\"\nduration_ms = 3\n"
-        "[[show.episode]]\nseason = 1\nepisode = 2\npath = \"p12\"\nduration_ms = 2\n"
-        "[[show.episode]]\nseason = 1\nepisode = 1\npath = \"p11\"\nduration_ms = 1\n";
+        "[[show.episode]]\nseason = 2\nepisode = 1\npath = \"p21\"\nduration_ms = 3000\n"
+        "[[show.episode]]\nseason = 1\nepisode = 2\npath = \"p12\"\nduration_ms = 2000\n"
+        "[[show.episode]]\nseason = 1\nepisode = 1\npath = \"p11\"\nduration_ms = 1000\n";
     ctw_db *db = ctw_db_new();
     ctw_issues is = {0};
     const ctw_show *s;
@@ -198,7 +198,33 @@ TEST library_duration_range(void)
     ASSERT_EQ(0u, is.count);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(0, parse_episode("season = 1\nepisode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(0, parse_episode("season = 1\nepisode = 1\npath = \"p\"\nduration_ms = 1000", &is));
+    ASSERT_EQ(0u, is.count);
+    ctw_issues_free(&is);
+    memset(&is, 0, sizeof is);
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\npath = \"p\"\nduration_ms = 999", &is));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
+    ASSERT(strstr(is.items[0].message, "1000") != NULL);
+    ctw_issues_free(&is);
+    memset(&is, 0, sizeof is);
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
+    ctw_issues_free(&is);
+    PASS();
+}
+
+TEST library_ad_duration_minimum(void)
+{
+    ctw_issues is = {0};
+    ASSERT_EQ(-1, parse_text("version = 1\n[[ad]]\npath = \"a\"\nchannel = \"\"\nduration_ms = 999\n", &is));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
+    ASSERT_STR_EQ("library", is.items[0].file);
+    ctw_issues_free(&is);
+    memset(&is, 0, sizeof is);
+    ASSERT_EQ(0, parse_text("version = 1\n[[ad]]\npath = \"a\"\nchannel = \"\"\nduration_ms = 1000\n", &is));
+    ASSERT_EQ(0u, is.count);
     ctw_issues_free(&is);
     PASS();
 }
@@ -206,12 +232,12 @@ TEST library_duration_range(void)
 TEST library_wrong_type_is_parse(void)
 {
     ctw_issues is = {0};
-    ASSERT_EQ(-1, parse_episode("season = \"1\"\nepisode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = \"1\"\nepisode = 1\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(1u, is.count);
     ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\npath = 5\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\npath = 5\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
     ctw_issues_free(&is);
     PASS();
@@ -220,23 +246,23 @@ TEST library_wrong_type_is_parse(void)
 TEST library_season_episode_range(void)
 {
     ctw_issues is = {0};
-    ASSERT_EQ(-1, parse_episode("season = 65536\nepisode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = 65536\nepisode = 1\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(-1, parse_episode("season = -1\nepisode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = -1\nepisode = 1\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 0\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 0\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 65536\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 65536\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_BAD_VALUE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(0, parse_episode("season = 0\nepisode = 65535\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(0, parse_episode("season = 0\nepisode = 65535\npath = \"p\"\nduration_ms = 1000", &is));
     ctw_issues_free(&is);
     PASS();
 }
@@ -244,15 +270,15 @@ TEST library_season_episode_range(void)
 TEST library_missing_required_fields(void)
 {
     ctw_issues is = {0};
-    ASSERT_EQ(-1, parse_episode("episode = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("episode = 1\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(-1, parse_episode("season = 1\npath = \"p\"\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = 1\npath = \"p\"\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
     ctw_issues_free(&is);
     memset(&is, 0, sizeof is);
-    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\nduration_ms = 1", &is));
+    ASSERT_EQ(-1, parse_episode("season = 1\nepisode = 1\nduration_ms = 1000", &is));
     ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
     ctw_issues_free(&is);
     PASS();
@@ -266,7 +292,7 @@ TEST library_collects_all_errors(void)
         "[[ad]]\npath = \"b\"\nchannel = \"\"\n"
         "[[show]]\nchannel = \"c\"\nfolder = \"f\"\nname = \"n\"\nicon = \"\"\n"
         "[[show.episode]]\nseason = 1\nepisode = 1\npath = \"p\"\nduration_ms = 0\n"
-        "[[show.episode]]\nseason = 1\nepisode = 2\npath = \"q\"\nduration_ms = 5\n";
+        "[[show.episode]]\nseason = 1\nepisode = 2\npath = \"q\"\nduration_ms = 5000\n";
     ctw_db *db = ctw_db_new();
     ctw_issues is = {0};
     ASSERT_EQ(-1, ctw_library_parse(db, text, &is));
@@ -480,6 +506,7 @@ SUITE(library_suite)
     RUN_TEST(library_missing_duration);
     RUN_TEST(library_rejects_zero_duration);
     RUN_TEST(library_duration_range);
+    RUN_TEST(library_ad_duration_minimum);
     RUN_TEST(library_wrong_type_is_parse);
     RUN_TEST(library_season_episode_range);
     RUN_TEST(library_missing_required_fields);
