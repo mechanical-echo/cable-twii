@@ -121,7 +121,7 @@ static void parse_episodes(ctw_pctx *pc, ctw_show *show, const toml_array_t *arr
     }
     for (i = 0; i < n; i++) {
         toml_table_t *t = toml_table_at(arr, i);
-        char where[200];
+        char where[224];
         ctw_episode ep;
         int64_t season, episode, dur;
         int failed = 0;

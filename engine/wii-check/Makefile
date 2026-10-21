@@ -17,6 +17,8 @@ INCLUDES	:=	../include ../src ../vendor
 
 DEFINES		:=
 ifneq ($(strip $(AUTOTEST)),)
+TARGET		:=	wii-check-autotest
+BUILD		:=	build-autotest
 DEFINES		+=	-DAUTOTEST
 endif
 

@@ -4,7 +4,7 @@ engine="$(dirname "$here")"
 bin="$engine/build/cable-twii-sched"
 fixture="$here/fixtures/root_basic"
 expected_file="$here/wii_check_expected.txt"
-dol="$engine/wii-check/boot.dol"
+dol="$engine/wii-check/wii-check-autotest.dol"
 dolphin="${DOLPHIN:-/Applications/Dolphin.app/Contents/MacOS/Dolphin}"
 limit="${WII_CHECK_TIMEOUT:-60}"
 dates="2026-10-20 2026-10-21 2026-12-31 2027-01-01"
@@ -17,17 +17,22 @@ cleanup() {
         sleep 1
         kill -9 "$pid" 2>/dev/null
     fi
+    make -C "$engine/wii-check" AUTOTEST=1 clean >/dev/null 2>&1
     rm -rf "$tmp"
 }
 trap cleanup EXIT
 
 make -C "$engine" cli >/dev/null 2>&1 || { echo "FAIL cli build"; exit 1; }
-make -C "$engine/wii-check" clean >/dev/null 2>&1
+make -C "$engine/wii-check" AUTOTEST=1 clean >/dev/null 2>&1
 make -C "$engine/wii-check" AUTOTEST=1 >"$tmp/wii-build.log" 2>&1 || {
     cat "$tmp/wii-build.log"
     echo "FAIL wii build"
     exit 1
 }
+if grep -E '(/src/|/wii-check/)[^:]*:[0-9]+:[0-9]+: warning:' "$tmp/wii-build.log"; then
+    echo "FAIL wii build has warnings"
+    exit 1
+fi
 echo "ok build"
 
 channels="$(sed -n 's/^number = \([0-9][0-9]*\)$/\1/p' "$fixture/config.toml")"
@@ -38,6 +43,7 @@ for d in $dates; do
         echo "HASH $d $c $h" >>"$tmp/expected.txt"
     done
 done
+[ -s "$expected_file" ] || { echo "FAIL $expected_file is empty"; exit 1; }
 if ! diff -u "$expected_file" "$tmp/expected.txt"; then
     echo "FAIL $expected_file is stale"
     exit 1
@@ -101,8 +107,13 @@ tr -d '\r' <"$log" >"$tmp/report.log"
 grep -o 'OSREPORT[^:]*: ERROR .*' "$tmp/report.log" | sed 's/^[^:]*: //'
 grep -o 'OSREPORT[^:]*: HASH .*' "$tmp/report.log" | sed 's/^[^:]*: //' >"$tmp/actual.txt"
 cat "$tmp/actual.txt"
+count="$(wc -l <"$tmp/actual.txt" | tr -d ' ')"
+if [ "$count" != 8 ]; then
+    echo "FAIL expected 8 HASH lines from dolphin, got $count"
+    exit 1
+fi
 if diff -u "$tmp/expected.txt" "$tmp/actual.txt"; then
-    echo "ok wii hashes match ($(wc -l <"$tmp/actual.txt" | tr -d ' ') lines)"
+    echo "ok wii hashes match ($count lines)"
     exit 0
 fi
 echo "FAIL wii hashes differ"
