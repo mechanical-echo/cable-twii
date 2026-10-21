@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { type Job, getJobs, subscribeJobs } from "../api";
+import { type Job, getJobs, retryJobs, subscribeJobs } from "../api";
 import { baseName } from "../format";
 import { mergeResync } from "../jobs";
 
@@ -10,6 +10,7 @@ interface Props {
 export function JobsPanel({ onFinished }: Props) {
   const [jobs, setJobs] = useState<Map<string, Job>>(new Map());
   const [problem, setProblem] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const finished = useRef(onFinished);
   finished.current = onFinished;
 
@@ -55,12 +56,26 @@ export function JobsPanel({ onFinished }: Props) {
     };
   }, []);
 
+  const retry = () => {
+    setRetrying(true);
+    retryJobs()
+      .then(() => setProblem(null))
+      .catch((err: Error) => setProblem(`Could not retry: ${err.message}`))
+      .finally(() => setRetrying(false));
+  };
+
   const list = [...jobs.values()];
   if (list.length === 0 && problem === null) return null;
+  const anyFailed = list.some((job) => job.state === "failed");
   return (
     <div className="card">
       <h3>Conversions</h3>
       {problem !== null && <div className="banner error">{problem}</div>}
+      {anyFailed && (
+        <button onClick={retry} disabled={retrying}>
+          Retry failed
+        </button>
+      )}
       {list.map((job) => (
         <div key={job.id} className="job">
           <div className="job-head">

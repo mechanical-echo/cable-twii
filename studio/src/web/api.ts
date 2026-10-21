@@ -93,6 +93,7 @@ export const pickSource = () => send<{ dir: string; files: ScanResult[] } | null
 export const importShow = (req: ImportShowRequest) => send<ImportResult>("POST", "/api/import/show", req);
 export const importAds = (req: ImportAdsRequest) => send<ImportResult>("POST", "/api/import/ads", req);
 export const getJobs = () => send<Job[]>("GET", "/api/jobs");
+export const retryJobs = () => send<{ jobs: Job[] }>("POST", "/api/jobs/retry");
 export const getLibrary = () => send<WebLibrary>("GET", "/api/library");
 export const rebuildLibrary = () => send<WebBuildResult>("POST", "/api/library/rebuild");
 export const getConfig = () => send<{ config: Config; mtimeMs: number }>("GET", "/api/config");

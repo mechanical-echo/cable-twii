@@ -230,6 +230,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       throw new HttpError(409, "The cable-twii folder is missing.");
     }
     if (real !== info.rootPath) throw new HttpError(409, "cable-twii is not a normal folder.");
+    queues.get(info.rootPath)?.resume();
     return info.rootPath;
   }
 
@@ -320,6 +321,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   async function rememberDrive(input: string): Promise<DriveInfo> {
     const info = await inspectDrive(input, deps);
     if (await pathExists(info.path)) await saveDrive(info.path);
+    if (info.usable && info.hasRoot) queues.get(info.rootPath)?.resume();
     return info;
   }
 
@@ -501,6 +503,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   app.get("/api/jobs", async () => queueFor(await requireRoot()).list());
+
+  app.post("/api/jobs/retry", async () => ({ jobs: queueFor(await requireRoot()).retryFailed() }));
 
   app.get("/api/jobs/stream", (_request, reply) => {
     reply.hijack();

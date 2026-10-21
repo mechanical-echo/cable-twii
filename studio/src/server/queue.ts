@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { readFileSync, renameSync } from "node:fs";
+import { readFileSync, realpathSync, renameSync, statSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -42,6 +42,7 @@ export class ConversionQueue extends EventEmitter {
   private readonly probeFn: typeof probe;
   private started = false;
   private stopping = false;
+  private paused = false;
   private writeChain: Promise<void> = Promise.resolve();
   private stopPromise: Promise<void> | undefined;
   private loadErrors: Error[] = [];
@@ -129,6 +130,37 @@ export class ConversionQueue extends EventEmitter {
     return [...this.jobs.values()].map((j) => ({ ...j }));
   }
 
+  isPaused(): boolean {
+    return this.paused;
+  }
+
+  resume(): void {
+    if (!this.paused || !this.reachable()) return;
+    this.paused = false;
+    this.persist();
+    this.pump();
+  }
+
+  retryFailed(): Job[] {
+    const active = new Set<string>();
+    for (const job of this.jobs.values()) if (job.state === "queued" || job.state === "running") active.add(job.target);
+    const retried: Job[] = [];
+    for (const job of this.jobs.values()) {
+      if (job.state !== "failed" || active.has(job.target)) continue;
+      job.state = "queued";
+      job.progress = 0;
+      delete job.error;
+      active.add(job.target);
+      retried.push(job);
+    }
+    if (retried.length === 0) return [];
+    const copies = retried.map((j) => ({ ...j }));
+    this.persist();
+    for (const job of retried) this.emitChange(job);
+    this.pump();
+    return copies;
+  }
+
   start(): void {
     this.started = true;
     this.pump();
@@ -152,7 +184,16 @@ export class ConversionQueue extends EventEmitter {
     this.emit("change", { ...job });
   }
 
+  private reachable(): boolean {
+    try {
+      return statSync(realpathSync(this.root)).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
   private persist(): void {
+    if (this.paused) return;
     const stored = [...this.jobs.values()]
       .filter((j) => j.state === "queued" || j.state === "running")
       .map((j) => ({ id: j.id, source: j.source, target: j.target, aspect: j.aspect }));
@@ -163,7 +204,7 @@ export class ConversionQueue extends EventEmitter {
   }
 
   private pump(): void {
-    if (!this.started || this.stopping) return;
+    if (!this.started || this.stopping || this.paused) return;
     for (const job of this.jobs.values()) {
       if (this.controllers.size >= this.concurrency) return;
       if (job.state !== "queued" || this.controllers.has(job.id)) continue;
@@ -226,6 +267,10 @@ export class ConversionQueue extends EventEmitter {
     } catch (err) {
       ended = true;
       if (controller.signal.aborted && this.stopping) {
+        job.state = "queued";
+        job.progress = 0;
+      } else if (!this.reachable()) {
+        this.paused = true;
         job.state = "queued";
         job.progress = 0;
       } else {

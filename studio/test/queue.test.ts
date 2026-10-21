@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -145,6 +145,81 @@ test("stop requeues running jobs and persists them", async () => {
   expect(q.list().map((j) => j.state)).toEqual(["queued", "queued"]);
   const again = new ConversionQueue(dir, { convertFn: quick, probeFn });
   expect(again.list().map((j) => j.target)).toEqual(["a.mpg", "b.mpg"]);
+});
+
+function until(q: ConversionQueue, check: (jobs: Job[]) => boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const run = () => {
+      if (check(q.list())) resolve();
+    };
+    q.on("change", run);
+    run();
+  });
+}
+
+test("queue pauses while the root is gone and resumes when it is back", async () => {
+  const root = path.join(dir, "root");
+  const away = path.join(dir, "away");
+  await mkdir(root);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let calls = 0;
+  const convertFn: typeof convert = async (_s, dst) => {
+    calls++;
+    if (calls === 1) await gate;
+    await writeFile(dst, "converted");
+  };
+  const q = new ConversionQueue(root, { concurrency: 1, convertFn, probeFn });
+  const states: string[] = [];
+  q.on("change", (j: Job) => states.push(j.state));
+  q.start();
+  for (const n of ["a", "b", "c"]) q.enqueue(srcFile, `Show/${n}.mpg`, "4:3");
+  await until(q, (jobs) => jobs[0]?.state === "running");
+  await sleep(30);
+  const stored = await readFile(path.join(root, ".studio", "queue.toml"), "utf8");
+  expect(stored.match(/\[\[job\]\]/g)).toHaveLength(3);
+  await rename(root, away);
+  release();
+  await until(q, (jobs) => jobs[0]?.state === "queued");
+  await sleep(30);
+  expect(q.list().map((j) => j.state)).toEqual(["queued", "queued", "queued"]);
+  expect(states).not.toContain("failed");
+  expect(q.isPaused()).toBe(true);
+  q.resume();
+  expect(q.isPaused()).toBe(true);
+  await rename(away, root);
+  expect(await readFile(path.join(root, ".studio", "queue.toml"), "utf8")).toBe(stored);
+  q.resume();
+  expect(q.isPaused()).toBe(false);
+  await idle(q, 3);
+  expect(q.list().map((j) => j.state)).toEqual(["done", "done", "done"]);
+  expect((await readdir(path.join(root, "Show"))).sort()).toEqual(["a.mpg", "b.mpg", "c.mpg"]);
+  await q.stop();
+});
+
+test("retryFailed requeues failed jobs", async () => {
+  let fail = true;
+  const convertFn: typeof convert = async () => {
+    if (fail) throw new Error("boom");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+  q.start();
+  q.enqueue(srcFile, "a.mpg", "4:3");
+  q.enqueue(srcFile, "b.mpg", "4:3");
+  await idle(q, 2);
+  expect(q.list().map((j) => j.state)).toEqual(["failed", "failed"]);
+  fail = false;
+  const retried = q.retryFailed();
+  expect(retried.map((j) => [j.target, j.state])).toEqual([
+    ["a.mpg", "queued"],
+    ["b.mpg", "queued"],
+  ]);
+  await idle(q, 2);
+  expect(q.list().map((j) => j.state)).toEqual(["done", "done"]);
+  expect(q.retryFailed()).toEqual([]);
+  await q.stop();
 });
 
 test("parallel successes all recorded in sources.toml", async () => {

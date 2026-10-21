@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -620,6 +620,57 @@ test("PUT /api/show-meta writes show.toml and returns the rebuilt library", asyn
   expect(missing.statusCode).toBe(404);
   const bad = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: { S01E05: 3 } } });
   expect(bad.statusCode).toBe(400);
+});
+
+test("POST /api/jobs/retry requeues failed conversions", async () => {
+  await app.close();
+  let fail = true;
+  const flaky: typeof convert = async (src, dst, aspect, onProgress, signal) => {
+    if (fail) throw new Error("boom");
+    await fakeConvert(src, dst, aspect, onProgress, signal);
+  };
+  app = make({ queueFactory: (r) => new ConversionQueue(r, { convertFn: flaky, probeFn: fakeProbe, concurrency: 1 }) });
+  await useFixture();
+  await writeFile(path.join(dir, "x.mov"), "video");
+  const imported = await app.inject({ method: "POST", url: "/api/import/ads", payload: { channelFolder: "", files: [{ source: path.join(dir, "x.mov"), aspect: "4:3" }] } });
+  expect(imported.statusCode).toBe(200);
+  const jobs = async () => (await app.inject({ method: "GET", url: "/api/jobs" })).json() as Job[];
+  await waitFor(async () => (await jobs())[0]?.state === "failed");
+  fail = false;
+  const res = await app.inject({ method: "POST", url: "/api/jobs/retry" });
+  expect(res.statusCode).toBe(200);
+  expect((res.json() as { jobs: Job[] }).jobs.map((j) => [j.target, j.state])).toEqual([["ads/x.mpg", "queued"]]);
+  await waitFor(async () => (await jobs())[0]?.state === "done");
+});
+
+test("the queue resumes when the drive comes back", async () => {
+  await app.close();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let calls = 0;
+  const gated: typeof convert = async (src, dst, aspect, onProgress, signal) => {
+    calls++;
+    if (calls === 1) await gate;
+    await fakeConvert(src, dst, aspect, onProgress, signal);
+  };
+  app = make({ queueFactory: (r) => new ConversionQueue(r, { convertFn: gated, probeFn: fakeProbe, concurrency: 1 }) });
+  await useFixture();
+  const files = ["one.mov", "two.mov"].map((name) => ({ source: path.join(dir, name), aspect: "4:3" }));
+  for (const file of files) await writeFile(file.source, "video");
+  expect((await app.inject({ method: "POST", url: "/api/import/ads", payload: { channelFolder: "", files } })).statusCode).toBe(200);
+  const jobs = async () => (await app.inject({ method: "GET", url: "/api/jobs" })).json() as Job[];
+  await waitFor(async () => (await jobs())[0]?.state === "running");
+  await sleep(30);
+  const away = path.join(dir, "away");
+  await rename(root, away);
+  release();
+  await sleep(50);
+  expect((await app.inject({ method: "GET", url: "/api/jobs" })).statusCode).toBe(409);
+  await rename(away, root);
+  await waitFor(async () => (await jobs()).every((j) => j.state === "done"));
+  expect((await readdir(path.join(root, "ads"))).filter((n) => n === "one.mpg" || n === "two.mpg").sort()).toEqual(["one.mpg", "two.mpg"]);
 });
 
 test("SSE emits a job change", async () => {
