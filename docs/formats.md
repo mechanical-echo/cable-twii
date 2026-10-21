@@ -13,7 +13,8 @@ Sources: design spec sections 5, 6.5, 6.7 and 8.1a; engine plan 01 Task 9 and th
 - **Names** (show, folder, channel) are matched byte for byte, including accents (`Pokémon`).
 - **Time** is written `HH:MM`, 24-hour, two digits each, from `00:00` to `23:59`. `24:00`, `7:00` and `07:00:00` are all `bad_time`.
 - **Slot window.** A slot runs from its `at` until the next slot's `at`. The last slot runs until the first slot's `at` on the next day.
-- **`season = 0`.** On an episode (in `library.toml`) it means a show without seasons. On an item (in `config.toml`) it means all seasons, the same as leaving `season` out.
+- **`season = 0`.** On an episode (in `library.toml`) it means a show without seasons.
+- **Season on items.** On an `episode` item, `season` must equal the library episode's season exactly, so `season = 0` there targets an episode of a seasonless show (library season 0). On `random`, `random-run` and `fill` items, `season = 0` means all seasons, the same as leaving `season` out. These two meanings are the whole rule.
 - **Unknown keys** are ignored by the engine.
 - Hidden macOS files (`._*`, `.DS_Store`) are ignored everywhere.
 
@@ -36,7 +37,7 @@ Codes appear in the CLI JSON as lowercase names, from the engine's `ctw_code` na
 |---|---|---|
 | `parse` | error | File missing, not valid TOML, or a required key is missing. `line` is set for syntax errors, 0 for field errors. |
 | `version` | error | `version` is not 1. |
-| `bad_value` | error | A value is out of range or not allowed (unknown `type`, unknown `mode`, `duration_ms = 0`, channel `number` outside 1 to 999). |
+| `bad_value` | error | A value is out of range or not allowed: unknown `type` or `mode`, `loop` on a timed channel, `slot` on a looping channel, a looping channel with no or an empty `loop`, or a number outside its range (`number`, `season`, `episode`, `count`, `ads_between`, `duration_ms`). |
 | `bad_time` | error | A slot `at` is not a valid `HH:MM`. |
 | `dup_channel` | error | Two channels have the same `number`. |
 | `dup_slot` | error | Two slots in one channel have the same `at`. |
@@ -51,7 +52,7 @@ Codes appear in the CLI JSON as lowercase names, from the engine's `ctw_code` na
 | `partial` | warning | A `random` or `random-run` item could not place all `count` episodes in the time that was left. |
 | `loop_empty` | warning | A looping channel placed nothing in a full pass (for example only `ads` items on a channel with `ads = false`). The day is one "Up next" card. |
 
-Each issue carries `channel`, `slot` and `item` (zero-based; see the CLI shape below), the `file` (`config` or `library`) and a human message.
+Each issue carries `channel` (channel number), `slot` and `item` (zero-based), `line`, the `file` (`config` or `library`) and a human message. When an issue is not tied to a channel, slot or item, those fields are `-1`. `line` is `0` when unknown.
 
 ---
 
@@ -99,7 +100,7 @@ Every item has a `type`. Other fields depend on the type. A field marked `?` is 
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `episode` | `show`, `season`, `episode`, `from`? | One specific episode. Cut off at the window end if it does not fit (`cut` warning). |
+| `episode` | `show`, `season`, `episode`, `from`? | One specific episode (`season` must match exactly, see the season rule above). Cut off at the window end if it does not fit (`cut` warning). |
 | `random` | `show`, `season`?, `count`?, `from`? | `count` random episodes, no repeats within the item. Only episodes that fit the remaining time are chosen. |
 | `random-run` | `show`, `season`?, `count`?, `from`? | A random starting episode, then the following episodes in order. If the full run does not fit, the longest run that fits is used. |
 | `ads` | `count`? | `count` random ads. Skipped when the channel has `ads = false`. |
@@ -109,7 +110,7 @@ Every item has a `type`. Other fields depend on the type. A field marked `?` is 
 | Field | Type | Default | Allowed |
 |---|---|---|---|
 | `show` | string | none | the show's folder name inside the channel's folder (or inside `from`) |
-| `season` | integer | `0` (all seasons) | 0 to 65535. Required on `episode`. |
+| `season` | integer | `0` (all seasons) | 0 to 65535. Required on `episode`, where it must match the library season exactly; on `random`, `random-run` and `fill`, 0 means all seasons (see the season rule above). |
 | `episode` | integer | none | 1 to 65535, `episode` type only |
 | `count` | integer | `1` | 1 to 65535 |
 | `ads_between` | integer | `0` | 0 to 65535, number of ads between episodes (ignored on channels with `ads = false`) |
@@ -122,7 +123,7 @@ Random ads come from the channel's own `ads/` folder if it has any, otherwise fr
 
 ### Validation
 
-`parse`, `version`, `bad_value` (unknown `type` or `mode`, `number` outside 1 to 999), `bad_time`, `dup_channel`, `dup_slot`, `unknown_show`, `missing_episode`, `unknown_ad`, `fill_in_loop`, `no_slots`, `empty_pool`. Warnings from building lineups: `cut`, `partial`, `loop_empty`.
+`parse`, `version`, `bad_value` (unknown `type` or `mode`; `loop` on a timed channel; `slot` on a looping channel; a looping channel with no `loop` or an empty `loop`; any numeric field out of range: `number`, `season`, `episode`, `count`, `ads_between`, `duration_ms`), `bad_time`, `dup_channel`, `dup_slot`, `unknown_show`, `missing_episode`, `unknown_ad`, `fill_in_loop`, `no_slots`, `empty_pool`. Warnings from building lineups: `cut`, `partial`, `loop_empty`.
 
 ### Complete example
 
@@ -192,7 +193,7 @@ loop = [
 |---|---|---|---|---|
 | `path` | string | yes | none | relative to `/cable-twii/`, for example `ads/soda-commercial.mpg` |
 | `channel` | string | yes | none | `""` for a shared ad, otherwise the channel folder name that owns it |
-| `duration_ms` | integer | yes | none | at least 1 (`0` is `bad_value`) |
+| `duration_ms` | integer | yes | none | 1 to 4294967295 (outside the range is `bad_value`) |
 
 ### `[[show]]`
 
@@ -215,11 +216,11 @@ A show is identified by the pair (`channel`, `folder`).
 | `title` | string | no | `""` | |
 | `description` | string | no | `""` | |
 | `path` | string | yes | none | relative to `/cable-twii/`, `/` separators, FAT-safe |
-| `duration_ms` | integer | yes | none | at least 1 (`0` is `bad_value`, a missing value is `parse`) |
+| `duration_ms` | integer | yes | none | 1 to 4294967295 (outside the range is `bad_value`, a missing value is `parse`) |
 
 ### Validation
 
-`parse` (including a missing `duration_ms`), `version`, `bad_value` (`duration_ms = 0`), `missing_file` (with `--check-files`).
+`parse` (including a missing `duration_ms`), `version`, `bad_value` (`duration_ms` outside 1 to 4294967295), `missing_file` (with `--check-files`).
 
 ### Complete example
 
@@ -385,7 +386,17 @@ aspect = "16:9"
 
 Built natively on the Mac (`engine/build/cable-twii-sched`; Studio can override the path with `CTW_SCHED_BIN`). Output is JSON on stdout, strings escaped per RFC 8259. `<root>` is the folder that holds `config.toml` and `library.toml`.
 
-Exit codes for every command: `0` success, `1` the data has errors (`validate`: any error issue; other commands: the root cannot be loaded), `2` usage error.
+Exit codes and output, for every command:
+
+| Exit | Meaning | stdout | stderr |
+|---|---|---|---|
+| 0 | Success. | The command's JSON (`hash`: the hash). | empty |
+| 1 | The root failed to load, or `validate` found errors. | `{"ok":false,"issues":[...]}`, the same JSON as `validate`, for every command (`lineup`, `now` and `hash` too). | empty |
+| 2 | Usage error: unknown command, missing or malformed `--channel`, `--date` or `--at`, or a channel number not in the config. | nothing | plain text message |
+
+If `now` asks for a time that no airing covers, the output is `{"airing":null,"offset_ms":0}` with exit 0.
+
+Issue fields are `-1` when not tied to a channel, slot or item, and `line` is `0` when unknown.
 
 ### `validate`
 
@@ -397,11 +408,12 @@ cable-twii-sched validate <root> [--check-files]
 
 ```json
 {"ok":false,"issues":[
-  {"level":"error","code":"unknown_show","channel":1,"slot":0,"item":2,"line":0,"file":"config","message":"show \"Nope\" not found in Cartoon Network"}
+  {"level":"error","code":"unknown_show","channel":1,"slot":0,"item":2,"line":0,"file":"config","message":"show \"Nope\" not found in Cartoon Network"},
+  {"level":"error","code":"parse","channel":-1,"slot":-1,"item":-1,"line":7,"file":"library","message":"syntax error"}
 ]}
 ```
 
-Issue fields: `level` (`"error"` or `"warning"`), `code` (see the table above), `channel` (channel number), `slot` and `item` (zero-based indexes), `line` (line in the file for syntax errors, otherwise 0), `file` (`"config"` or `"library"`), `message`. `ok` is true when there are no errors.
+Issue fields: `level` (`"error"` or `"warning"`), `code` (see the table above), `channel` (channel number), `slot` and `item` (zero-based indexes); these three are `-1` when the issue is not tied to a channel, slot or item; `line` (line in the file for syntax errors, otherwise 0; 0 also means unknown), `file` (`"config"` or `"library"`), `message`. `ok` is true when there are no errors.
 
 ### `lineup`
 
@@ -425,7 +437,7 @@ cable-twii-sched lineup <root> --channel N --date YYYY-MM-DD
 
 - `start_ms`: milliseconds since local midnight (a day's lineup starts at 0 and covers 86400000 ms with no gaps).
 - `kind`: `"episode"`, `"ad"` or `"upnext"`.
-- `hash`: 16 lowercase hex digits, FNV-1a 64 over every airing (start, duration, kind, path). Same inputs give the same hash on the Mac and the Wii.
+- `hash`: 16 lowercase hex digits. Exact encoding: FNV-1a 64 (offset basis `0xcbf29ce484222325`, prime `0x100000001b3`) over every airing in order: `start_ms` as 8 big-endian bytes, `duration_ms` as 4 big-endian bytes, `kind` as 1 byte (episode 0, ad 1, upnext 2), then for an episode or ad its `path` as UTF-8 bytes followed by one 0 byte (up-next adds nothing). Same inputs give the same hash on the Mac and the Wii. Studio treats the hash as opaque and only compares it with values the engine produced.
 - `path`, `show`, `season`, `episode`, `title` are `null` for up-next airings. `slot` and `item` are `-1` for filler airings. In a looping channel `slot` is `-1` and `item` is the loop item index.
 - `warnings`: same shape as `issues` in `validate`.
 
@@ -439,6 +451,8 @@ cable-twii-sched now <root> --channel N --at "YYYY-MM-DD HH:MM:SS"
 {"airing":{"start_ms":25200000,"duration_ms":600000,"kind":"episode","path":"Cartoon Network/Gumball/Season 1/S01E02 - Test Two.mpg","show":"Gumball","season":1,"episode":2,"title":"Test Two","slot":0,"item":0},"offset_ms":5000}
 ```
 
+Example when nothing covers the time: `{"airing":null,"offset_ms":0}`.
+
 `airing` has the same shape as one lineup airing. `offset_ms` is how far into the airing the given time is. The engine looks at today's lineup and, for a time before today's first airing, at the tail of yesterday's.
 
 ### `hash`
@@ -447,4 +461,4 @@ cable-twii-sched now <root> --channel N --at "YYYY-MM-DD HH:MM:SS"
 cable-twii-sched hash <root> --channel N --date YYYY-MM-DD
 ```
 
-Prints only the 16-digit hash, for example `0123456789abcdef`, and a newline. It equals `hash` in the `lineup` output.
+Prints only the 16-digit hash (same encoding as above), for example `0123456789abcdef`, and a newline. It equals `hash` in the `lineup` output.
