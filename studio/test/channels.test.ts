@@ -145,3 +145,11 @@ describe("folderSuggestions", () => {
     expect(folderSuggestions(library as never)).toEqual(["Cartoon Network", "mtv-00s"]);
   });
 });
+
+describe("iconPath for drafts", () => {
+  it("uses the trimmed folder, falling back to the name", () => {
+    expect(iconPath(draftFromChannel(mtv))).toBe("mtv-00s/channel.png");
+    expect(iconPath({ ...draftFromChannel(cn), folder: "  " })).toBe("Cartoon Network/channel.png");
+    expect(iconPath({ ...draftFromChannel(cn), name: " CN ", folder: " x " })).toBe("x/channel.png");
+  });
+});

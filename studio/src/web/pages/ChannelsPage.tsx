@@ -30,6 +30,11 @@ function describeIssue(issue: Issue): string {
   return `${issue.level === "error" ? "Error" : "Warning"}: ${issue.message}`;
 }
 
+function IconImage({ src }: { src: string }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  return <img className="icon" src={src} alt="" style={{ visibility: failed === src ? "hidden" : "visible" }} onError={() => setFailed(src)} />;
+}
+
 function toFailure(err: unknown): Failure {
   if (err instanceof ApiError) {
     return { message: err.message, issues: err.issues ?? [], conflict: err.status === 409 };
@@ -203,7 +208,7 @@ export function ChannelsPage() {
                 <tr key={channel.number}>
                   <td>{channel.number}</td>
                   <td>
-                    <img className="icon" src={iconUrl(iconPath(channel))} alt="" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+                    <IconImage src={iconUrl(iconPath(channel))} />
                   </td>
                   <td>{channel.name}</td>
                   <td>{channel.category}</td>
@@ -268,7 +273,7 @@ export function ChannelsPage() {
           </div>
           <div className="row">
             {draftFolder(draft) !== "" && (
-              <img className="icon" src={iconUrl(draft.icon ?? `${draftFolder(draft)}/channel.png`)} alt="" onError={(e) => (e.currentTarget.style.visibility = "hidden")} onLoad={(e) => (e.currentTarget.style.visibility = "visible")} />
+              <IconImage src={iconUrl(iconPath(draft))} />
             )}
             <label className="desc">
               Icon (saved right away as {draftFolder(draft) || "<folder>"}/channel.png)

@@ -29,7 +29,8 @@ export function sortChannels(channels: Channel[]): Channel[] {
 }
 
 export function effectiveFolder(channel: Pick<Channel, "name" | "folder">): string {
-  return channel.folder !== undefined && channel.folder !== "" ? channel.folder : channel.name;
+  const folder = channel.folder?.trim() ?? "";
+  return folder !== "" ? folder : channel.name.trim();
 }
 
 export function iconPath(channel: Pick<Channel, "name" | "folder" | "icon">): string {
@@ -70,10 +71,7 @@ export function draftFromChannel(channel: Channel): ChannelDraft {
   return draft;
 }
 
-export function draftFolder(draft: Pick<ChannelDraft, "name" | "folder">): string {
-  const folder = draft.folder.trim();
-  return folder !== "" ? folder : draft.name.trim();
-}
+export const draftFolder = effectiveFolder;
 
 export function setMode(draft: ChannelDraft, mode: Mode): ChannelDraft {
   const next = { ...draft, mode };
