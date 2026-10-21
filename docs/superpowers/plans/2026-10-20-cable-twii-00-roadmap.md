@@ -46,6 +46,8 @@ Plans 02 and 03 are independent of each other once 01 is done and may run in par
 
 ### Task 0: Repository and Mac toolchain
 
+> **Note (2026-10-22):** development has also happened on Windows (not just Mac) — Studio was ported (see `studio/` commits on `master`) and the Task 0 tools (devkitPro, GRRLIB, Dolphin) were installed there too, by hand where the installer needs a GUI. See the "Progress" section near the top of `2026-10-20-cable-twii-03-wii-app.md` for exactly what was installed and the Windows-specific gotchas hit along the way. This task's steps below are still written Mac-first; treat them as reference, not as unstarted.
+
 **Files:**
 - Create: `README.md`, `.gitignore`, `docs/setup.md`
 
