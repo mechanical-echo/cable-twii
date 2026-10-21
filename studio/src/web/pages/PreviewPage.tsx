@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Config, type LineupResult, getConfig, getLibrary, getPreview, mediaUrl } from "../api";
 import { effectiveFolder, sortChannels } from "../channels";
 import { FailureBanner } from "../FailureBanner";
 import { type Failure, toFailure } from "../failure";
 import { formatDuration } from "../format";
 import { IconImage } from "../IconImage";
+import { createLatest } from "../latest";
 import { type GuideRow, adBreakLabel, findShow, formatClock, formatEpisodeCode, groupAirings, localDate, localMs, nowPosition } from "../preview";
 import type { WebLibrary } from "../tree";
 
@@ -42,29 +43,37 @@ export function PreviewPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  const latest = useRef(createLatest());
+
   const load = useCallback(() => {
-    if (channel === null || date === "") return () => undefined;
-    let current = true;
-    setLoading(true);
+    const isLatest = latest.current.begin();
     setFailure(null);
+    if (channel === null || date === "") {
+      setLineup(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     getPreview(channel, date)
       .then((result) => {
-        if (current) setLineup(result);
+        if (isLatest()) setLineup(result);
       })
       .catch((err: unknown) => {
-        if (!current) return;
+        if (!isLatest()) return;
         setLineup(null);
         setFailure(toFailure(err));
       })
       .finally(() => {
-        if (current) setLoading(false);
+        if (isLatest()) setLoading(false);
       });
-    return () => {
-      current = false;
-    };
   }, [channel, date]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    setLineup(null);
+    load();
+    const pending = latest.current;
+    return () => pending.cancel();
+  }, [load]);
 
   const channels = useMemo(() => (config ? sortChannels(config.channel) : []), [config]);
   const selected = channels.find((c) => c.number === channel) ?? null;
