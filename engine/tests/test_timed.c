@@ -4,46 +4,7 @@
 #include "greatest/greatest.h"
 #include "ctw/ctw.h"
 #include "pool.h"
-
-#define LIB_PATH "tests/fixtures/lib_basic.toml"
-
-static char *read_file(const char *path, const char *extra)
-{
-    FILE *f = fopen(path, "rb");
-    long n;
-    size_t extra_len = extra ? strlen(extra) : 0;
-    char *buf;
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    buf = malloc((size_t)n + extra_len + 1);
-    if (buf && fread(buf, 1, (size_t)n, f) != (size_t)n) {
-        free(buf);
-        buf = NULL;
-    }
-    if (buf) {
-        if (extra_len) memcpy(buf + n, extra, extra_len);
-        buf[(size_t)n + extra_len] = '\0';
-    }
-    fclose(f);
-    return buf;
-}
-
-static ctw_db *load_library(const char *extra)
-{
-    ctw_issues is = {0};
-    char *text = read_file(LIB_PATH, extra);
-    ctw_db *db = ctw_db_new();
-    int rc = text ? ctw_library_parse(db, text, &is) : -1;
-    free(text);
-    ctw_issues_free(&is);
-    if (rc) {
-        ctw_db_free(db);
-        return NULL;
-    }
-    return db;
-}
+#include "helpers.h"
 
 static ctw_channel cn_channel(void)
 {
@@ -408,18 +369,6 @@ SUITE(pool_suite)
 
 static const ctw_date tl_day = {2026, 10, 20};
 
-static ctw_db *load_config(const char *cfg)
-{
-    ctw_issues is = {0};
-    ctw_db *db = load_library(NULL);
-    if (db && ctw_config_parse(db, cfg, &is)) {
-        ctw_db_free(db);
-        db = NULL;
-    }
-    ctw_issues_free(&is);
-    return db;
-}
-
 static int build_day(const char *cfg, ctw_date day, ctw_lineup *l)
 {
     ctw_db *db = load_config(cfg);
@@ -441,19 +390,6 @@ static ctw_db *build_keep(const char *cfg, ctw_date day, ctw_lineup *l)
     return db;
 }
 
-static enum greatest_test_res assert_contiguous(const ctw_lineup *l, int64_t from, int64_t to)
-{
-    ASSERT(l->count > 0);
-    ASSERT_EQ_FMT(from, l->items[0].start_ms, "%lld");
-    for (size_t i = 1; i < l->count; i++) {
-        int64_t prev_end = l->items[i - 1].start_ms + (int64_t)l->items[i - 1].duration_ms;
-        ASSERT_EQ_FMT(prev_end, l->items[i].start_ms, "%lld");
-    }
-    ASSERT_EQ_FMT(to, l->items[l->count - 1].start_ms + (int64_t)l->items[l->count - 1].duration_ms,
-                  "%lld");
-    PASS();
-}
-
 static size_t count_kind(const ctw_lineup *l, int slot, ctw_air_kind kind)
 {
     size_t n = 0;
@@ -463,33 +399,12 @@ static size_t count_kind(const ctw_lineup *l, int slot, ctw_air_kind kind)
     return n;
 }
 
-static int has_warning(const ctw_lineup *l, ctw_code code, int slot, int item)
-{
-    for (size_t i = 0; i < l->warnings.count; i++) {
-        const ctw_issue *w = &l->warnings.items[i];
-        if (w->code == code && w->slot == slot && w->item == item && w->channel == 1 &&
-            w->level == CTW_LEVEL_WARNING && w->line == 0 && strcmp(w->file, "lineup") == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
 static int has_end_at(const ctw_lineup *l, int64_t t)
 {
     for (size_t i = 0; i < l->count; i++) {
         if (l->items[i].start_ms + (int64_t)l->items[i].duration_ms == t) return 1;
     }
     return 0;
-}
-
-static size_t count_warnings(const ctw_lineup *l, ctw_code code)
-{
-    size_t n = 0;
-    for (size_t i = 0; i < l->warnings.count; i++) {
-        if (l->warnings.items[i].code == code) n++;
-    }
-    return n;
 }
 
 static int64_t pool_index(const ctw_show *show, uint16_t season, const ctw_episode *e)
@@ -536,7 +451,7 @@ TEST timed_fixed_episode_cut(void)
     ASSERT_EQ(0, l.items[0].item_index);
     ASSERT_STR_EQ("Cartoon Network/Ben 10/Season 1/S01E05 - Ben Ten.mpg", l.items[0].episode->path);
     ASSERT_EQ(1, l.items[1].slot_index);
-    ASSERT(has_warning(&l, CTW_W_CUT, 0, 0));
+    ASSERT(has_warning(&l, 1, CTW_W_CUT, 0, 0));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ctw_lineup_free(&l);
     PASS();
@@ -549,7 +464,7 @@ TEST timed_random_fits_only(void)
         TL_SLOT("07:00", "{ type = \"random\", show = \"Adventure Time\", season = 5, count = 5 }")
         TL_SLOT("07:30", "{ type = \"ads\" }"), tl_day, &l));
     ASSERT_EQ(2u, count_kind(&l, 0, CTW_AIR_EPISODE));
-    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 0));
+    ASSERT(has_warning(&l, 1, CTW_W_PARTIAL, 0, 0));
     for (size_t i = 0; i < l.count; i++) {
         int64_t s = l.items[i].start_ms;
         int64_t e = s + (int64_t)l.items[i].duration_ms;
@@ -625,7 +540,7 @@ TEST timed_random_run_shortened(void)
     k = pool_index(at, 0, l.items[0].episode);
     ASSERT(k >= 0);
     ASSERT_EQ_FMT(k + 1, pool_index(at, 0, l.items[1].episode), "%lld");
-    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 0));
+    ASSERT(has_warning(&l, 1, CTW_W_PARTIAL, 0, 0));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ctw_lineup_free(&l);
     ctw_db_free(db);
@@ -710,7 +625,7 @@ TEST timed_nothing_fits(void)
         TL_SLOT("07:00", "{ type = \"random\", show = \"Ben 10\" }")
         TL_SLOT("07:10", "{ type = \"ads\" }"), tl_day, &l));
     ASSERT_EQ(0u, count_kind(&l, 0, CTW_AIR_EPISODE));
-    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 0));
+    ASSERT(has_warning(&l, 1, CTW_W_PARTIAL, 0, 0));
     ASSERT(has_end_at(&l, 25800000));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ctw_lineup_free(&l);
@@ -746,8 +661,8 @@ TEST timed_fixed_after_end_partial(void)
         TL_SLOT("07:00", "{ type = \"episode\", show = \"Ben 10\", season = 1, episode = 5 }, "
                          "{ type = \"episode\", show = \"Gumball\", season = 1, episode = 1 }")
         TL_SLOT("07:15", "{ type = \"ads\" }"), tl_day, &l));
-    ASSERT(has_warning(&l, CTW_W_CUT, 0, 0));
-    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 1));
+    ASSERT(has_warning(&l, 1, CTW_W_CUT, 0, 0));
+    ASSERT(has_warning(&l, 1, CTW_W_PARTIAL, 0, 1));
     for (size_t i = 0; i < l.count; i++) {
         ASSERT(!(l.items[i].slot_index == 0 && l.items[i].item_index == 1));
     }
@@ -769,7 +684,7 @@ TEST timed_fixed_ad_cut(void)
     ASSERT_STR_EQ("ads/ad-c.mpg", l.items[2].ad->path);
     ASSERT_EQ(30000u, l.items[2].duration_ms);
     ASSERT_EQ(2, l.items[2].item_index);
-    ASSERT(has_warning(&l, CTW_W_CUT, 0, 2));
+    ASSERT(has_warning(&l, 1, CTW_W_CUT, 0, 2));
     ASSERT_EQ(1u, count_warnings(&l, CTW_W_CUT));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ctw_lineup_free(&l);
@@ -803,7 +718,7 @@ TEST timed_random_run_pool_smaller(void)
         TL_SLOT("12:00", "{ type = \"ads\" }"), tl_day, &l));
     ASSERT_EQ(1u, count_kind(&l, 0, CTW_AIR_EPISODE));
     ASSERT_EQ(1u, count_warnings(&l, CTW_W_PARTIAL));
-    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 0));
+    ASSERT(has_warning(&l, 1, CTW_W_PARTIAL, 0, 0));
     ctw_lineup_free(&l);
     PASS();
 }
@@ -916,20 +831,6 @@ TEST lineup_hash_encoding(void)
     PASS();
 }
 
-TEST lineup_looping_not_supported_yet(void)
-{
-    ctw_lineup l = {0};
-    ctw_db *db = load_config("version = 1\nseed = 7\n\n[[channel]]\nnumber = 2\nname = \"MTV\"\n"
-        "category = \"Music\"\nfolder = \"mtv-00s\"\nads = false\nmode = \"looping\"\n"
-        "loop = [ { type = \"random\", show = \"Music Videos\" } ]\n");
-    ASSERT(db);
-    ASSERT_EQ(-1, ctw_lineup_build(db, ctw_db_channel(db, 2), tl_day, &l));
-    ASSERT_EQ(0u, l.count);
-    ctw_lineup_free(&l);
-    ctw_db_free(db);
-    PASS();
-}
-
 TEST lineup_free_null_safe(void)
 {
     ctw_lineup l = {0};
@@ -961,6 +862,5 @@ SUITE(timed_suite)
     RUN_TEST(timed_day_changes);
     RUN_TEST(timed_known_lineup_pinned);
     RUN_TEST(lineup_hash_encoding);
-    RUN_TEST(lineup_looping_not_supported_yet);
     RUN_TEST(lineup_free_null_safe);
 }

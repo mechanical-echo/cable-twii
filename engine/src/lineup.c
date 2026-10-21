@@ -14,8 +14,11 @@ static int16_t index16(int v)
 
 uint32_t ctw_build_left(const ctw_build *b, int64_t end)
 {
+    int64_t left;
     if (b->cursor >= end) return 0u;
-    return (uint32_t)(end - b->cursor);
+    left = end - b->cursor;
+    if (left > (int64_t)UINT32_MAX) return UINT32_MAX;
+    return (uint32_t)left;
 }
 
 int ctw_build_push(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const ctw_show *show,
@@ -23,6 +26,12 @@ int ctw_build_push(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const 
 {
     ctw_lineup *l = b->out;
     ctw_airing *a;
+    if (b->limit > 0) {
+        if (b->cursor >= b->limit) return 0;
+        if ((int64_t)duration_ms > b->limit - b->cursor) {
+            duration_ms = (uint32_t)(b->limit - b->cursor);
+        }
+    }
     if (l->count == l->cap) {
         size_t cap = l->cap ? l->cap * 2u : CTW_LINEUP_INITIAL_CAP;
         ctw_airing *grown = realloc(l->items, cap * sizeof *grown);
@@ -81,6 +90,8 @@ int ctw_lineup_build(const ctw_db *db, const ctw_channel *ch, ctw_date day, ctw_
         rc = ctw_lineup_build_timed(&b);
         break;
     case CTW_MODE_LOOPING:
+        rc = ctw_lineup_build_loop(&b);
+        break;
     default:
         rc = -1;
         break;
