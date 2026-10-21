@@ -2,7 +2,7 @@ import type { DriveInfo, ScanResult } from "../server/drive.js";
 import type { BuildResult } from "../server/library.js";
 import type { ValidateResult } from "../server/sched.js";
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
-import type { WebLibrary } from "./tree";
+import type { WebLibrary } from "./tree.js";
 
 export type { DriveInfo, ScanResult, Config, Issue, Job, LineupResult, ValidateResult };
 

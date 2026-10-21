@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, type Config, type Issue, getConfig, getLibrary, mediaUrl, putConfig, uploadIcon } from "../api";
+import { type Config, type Issue, getConfig, getLibrary, mediaUrl, putConfig, uploadIcon } from "../api";
 import {
   type ChannelDraft,
   applyDelete,
@@ -13,6 +13,8 @@ import {
   sortChannels,
   validateDraft
 } from "../channels";
+import { FailureBanner } from "../FailureBanner";
+import { type Failure, toFailure } from "../failure";
 import { Dialog } from "../library/Dialog";
 
 interface Editing {
@@ -20,26 +22,9 @@ interface Editing {
   draft: ChannelDraft;
 }
 
-interface Failure {
-  message: string;
-  issues: Issue[];
-  conflict: boolean;
-}
-
-function describeIssue(issue: Issue): string {
-  return `${issue.level === "error" ? "Error" : "Warning"}: ${issue.message}`;
-}
-
 function IconImage({ src }: { src: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   return <img className="icon" src={src} alt="" style={{ visibility: failed === src ? "hidden" : "visible" }} onError={() => setFailed(src)} />;
-}
-
-function toFailure(err: unknown): Failure {
-  if (err instanceof ApiError) {
-    return { message: err.message, issues: err.issues ?? [], conflict: err.status === 409 };
-  }
-  return { message: (err as Error).message, issues: [], conflict: false };
 }
 
 export function ChannelsPage() {
@@ -141,26 +126,7 @@ export function ChannelsPage() {
     setEditing((current) => (current ? { ...current, draft: { ...current.draft, ...change } } : current));
   }
 
-  const banner =
-    failure !== null ? (
-      <div className="banner error">
-        {failure.conflict ? (
-          <div className="row">
-            <span className="grow">config.toml changed on disk — Reload</span>
-            <button onClick={load}>Reload</button>
-          </div>
-        ) : (
-          failure.message
-        )}
-        {failure.issues.length > 0 && (
-          <ul>
-            {failure.issues.map((issue, i) => (
-              <li key={i}>{describeIssue(issue)}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    ) : null;
+  const banner = <FailureBanner failure={failure} onReload={load} />;
 
   const draft = editing?.draft;
 

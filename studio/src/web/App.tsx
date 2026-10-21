@@ -3,6 +3,8 @@ import { type DriveInfo, getDrive } from "./api";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { LibraryPage } from "./pages/LibraryPage";
+import { SchedulePage } from "./pages/SchedulePage";
+import { UNSAVED_PROMPT } from "./schedule/editing";
 
 const TABS = ["Drive", "Library", "Channels", "Schedule", "Preview"] as const;
 type Tab = (typeof TABS)[number];
@@ -12,6 +14,7 @@ export function App() {
   const [drive, setDrive] = useState<DriveInfo | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -29,12 +32,19 @@ export function App() {
   const ready = drive !== null && drive.usable && drive.hasRoot;
   const onDrive = useCallback((info: DriveInfo | null) => setDrive(info), []);
 
+  function choose(name: Tab) {
+    if (name === tab) return;
+    if (dirty && !window.confirm(UNSAVED_PROMPT)) return;
+    setTab(name);
+  }
+
   let page;
   if (!loaded) page = <p className="muted">Loading…</p>;
   else if (tab === "Drive") page = <DrivePage drive={drive} onDrive={onDrive} />;
   else if (!ready) page = <div className="card">Choose and set up a drive on the Drive tab first.</div>;
   else if (tab === "Library") page = <LibraryPage />;
   else if (tab === "Channels") page = <ChannelsPage />;
+  else if (tab === "Schedule") page = <SchedulePage onDirty={setDirty} />;
   else page = <div className="card">Coming soon.</div>;
 
   return (
@@ -42,12 +52,12 @@ export function App() {
       <nav className="tabs">
         <h1>cable-twii Studio</h1>
         {TABS.map((name) => (
-          <button key={name} className={name === tab ? "tab active" : "tab"} onClick={() => setTab(name)}>
+          <button key={name} className={name === tab ? "tab active" : "tab"} onClick={() => choose(name)}>
             {name}
           </button>
         ))}
       </nav>
-      <main className="content">
+      <main className={tab === "Schedule" ? "content wide" : "content"}>
         {loadError !== null && (
           <div className="banner error row">
             <span className="grow">Could not read the drive setting: {loadError}</span>
