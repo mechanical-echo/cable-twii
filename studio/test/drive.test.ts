@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import {
+  defaultBootDevices,
+  defaultFindMountPoint,
   defaultRunDiskutil,
   dotClean,
   initRoot,
@@ -233,18 +235,91 @@ test("subfolder of an exFAT volume is refused", async () => {
   expect(info.reason).toBe("This drive is exfat. cable-twii needs a FAT32 (MS-DOS) drive.");
 });
 
-test("subfolder of a FAT32 volume is allowed and diskutil is asked about the mount point", async () => {
+test("subfolder of a FAT32 volume is refused, root is accepted, diskutil asks the mount point", async () => {
   await mkdir(path.join(dir, "sub"));
   const asked: string[] = [];
-  const info = await inspectDrive(path.join(dir, "sub"), {
+  const deps: DriveDeps = {
     findMountPoint: mountAt(dir),
     runDiskutil: async (p) => {
       asked.push(p);
       return FAT;
     },
-  });
-  expect(info.usable).toBe(true);
+  };
+  const sub = await inspectDrive(path.join(dir, "sub"), deps);
+  expect(sub.usable).toBe(false);
+  expect(sub.reason).toBe("Pick the drive itself, not a folder inside it.");
   expect(asked).toEqual([dir]);
+  expect((await inspectDrive(dir, deps)).usable).toBe(true);
+});
+
+test("custom mount point outside /Volumes with wbfs refuses a deep subfolder", async () => {
+  const mp = path.join(dir, "mp");
+  await mkdir(path.join(mp, "wbfs"), { recursive: true });
+  await mkdir(path.join(mp, "apps", "usbloader_gx"), { recursive: true });
+  const deps: DriveDeps = {
+    statDev: async (p) => (p === mp || p.startsWith(mp + "/") ? 99 : 1),
+    bootDevices: async () => [1],
+    runDiskutil: async () => FAT,
+  };
+  const info = await inspectDrive(path.join(mp, "apps", "usbloader_gx"), deps);
+  expect(info.usable).toBe(false);
+  expect(info.hasWbfs).toBe(true);
+  await expect(initRoot(info, deps)).rejects.toThrow(/games drive/);
+  expect(existsSync(path.join(mp, "apps", "usbloader_gx", "cable-twii"))).toBe(false);
+});
+
+test("custom mount point without wbfs: subfolder refused, root accepted", async () => {
+  const mp = path.join(dir, "mp");
+  await mkdir(path.join(mp, "apps"), { recursive: true });
+  const deps: DriveDeps = {
+    statDev: async (p) => (p === mp || p.startsWith(mp + "/") ? 99 : 1),
+    bootDevices: async () => [1],
+    runDiskutil: async () => FAT,
+  };
+  const sub = await inspectDrive(path.join(mp, "apps"), deps);
+  expect(sub.usable).toBe(false);
+  expect(sub.reason).toBe("Pick the drive itself, not a folder inside it.");
+  const root = await inspectDrive(mp, deps);
+  expect(root.isVolumeRoot).toBe(true);
+  expect(root.usable).toBe(true);
+});
+
+test("default mount finder: device not in boot set is external", async () => {
+  const statDev = async (p: string) => (p === "/a/b" || p === "/a" ? 7 : 1);
+  const info = await defaultFindMountPoint("/a/b", statDev, async () => [1]);
+  expect(info).toEqual({ mountPoint: "/a", external: true });
+});
+
+test("default mount finder: boot device is not external, /Volumes prefix is", async () => {
+  const same = async () => 1;
+  expect((await defaultFindMountPoint("/x/y", same, async () => [1])).external).toBe(false);
+  const vol = async (p: string) => (p.startsWith("/Volumes/X") ? 7 : 1);
+  expect((await defaultFindMountPoint("/Volumes/X/sub", vol, async () => [7])).external).toBe(true);
+});
+
+test("default boot devices include the Data volume and tolerate its absence", async () => {
+  expect(await defaultBootDevices(async (p) => (p === "/" ? 1 : 2))).toEqual([1, 2]);
+  expect(
+    await defaultBootDevices(async (p) => {
+      if (p === "/") return 1;
+      throw new Error("nope");
+    }),
+  ).toEqual([1]);
+});
+
+test("refuses /Volumes, /dev and /Users", async () => {
+  for (const p of ["/Volumes", "/dev", "/Users"]) {
+    const info = await inspectDrive(p, plainDeps());
+    expect(info.usable, p).toBe(false);
+  }
+});
+
+test("initRoot checks each level with realpath before going deeper", async () => {
+  const deps = plainDeps();
+  const work = path.join(dir, "work");
+  await mkdir(work);
+  await initRoot(await inspectDrive(work, deps), deps);
+  expect(await realpath(path.join(work, "cable-twii", "ads"))).toBe(path.join(work, "cable-twii", "ads"));
 });
 
 test("symlink earlier in the path to a games drive is refused and nothing is written", async () => {

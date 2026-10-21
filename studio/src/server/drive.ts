@@ -29,6 +29,8 @@ export type RunCommand = (cmd: string, args: string[], input?: string) => Promis
 
 export interface DriveDeps {
   findMountPoint?: (p: string) => Promise<MountInfo>;
+  statDev?: StatDev;
+  bootDevices?: () => Promise<number[]>;
   runDiskutil?: (p: string) => Promise<DiskutilInfo>;
   run?: (cmd: string, args: string[]) => Promise<unknown>;
 }
@@ -43,6 +45,7 @@ export interface ScanResult {
 }
 
 const MISSING_REASON = "That folder doesn't exist.";
+const NOT_ROOT_REASON = "Pick the drive itself, not a folder inside it.";
 const SYSTEM_REASON = "Choose your media drive or a test folder, not a system folder.";
 const WBFS_REASON = "This looks like your games drive (it has a wbfs folder). cable-twii will never write to it.";
 const PROBE_CONCURRENCY = 4;
@@ -70,16 +73,35 @@ export interface MountInfo {
   external: boolean;
 }
 
-async function defaultFindMountPoint(p: string): Promise<MountInfo> {
+export type StatDev = (p: string) => Promise<number>;
+
+const defaultStatDev: StatDev = async (p) => (await stat(p)).dev;
+
+export async function defaultBootDevices(statDev: StatDev = defaultStatDev): Promise<number[]> {
+  const devs: number[] = [await statDev("/")];
+  try {
+    devs.push(await statDev("/System/Volumes/Data"));
+  } catch {
+    devs.length = 1;
+  }
+  return devs;
+}
+
+export async function defaultFindMountPoint(
+  p: string,
+  statDev: StatDev = defaultStatDev,
+  bootDevices: () => Promise<number[]> = () => defaultBootDevices(statDev),
+): Promise<MountInfo> {
   let current = p;
-  const dev = (await stat(p)).dev;
+  const dev = await statDev(p);
   for (;;) {
     const parent = path.dirname(current);
     if (parent === current) break;
-    if ((await stat(parent)).dev !== dev) break;
+    if ((await statDev(parent)) !== dev) break;
     current = parent;
   }
-  return { mountPoint: current, external: current.startsWith("/Volumes/") };
+  const boot = await bootDevices();
+  return { mountPoint: current, external: current.startsWith("/Volumes/") || !boot.includes(dev) };
 }
 
 const BLOCKED_PREFIXES = ["/System", "/Library", "/usr", "/bin", "/sbin", "/Applications", "/private"];
@@ -90,7 +112,7 @@ function under(p: string, prefix: string): boolean {
 }
 
 async function isSystemPath(p: string): Promise<boolean> {
-  if (p === "/") return true;
+  if (p === "/" || p === "/Volumes" || p === "/dev" || p === "/Users") return true;
   let home = path.resolve(os.homedir());
   try {
     home = await realpath(home);
@@ -161,7 +183,7 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
 
   let mount: MountInfo;
   try {
-    mount = await (deps.findMountPoint ?? defaultFindMountPoint)(p);
+    mount = await (deps.findMountPoint ?? ((x: string) => defaultFindMountPoint(x, deps.statDev, deps.bootDevices)))(p);
   } catch {
     return refuse(MISSING_REASON);
   }
@@ -169,7 +191,7 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
 
   if (!mount.external) {
     if (await isSystemPath(p)) return refuse(SYSTEM_REASON);
-    if (await looksLikeWbfs([p])) return refuse(WBFS_REASON, { hasWbfs: true, isVolumeRoot });
+    if (await looksLikeWbfs([...new Set([mount.mountPoint, p])])) return refuse(WBFS_REASON, { hasWbfs: true, isVolumeRoot });
     return { path: p, rootPath, isVolumeRoot, fsType: null, freeBytes, hasRoot, hasWbfs: false, usable: true };
   }
 
@@ -188,6 +210,7 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
   let reason: string | undefined;
   if (hasWbfs) reason = WBFS_REASON;
   else if (fsType !== "msdos") reason = `This drive is ${fsType ?? "unknown"}. cable-twii needs a FAT32 (MS-DOS) drive.`;
+  else if (!isVolumeRoot) reason = NOT_ROOT_REASON;
 
   const info: DriveInfo = { path: p, rootPath, isVolumeRoot, fsType, freeBytes, hasRoot, hasWbfs, usable: reason === undefined };
   if (reason !== undefined) info.reason = reason;
@@ -195,14 +218,12 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
 }
 
 async function ensureNormalDir(full: string, label: string): Promise<void> {
-  let st;
-  try {
-    st = await lstat(full);
-  } catch {
+  let st = await lstat(full).catch(() => null);
+  if (st === null) {
     await mkdir(full);
-    return;
+    st = await lstat(full);
   }
-  if (!st.isDirectory()) throw new Error(`${label} is not a normal folder`);
+  if (!st.isDirectory() || (await realpath(full)) !== full) throw new Error(`${label} is not a normal folder`);
 }
 
 export async function initRoot(info: DriveInfo, deps: DriveDeps = {}): Promise<void> {
