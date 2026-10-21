@@ -396,6 +396,8 @@ Exit codes and output, for every command:
 | 1 | The root failed to load, or `validate` found errors. | `{"ok":false,"issues":[...]}`, the same JSON as `validate`, for every command (`lineup`, `now` and `hash` too). | empty |
 | 2 | Usage error: unknown command, missing or malformed `--channel`, `--date` or `--at`, or a channel number not in the config. | nothing | plain text message |
 
+Malformed arguments are checked before the root is loaded, so they exit 2 even when the root has errors; only an unknown channel number is resolved after loading (exit 1 wins there).
+
 If `now` asks for a time that no airing covers, the output is `{"airing":null,"offset_ms":0}` with exit 0.
 
 Issue fields are `-1` when not tied to a channel, slot or item, and `line` is `0` when unknown.
@@ -437,7 +439,7 @@ cable-twii-sched lineup <root> --channel N --date YYYY-MM-DD
 ],"warnings":[]}
 ```
 
-- `start_ms`: milliseconds since local midnight (a day's lineup starts at 0 and covers 86400000 ms with no gaps).
+- `start_ms`: milliseconds since local midnight (no gaps). A timed channel's lineup covers [first slot `at`, first slot `at` + 86400000) and spills past midnight into the early hours of the next date; a looping channel's lineup covers [0, 86400000).
 - `kind`: `"episode"`, `"ad"` or `"upnext"`.
 - `hash`: 16 lowercase hex digits. Exact encoding: FNV-1a 64 (offset basis `0xcbf29ce484222325`, prime `0x100000001b3`) over every airing in order: `start_ms` as 8 big-endian bytes, `duration_ms` as 4 big-endian bytes, `kind` as 1 byte (episode 0, ad 1, upnext 2), then for an episode or ad its `path` as UTF-8 bytes followed by one 0 byte (up-next adds nothing). Same inputs give the same hash on the Mac and the Wii. Studio treats the hash as opaque and only compares it with values the engine produced.
 - `path`, `show`, `season`, `episode`, `title` are `null` for up-next airings. `slot` and `item` are `-1` for filler airings. In a looping channel `slot` is `-1` and `item` is the loop item index.

@@ -33,7 +33,7 @@ jscheck "lineup hash shape" "$lineup1" "/^[0-9a-f]{16}\$/.test(d.hash)"
 jscheck "lineup airing fields" "$lineup1" "d.airings.every(a=>['start_ms','duration_ms','kind','path','show','season','episode','title','slot','item'].every(k=>k in a))"
 jscheck "lineup episode shape" "$lineup1" "(()=>{const e=d.airings.find(a=>a.kind==='episode');return e&&e.path&&e.show==='Gumball'&&e.title!==null&&e.season!==null&&e.episode!==null})()"
 jscheck "lineup upnext shape" "$lineup1" "d.airings.filter(u=>u.kind==='upnext').every(u=>u.path===null&&u.show===null&&u.season===null&&u.episode===null&&u.title===null&&u.slot===-1&&u.item===-1)"
-jscheck "lineup ad shape" "$lineup1" "(()=>{const a=d.airings.find(a=>a.kind==='ad');return a&&a.path&&a.show===null&&a.season===null&&a.episode===null&&a.title===null})()"
+jscheck "lineup ad shape" "$lineup1" "(()=>{const l=d.airings.filter(a=>a.kind==='ad');return l.length>0&&l.every(a=>a.path&&a.show===null&&a.season===null&&a.episode===null&&a.title===null)})()"
 
 lineup2="$("$bin" lineup "$fixture" --channel 2 --date 2026-10-20)"; rc=$?
 check "looping lineup exit" "$rc" 0
@@ -78,6 +78,9 @@ expect_usage "at with T" now "$fixture" --channel 1 --at 2026-10-20T07:00:00
 expect_usage "at without seconds" now "$fixture" --channel 1 --at "2026-10-20 07:00"
 expect_usage "unexpected option" hash "$fixture" --channel 1 --date 2026-10-20 --extra
 expect_usage "channel on validate" validate "$fixture" --channel 1
+for badch in 01 +1 " 1" "1 " 0 ""; do
+    expect_usage "channel '$badch'" lineup "$fixture" --channel "$badch" --date 2026-10-20
+done
 expect_usage "unknown channel lineup" lineup "$fixture" --channel 99 --date 2026-10-20
 expect_usage "unknown channel now" now "$fixture" --channel 99 --at "2026-10-20 07:00:00"
 expect_usage "unknown channel hash" hash "$fixture" --channel 99 --date 2026-10-20
@@ -121,5 +124,45 @@ so="$("$bin" lineup "$quoted" --channel 1 --date 2026-10-20)"; rc=$?
 check "quoted title exit" "$rc" 0
 jscheck "quoted title escaped" "$so" "d.airings.some(a=>a.title&&a.title.startsWith('Say \"hi\" \\\\ Gumball'))"
 case "$so" in *'Say \"hi\" \\ Gumball'*) pass "quoted title raw escapes" ;; *) fail "quoted title raw escapes" ;; esac
+
+upnext="$tmp/upnext"
+cp -R "$fixture" "$upnext"
+cat >> "$upnext/config.toml" <<'TOML'
+
+[[channel]]
+number = 3
+name = "Quiet"
+category = "Test"
+folder = "Cartoon Network"
+ads = false
+mode = "timed"
+
+  [[channel.slot]]
+  at = "07:00"
+  items = [
+    { type = "episode", show = "Ben 10", season = 1, episode = 5 },
+  ]
+TOML
+so="$("$bin" lineup "$upnext" --channel 3 --date 2026-10-20)"; rc=$?
+check "upnext lineup exit" "$rc" 0
+jscheck "upnext shape" "$so" "(()=>{const l=d.airings.filter(a=>a.kind==='upnext');return l.length>0&&l.every(u=>u.path===null&&u.show===null&&u.season===null&&u.episode===null&&u.title===null&&u.slot===-1&&u.item===-1)})()"
+
+badutf="$tmp/badutf"
+cp -R "$fixture" "$badutf"
+{
+    while IFS= read -r line; do
+        if [ "$line" = '  title = "Gumball 1"' ]; then
+            printf '  title = "Bad\377X"\n'
+        else
+            printf '%s\n' "$line"
+        fi
+    done < "$fixture/library.toml"
+} > "$badutf/library.toml"
+so="$("$bin" lineup "$badutf" --channel 1 --date 2026-10-20)"; rc=$?
+if [ "$rc" = 0 ]; then
+    jscheck "invalid utf-8 becomes U+FFFD" "$so" "d.airings.some(a=>a.title==='Bad\uFFFDX')"
+else
+    echo "note: toml parser rejects invalid utf-8 (exit $rc), escaper not reachable through a title"
+fi
 
 exit $failed

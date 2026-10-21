@@ -12,6 +12,27 @@ static void before_value(json_w *w)
     }
 }
 
+static int utf8_len(const unsigned char *s)
+{
+    unsigned char c = s[0];
+    if (c >= 0xC2 && c <= 0xDF) {
+        return (s[1] & 0xC0) == 0x80 ? 2 : 0;
+    }
+    if (c >= 0xE0 && c <= 0xEF) {
+        if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80) return 0;
+        if (c == 0xE0 && s[1] < 0xA0) return 0;
+        if (c == 0xED && s[1] > 0x9F) return 0;
+        return 3;
+    }
+    if (c >= 0xF0 && c <= 0xF4) {
+        if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80 || (s[3] & 0xC0) != 0x80) return 0;
+        if (c == 0xF0 && s[1] < 0x90) return 0;
+        if (c == 0xF4 && s[1] > 0x8F) return 0;
+        return 4;
+    }
+    return 0;
+}
+
 static void write_escaped(FILE *f, const char *s)
 {
     static const char hex[] = "0123456789abcdef";
@@ -31,8 +52,16 @@ static void write_escaped(FILE *f, const char *s)
                 fputs("\\u00", f);
                 fputc(hex[c >> 4], f);
                 fputc(hex[c & 15], f);
-            } else {
+            } else if (c < 0x80) {
                 fputc(c, f);
+            } else {
+                int n = utf8_len((const unsigned char *)s);
+                if (n == 0) {
+                    fputs("\xEF\xBF\xBD", f);
+                } else {
+                    fwrite(s, 1, (size_t)n, f);
+                    s += n - 1;
+                }
             }
         }
     }

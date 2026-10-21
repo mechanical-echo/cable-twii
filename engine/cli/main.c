@@ -131,19 +131,22 @@ static void format_date(char *buf, size_t n, ctw_date d)
     snprintf(buf, n, "%04d-%02d-%02d", d.year, d.month, d.day);
 }
 
+static int digit(char c) { return c >= '0' && c <= '9'; }
+
 static int parse_channel(const char *s, int *out)
 {
     char *end = NULL;
     long v;
-    if (!s || !*s) return -1;
+    if (!s || s[0] < '1' || s[0] > '9') return -1;
+    for (const char *p = s; *p; p++) {
+        if (!digit(*p)) return -1;
+    }
     errno = 0;
     v = strtol(s, &end, 10);
     if (errno || *end || v < 1 || v > INT_MAX) return -1;
     *out = (int)v;
     return 0;
 }
-
-static int digit(char c) { return c >= '0' && c <= '9'; }
 
 static int parse_hhmmss(const char *s, uint32_t *out_ms)
 {
@@ -214,7 +217,7 @@ static int build_into(const ctw_db *db, const ctw_channel *ch, ctw_date day, ctw
 {
     if (ctw_lineup_build(db, ch, day, l) == 0) return 0;
     ctw_issues_add(issues, CTW_LEVEL_ERROR, CTW_E_PARSE, ch->number, -1, -1, 0, "config",
-                   "could not build lineup");
+                   "internal error: could not build lineup");
     return -1;
 }
 
