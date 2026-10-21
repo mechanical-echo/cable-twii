@@ -108,8 +108,10 @@ export class ConversionQueue extends EventEmitter {
         assertContained(this.root, path.dirname(file));
         renameSync(file, `${file}.damaged`);
       } catch {
+        this.loadErrors = [new Error("queue.toml is damaged and could not be moved aside; its conversions were dropped")];
         return;
       }
+      this.loadErrors = [new Error("queue.toml was damaged and was moved to queue.toml.damaged; its conversions were dropped")];
     }
   }
 

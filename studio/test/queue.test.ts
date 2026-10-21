@@ -263,6 +263,18 @@ test("queue survives write failure without an error listener", async () => {
   }
 });
 
+test("damaged queue.toml is moved aside with an error", async () => {
+  await mkdir(path.join(dir, ".studio"), { recursive: true });
+  await writeFile(path.join(dir, ".studio", "queue.toml"), "this is = = not toml");
+  const errors: Error[] = [];
+  const q = new ConversionQueue(dir, { convertFn: quick, probeFn });
+  q.on("error", (e: Error) => errors.push(e));
+  await sleep(0);
+  expect(errors.map((e) => e.message)).toEqual(["queue.toml was damaged and was moved to queue.toml.damaged; its conversions were dropped"]);
+  expect(await readFile(path.join(dir, ".studio", "queue.toml.damaged"), "utf8")).toBe("this is = = not toml");
+  expect(q.list()).toEqual([]);
+});
+
 test("progress events throttled", async () => {
   const convertFn: typeof convert = async (_s, _d, _a, onProgress) => {
     for (let i = 1; i <= 100; i++) onProgress(i / 100);
