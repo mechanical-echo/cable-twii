@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <string.h>
 #include "greatest/greatest.h"
 #include "ctw/ctw.h"
 
@@ -78,10 +80,34 @@ TEST date_parse_rejects_invalid(void)
     PASS();
 }
 
+static int parse_exact(const char *text, ctw_date *d)
+{
+    size_t n = strlen(text) + 1u;
+    char *buf = malloc(n);
+    int rc;
+    if (!buf) return -2;
+    memcpy(buf, text, n);
+    rc = ctw_date_parse(buf, d);
+    free(buf);
+    return rc;
+}
+
+TEST date_parse_rejects_short(void)
+{
+    ctw_date d;
+    ASSERT_EQ(-1, parse_exact("2026", &d));
+    ASSERT_EQ(-1, parse_exact("2026-12", &d));
+    ASSERT_EQ(-1, parse_exact("", &d));
+    ASSERT_EQ(-1, parse_exact("2026-12-0", &d));
+    ASSERT_EQ(0, parse_exact("2026-12-01", &d));
+    PASS();
+}
+
 SUITE(time_suite)
 {
     RUN_TEST(hhmm_parsing);
     RUN_TEST(date_arithmetic);
     RUN_TEST(date_parse_valid);
     RUN_TEST(date_parse_rejects_invalid);
+    RUN_TEST(date_parse_rejects_short);
 }

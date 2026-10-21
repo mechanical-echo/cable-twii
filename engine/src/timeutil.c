@@ -1,3 +1,4 @@
+#include <string.h>
 #include "ctw/ctw.h"
 
 static bool is_digit(char c)
@@ -74,12 +75,15 @@ ctw_date ctw_date_next(ctw_date d)
 int ctw_date_parse(const char *s, ctw_date *out)
 {
     static const int digit_at[8] = {0, 1, 2, 3, 5, 6, 8, 9};
+    if (strlen(s) != 10u) {
+        return -1;
+    }
     for (int i = 0; i < 8; i++) {
         if (!is_digit(s[digit_at[i]])) {
             return -1;
         }
     }
-    if (s[4] != '-' || s[7] != '-' || s[10] != '\0') {
+    if (s[4] != '-' || s[7] != '-') {
         return -1;
     }
     int year = (s[0] - '0') * 1000 + (s[1] - '0') * 100 + (s[2] - '0') * 10 + (s[3] - '0');

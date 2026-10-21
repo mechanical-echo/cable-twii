@@ -71,6 +71,8 @@ expect_usage "validate without root" validate
 expect_usage "missing date" lineup "$fixture" --channel 1
 expect_usage "bad date month" lineup "$fixture" --channel 1 --date 2026-13-01
 expect_usage "short date" lineup "$fixture" --channel 1 --date 2026-10-2
+expect_usage "year only date" lineup "$fixture" --channel 1 --date 2026
+expect_usage "year month date" hash "$fixture" --channel 1 --date 2026-12
 expect_usage "non-numeric channel" lineup "$fixture" --channel x --date 2026-10-20
 expect_usage "missing channel" lineup "$fixture" --date 2026-10-20
 expect_usage "date only in at" now "$fixture" --channel 1 --at 2026-10-20
