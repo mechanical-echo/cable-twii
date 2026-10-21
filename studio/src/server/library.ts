@@ -2,8 +2,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "smol-toml";
 import { MIN_DURATION_MS, probe } from "./ffmpeg.js";
+import { atomicWriteContained } from "./contain.js";
 import { readShowMeta } from "./showMeta.js";
-import { atomicWriteFile } from "./sources.js";
 import { tomlString as str } from "./toml.js";
 import type { LibAd, LibEpisode, LibShow, Library, SourceRecord } from "./types.js";
 
@@ -317,7 +317,7 @@ export function serializeLibrary(lib: Library): string {
 }
 
 export async function writeLibrary(root: string, lib: Library): Promise<void> {
-  await atomicWriteFile(path.join(root, LIBRARY_FILE), serializeLibrary(lib));
+  await atomicWriteContained(root, path.join(root, LIBRARY_FILE), serializeLibrary(lib));
 }
 
 function libraryDamaged(reason: string): Error {

@@ -1,8 +1,8 @@
 import { randomInt } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "smol-toml";
-import { atomicWriteFile } from "./sources.js";
+import { ContainmentError, atomicWriteContained } from "./contain.js";
 import { tomlInt, tomlString } from "./toml.js";
 import type { Channel, Config, Item, Mode, Slot } from "./types.js";
 
@@ -238,13 +238,15 @@ export async function writeConfig(root: string, cfg: Config, expectedMtimeMs: nu
   let current = 0;
   let previous: string | null = null;
   try {
-    current = Math.trunc((await stat(file)).mtimeMs);
+    const st = await lstat(file);
+    if (!st.isFile()) throw new ContainmentError(`${CONFIG_FILE} is not a regular file.`);
+    current = Math.trunc(st.mtimeMs);
     previous = await readFile(file, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
   if (current !== Math.trunc(expectedMtimeMs)) throw new ConfigConflictError();
-  if (previous !== null) await atomicWriteFile(path.join(root, BACKUP_FILE), previous);
-  await atomicWriteFile(file, text);
+  if (previous !== null) await atomicWriteContained(root, path.join(root, BACKUP_FILE), previous);
+  await atomicWriteContained(root, file, text);
   return Math.trunc((await stat(file)).mtimeMs);
 }

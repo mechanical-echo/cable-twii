@@ -1,7 +1,8 @@
-import { cp, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { ContainmentError } from "../src/server/contain.js";
 import { ConfigConflictError, parseConfig, readConfig, serializeConfig, writeConfig } from "../src/server/config.js";
 import { validateRoot } from "../src/server/sched.js";
 import { tomlString } from "../src/server/toml.js";
@@ -191,4 +192,36 @@ test("writeConfig keeps backup", async () => {
   await writeConfig(dst, { ...config, seed: 5 }, mtimeMs);
   expect(await readFile(path.join(dst, "config.bak.toml"), "utf8")).toBe(before);
   expect((await readConfig(dst)).config.seed).toBe(5);
+});
+
+test("writeConfig refuses a symlinked config.toml and reads nothing through it", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-config-outside-"));
+  try {
+    const secret = path.join(outside, "secret.txt");
+    await writeFile(secret, "secret");
+    await symlink(secret, path.join(root, "config.toml"));
+    const mtimeMs = Math.trunc((await stat(secret)).mtimeMs);
+    await expect(writeConfig(root, sample, mtimeMs)).rejects.toBeInstanceOf(ContainmentError);
+    expect(await readFile(secret, "utf8")).toBe("secret");
+    expect((await lstat(path.join(root, "config.toml"))).isSymbolicLink()).toBe(true);
+    await expect(stat(path.join(root, "config.bak.toml"))).rejects.toThrow();
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("writeConfig refuses a symlinked config.bak.toml", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-config-outside-"));
+  try {
+    const dst = await fixtureRoot();
+    const secret = path.join(outside, "secret.txt");
+    await writeFile(secret, "secret");
+    await symlink(outside, path.join(dst, "linked"));
+    await symlink(path.join(dst, "linked", "secret.txt"), path.join(dst, "config.bak.toml"));
+    const { config, mtimeMs } = await readConfig(dst);
+    await expect(writeConfig(dst, { ...config, seed: 9 }, mtimeMs)).rejects.toBeInstanceOf(ContainmentError);
+    expect(await readFile(secret, "utf8")).toBe("secret");
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
 });

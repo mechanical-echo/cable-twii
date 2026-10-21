@@ -391,3 +391,15 @@ test("library round trip through engine", async () => {
   const last = result.airings[result.airings.length - 1]!;
   expect(last.start_ms + last.duration_ms).toBe(86400000);
 }, 120000);
+
+test("writeLibrary refuses a library.toml that leads outside the root", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-library-outside-"));
+  try {
+    await writeFile(path.join(outside, "library.toml"), "keep");
+    await symlink(path.join(outside, "library.toml"), path.join(root, "library.toml"));
+    await expect(writeLibrary(root, { version: 1, generated: new Date(), ad: [], show: [] })).rejects.toThrow(/outside/);
+    expect(await readFile(path.join(outside, "library.toml"), "utf8")).toBe("keep");
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
+});
