@@ -25,9 +25,6 @@ function stripTrailingSlash(p: string): string {
   return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
 }
 
-/**
- * @throws {Error} when osascript fails for a reason other than the user cancelling
- */
 export async function pickFolder(prompt: string, run: OsascriptRunner = defaultOsascript): Promise<string | null> {
   try {
     const out = await run([
@@ -47,9 +44,6 @@ export async function pickFolder(prompt: string, run: OsascriptRunner = defaultO
   }
 }
 
-/**
- * @throws {Error} when osascript fails for a reason other than the user cancelling
- */
 export async function pickFiles(prompt: string, run: OsascriptRunner = defaultOsascript): Promise<string[]> {
   try {
     const out = await run([
@@ -66,14 +60,14 @@ export async function pickFiles(prompt: string, run: OsascriptRunner = defaultOs
       "-e",
       "end repeat",
       "-e",
-      "set AppleScript's text item delimiters to linefeed",
+      "set AppleScript's text item delimiters to (ASCII character 31)",
       "-e",
       "return paths as text",
       "-e",
       "end run",
       prompt,
     ]);
-    return out.split("\n").map((line) => line.trim()).filter((line) => line !== "");
+    return out.replace(/\n$/, "").split("\u001f").filter((line) => line !== "");
   } catch (error) {
     if (isCancel(error)) return [];
     throw error;

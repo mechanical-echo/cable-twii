@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readdir, stat, statfs } from "node:fs/promises";
+import { lstat, mkdir, readdir, realpath, stat, statfs } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { EpisodeGuess } from "./types.js";
@@ -28,7 +28,7 @@ export interface DiskutilInfo {
 export type RunCommand = (cmd: string, args: string[], input?: string) => Promise<string>;
 
 export interface DriveDeps {
-  isMountPoint?: (p: string) => Promise<boolean>;
+  findMountPoint?: (p: string) => Promise<MountInfo>;
   runDiskutil?: (p: string) => Promise<DiskutilInfo>;
   run?: (cmd: string, args: string[]) => Promise<unknown>;
 }
@@ -42,6 +42,7 @@ export interface ScanResult {
   error?: string;
 }
 
+const MISSING_REASON = "That folder doesn't exist.";
 const SYSTEM_REASON = "Choose your media drive or a test folder, not a system folder.";
 const WBFS_REASON = "This looks like your games drive (it has a wbfs folder). cable-twii will never write to it.";
 const PROBE_CONCURRENCY = 4;
@@ -58,27 +59,47 @@ export const execCommand: RunCommand = (cmd, args, input) =>
     if (input !== undefined) child.stdin?.end(input);
   });
 
-/**
- * @throws {Error} when diskutil or plutil fails or returns unreadable output
- */
 export async function defaultRunDiskutil(p: string, exec: RunCommand = execCommand): Promise<DiskutilInfo> {
   const plist = await exec("diskutil", ["info", "-plist", p]);
   const json = await exec("plutil", ["-convert", "json", "-o", "-", "-"], plist);
   return JSON.parse(json) as DiskutilInfo;
 }
 
-async function defaultIsMountPoint(p: string): Promise<boolean> {
-  if (path.dirname(p) === "/Volumes") return true;
-  try {
-    const [self, parent] = await Promise.all([stat(p), stat(path.join(p, ".."))]);
-    return self.dev !== parent.dev;
-  } catch {
-    return false;
-  }
+export interface MountInfo {
+  mountPoint: string;
+  external: boolean;
 }
 
-function isSystemPath(p: string): boolean {
-  return p === "/" || p === "/System" || p.startsWith("/System/") || p === path.resolve(os.homedir());
+async function defaultFindMountPoint(p: string): Promise<MountInfo> {
+  let current = p;
+  const dev = (await stat(p)).dev;
+  for (;;) {
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    if ((await stat(parent)).dev !== dev) break;
+    current = parent;
+  }
+  return { mountPoint: current, external: current.startsWith("/Volumes/") };
+}
+
+const BLOCKED_PREFIXES = ["/System", "/Library", "/usr", "/bin", "/sbin", "/Applications", "/private"];
+const ALLOWED_PRIVATE = ["/private/tmp", "/private/var/folders"];
+
+function under(p: string, prefix: string): boolean {
+  return p === prefix || p.startsWith(prefix + "/");
+}
+
+async function isSystemPath(p: string): Promise<boolean> {
+  if (p === "/") return true;
+  let home = path.resolve(os.homedir());
+  try {
+    home = await realpath(home);
+  } catch {
+    home = path.resolve(os.homedir());
+  }
+  if (p === home) return true;
+  if (ALLOWED_PRIVATE.some((a) => under(p, a))) return false;
+  return BLOCKED_PREFIXES.some((b) => under(p, b));
 }
 
 async function dirExists(p: string): Promise<boolean> {
@@ -123,84 +144,105 @@ async function freeBytesOf(p: string): Promise<number> {
   }
 }
 
-function volumeRootOf(p: string): string | null {
-  const parts = p.split(path.sep);
-  if (parts[1] === "Volumes" && parts.length > 3 && parts[2] !== "") return path.join("/Volumes", parts[2]);
-  return null;
-}
-
-/**
- * @throws {Error} never for filesystem problems; they are reported through usable and reason
- */
 export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Promise<DriveInfo> {
-  const p = path.resolve(inputPath);
+  let p: string;
+  try {
+    p = await realpath(path.resolve(inputPath));
+  } catch {
+    const missing = path.resolve(inputPath);
+    return { path: missing, rootPath: path.join(missing, "cable-twii"), isVolumeRoot: false, fsType: null, freeBytes: 0, hasRoot: false, hasWbfs: false, usable: false, reason: MISSING_REASON };
+  }
   const rootPath = path.join(p, "cable-twii");
-  const base = { path: p, rootPath };
-
-  if (isSystemPath(p)) {
-    return { ...base, isVolumeRoot: false, fsType: null, freeBytes: await freeBytesOf(p), hasRoot: false, hasWbfs: false, usable: false, reason: SYSTEM_REASON };
-  }
-
-  const isVolumeRoot = await (deps.isMountPoint ?? defaultIsMountPoint)(p);
-  let fsType: string | null = null;
-  let fsName: string | null = null;
-  if (isVolumeRoot) {
-    try {
-      const info = await (deps.runDiskutil ?? ((x: string) => defaultRunDiskutil(x)))(p);
-      fsType = info.FilesystemType ?? null;
-      fsName = info.FilesystemName ?? null;
-    } catch {
-      fsType = null;
-    }
-  }
-
-  const roots = [p];
-  const parentVolume = volumeRootOf(p);
-  if (parentVolume && parentVolume !== p) roots.push(parentVolume);
-  const fsSaysWbfs = [fsType, fsName].some((v) => v !== null && v.toLowerCase().includes("wbfs"));
-  const hasWbfs = fsSaysWbfs || (await looksLikeWbfs(roots));
   const hasRoot = await dirExists(rootPath);
   const freeBytes = await freeBytesOf(p);
+  const refuse = (reason: string, extra: Partial<DriveInfo> = {}): DriveInfo => ({
+    path: p, rootPath, isVolumeRoot: false, fsType: null, freeBytes, hasRoot, hasWbfs: false, usable: false, reason, ...extra,
+  });
+
+  let mount: MountInfo;
+  try {
+    mount = await (deps.findMountPoint ?? defaultFindMountPoint)(p);
+  } catch {
+    return refuse(MISSING_REASON);
+  }
+  const isVolumeRoot = mount.mountPoint === p;
+
+  if (!mount.external) {
+    if (await isSystemPath(p)) return refuse(SYSTEM_REASON);
+    if (await looksLikeWbfs([p])) return refuse(WBFS_REASON, { hasWbfs: true, isVolumeRoot });
+    return { path: p, rootPath, isVolumeRoot, fsType: null, freeBytes, hasRoot, hasWbfs: false, usable: true };
+  }
+
+  let fsType: string | null = null;
+  let fsName: string | null = null;
+  try {
+    const info = await (deps.runDiskutil ?? ((x: string) => defaultRunDiskutil(x)))(mount.mountPoint);
+    fsType = info.FilesystemType ?? null;
+    fsName = info.FilesystemName ?? null;
+  } catch {
+    fsType = null;
+  }
+  const fsSaysWbfs = [fsType, fsName].some((v) => v !== null && v.toLowerCase().includes("wbfs"));
+  const hasWbfs = fsSaysWbfs || (await looksLikeWbfs([...new Set([mount.mountPoint, p])]));
 
   let reason: string | undefined;
   if (hasWbfs) reason = WBFS_REASON;
-  else if (isVolumeRoot && fsType !== "msdos") reason = `This drive is ${fsType ?? "unknown"}. cable-twii needs a FAT32 (MS-DOS) drive.`;
+  else if (fsType !== "msdos") reason = `This drive is ${fsType ?? "unknown"}. cable-twii needs a FAT32 (MS-DOS) drive.`;
 
-  const info: DriveInfo = { ...base, isVolumeRoot, fsType, freeBytes, hasRoot, hasWbfs, usable: reason === undefined };
+  const info: DriveInfo = { path: p, rootPath, isVolumeRoot, fsType, freeBytes, hasRoot, hasWbfs, usable: reason === undefined };
   if (reason !== undefined) info.reason = reason;
   return info;
 }
 
-/**
- * @throws {Error} when the drive is not usable
- */
+async function ensureNormalDir(full: string, label: string): Promise<void> {
+  let st;
+  try {
+    st = await lstat(full);
+  } catch {
+    await mkdir(full);
+    return;
+  }
+  if (!st.isDirectory()) throw new Error(`${label} is not a normal folder`);
+}
+
 export async function initRoot(info: DriveInfo, deps: DriveDeps = {}): Promise<void> {
   const fresh = await inspectDrive(info.path, deps);
   if (!fresh.usable) throw new Error(fresh.reason ?? "This drive cannot be used.");
-  await mkdir(fresh.rootPath, { recursive: true });
-  await mkdir(path.join(fresh.rootPath, "ads"), { recursive: true });
-  await mkdir(path.join(fresh.rootPath, ".studio"), { recursive: true });
+  const base = fresh.path;
+  const steps: [string, string][] = [
+    [path.join(base, "cable-twii"), "cable-twii"],
+    [path.join(base, "cable-twii", "ads"), "cable-twii/ads"],
+    [path.join(base, "cable-twii", ".studio"), "cable-twii/.studio"],
+  ];
+  for (const [full, label] of steps) {
+    await ensureNormalDir(full, label);
+  }
+  const resolved = await realpath(path.join(base, "cable-twii"));
+  if (resolved !== path.join(base, "cable-twii")) throw new Error("cable-twii is not a normal folder");
 }
 
-/**
- * @throws {Error} when the path is not a usable volume root or dot_clean fails
- */
 export async function dotClean(volumePath: string, deps: DriveDeps = {}): Promise<void> {
   const info = await inspectDrive(volumePath, deps);
-  if (!info.isVolumeRoot) throw new Error("dot_clean only runs on a drive root.");
   if (!info.usable) throw new Error(info.reason ?? "This drive cannot be used.");
+  if (!info.isVolumeRoot || info.fsType !== "msdos") throw new Error("dot_clean only runs on a FAT32 drive root.");
   const run = deps.run ?? ((cmd: string, args: string[]) => execCommand(cmd, args));
   await run("dot_clean", ["-m", info.path]);
 }
 
-async function collectVideos(dir: string, out: string[]): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true });
+async function collectVideos(dir: string, out: string[], isTop: boolean): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if (isTop) throw error;
+    return;
+  }
   for (const entry of entries) {
-    if (entry.isSymbolicLink()) continue;
+    if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      await collectVideos(full, out);
-    } else if (entry.isFile() && !entry.name.startsWith("._") && isVideoFile(entry.name)) {
+      await collectVideos(full, out, false);
+    } else if (entry.isFile() && isVideoFile(entry.name)) {
       out.push(full);
     }
   }
@@ -223,12 +265,9 @@ function compareNullsLast(a: number | null, b: number | null): number {
   return a - b;
 }
 
-/**
- * @throws {Error} when the folder cannot be read
- */
 export async function scanSource(dir: string): Promise<ScanResult[]> {
   const files: string[] = [];
-  await collectVideos(dir, files);
+  await collectVideos(dir, files, true);
   const results: ScanResult[] = new Array(files.length);
   let next = 0;
   const worker = async () => {

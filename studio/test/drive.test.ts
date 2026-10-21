@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -18,21 +18,29 @@ import { pickFiles, pickFolder } from "../src/server/picker.js";
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), "studio-drive-"));
+  dir = await realpath(await mkdtemp(path.join(os.tmpdir(), "studio-drive-")));
 });
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-function volumeDeps(info: DiskutilInfo | Error): DriveDeps {
+function mountAt(mountPoint: string, external = true): DriveDeps["findMountPoint"] {
+  return async () => ({ mountPoint, external });
+}
+
+function volumeDeps(info: DiskutilInfo | Error, mountPoint: string = dir): DriveDeps {
   return {
-    isMountPoint: async () => true,
+    findMountPoint: mountAt(mountPoint),
     runDiskutil: async () => {
       if (info instanceof Error) throw info;
       return info;
     },
   };
+}
+
+function plainDeps(): DriveDeps {
+  return { findMountPoint: mountAt("/", false), runDiskutil: async () => FAT };
 }
 
 const FAT: DiskutilInfo = { FilesystemType: "msdos", FilesystemName: "MS-DOS FAT32" };
@@ -62,7 +70,7 @@ test("refuses volume with uppercase WBFS folder", async () => {
 
 test("refuses plain folder holding wbfs folder", async () => {
   await mkdir(path.join(dir, "wbfs"));
-  const info = await inspectDrive(dir, { isMountPoint: async () => false, runDiskutil: async () => FAT });
+  const info = await inspectDrive(dir, plainDeps());
   expect(info.isVolumeRoot).toBe(false);
   expect(info.usable).toBe(false);
 });
@@ -114,7 +122,7 @@ test("accepts FAT32 volume", async () => {
 });
 
 test("plain folder allowed for testing", async () => {
-  const info = await inspectDrive(dir, { isMountPoint: async () => false, runDiskutil: async () => FAT });
+  const info = await inspectDrive(dir, plainDeps());
   expect(info.isVolumeRoot).toBe(false);
   expect(info.fsType).toBeNull();
   expect(info.usable).toBe(true);
@@ -123,7 +131,7 @@ test("plain folder allowed for testing", async () => {
 test("plain folder does not call diskutil", async () => {
   let calls = 0;
   await inspectDrive(dir, {
-    isMountPoint: async () => false,
+    findMountPoint: mountAt("/", false),
     runDiskutil: async () => {
       calls += 1;
       return FAT;
@@ -134,22 +142,20 @@ test("plain folder does not call diskutil", async () => {
 
 test("detects existing root", async () => {
   await mkdir(path.join(dir, "cable-twii"));
-  const info = await inspectDrive(dir, { isMountPoint: async () => false, runDiskutil: async () => FAT });
+  const info = await inspectDrive(dir, plainDeps());
   expect(info.hasRoot).toBe(true);
 });
 
-test("treats a path directly under /Volumes as a volume root", async () => {
-  const info = await inspectDrive("/Volumes/NoSuchDrive", {
-    runDiskutil: async () => ({ FilesystemType: "apfs" }),
-  });
-  expect(info.isVolumeRoot).toBe(true);
+test("refuses a path that does not exist", async () => {
+  const info = await inspectDrive("/Volumes/NoSuchDrive/sub", plainDeps());
   expect(info.usable).toBe(false);
+  expect(info.reason).toBe("That folder doesn't exist.");
 });
 
 test("refuses system folders and home", async () => {
   const message = "Choose your media drive or a test folder, not a system folder.";
-  for (const p of ["/", "/System", "/System/Library", os.homedir()]) {
-    const info = await inspectDrive(p, { isMountPoint: async () => false, runDiskutil: async () => FAT });
+  for (const p of ["/", "/System", "/System/Library", "/Library", "/usr", "/Applications", os.homedir()]) {
+    const info = await inspectDrive(p, plainDeps());
     expect(info.usable, p).toBe(false);
     expect(info.reason, p).toBe(message);
   }
@@ -174,15 +180,15 @@ test("default diskutil runner argv is exactly info -plist path", async () => {
 });
 
 test("initRoot creates structure", async () => {
-  const info = await inspectDrive(dir, { isMountPoint: async () => false, runDiskutil: async () => FAT });
-  await initRoot(info, { isMountPoint: async () => false, runDiskutil: async () => FAT });
+  const info = await inspectDrive(dir, plainDeps());
+  await initRoot(info, plainDeps());
   expect(existsSync(path.join(dir, "cable-twii"))).toBe(true);
   expect(existsSync(path.join(dir, "cable-twii", "ads"))).toBe(true);
   expect(existsSync(path.join(dir, "cable-twii", ".studio"))).toBe(true);
 });
 
 test("initRoot is idempotent and keeps existing files", async () => {
-  const deps: DriveDeps = { isMountPoint: async () => false, runDiskutil: async () => FAT };
+  const deps = plainDeps();
   await mkdir(path.join(dir, "cable-twii"));
   await writeFile(path.join(dir, "cable-twii", "keep.txt"), "x");
   await initRoot(await inspectDrive(dir, deps), deps);
@@ -203,6 +209,158 @@ test("initRoot does not trust a forged usable flag", async () => {
   expect(existsSync(path.join(dir, "cable-twii"))).toBe(false);
 });
 
+test("subfolder of a games drive is refused even when diskutil fails", async () => {
+  await mkdir(path.join(dir, "wbfs"));
+  await mkdir(path.join(dir, "sub"));
+  const info = await inspectDrive(path.join(dir, "sub"), volumeDeps(new Error("boom")));
+  expect(info.usable).toBe(false);
+  expect(info.hasWbfs).toBe(true);
+});
+
+test("subfolder of a games drive is refused even when diskutil says FAT32", async () => {
+  await mkdir(path.join(dir, "wbfs"));
+  await mkdir(path.join(dir, "sub"));
+  const info = await inspectDrive(path.join(dir, "sub"), volumeDeps(FAT));
+  expect(info.usable).toBe(false);
+  expect(info.reason).toContain("games drive");
+});
+
+test("subfolder of an exFAT volume is refused", async () => {
+  await mkdir(path.join(dir, "sub"));
+  const info = await inspectDrive(path.join(dir, "sub"), volumeDeps({ FilesystemType: "exfat" }));
+  expect(info.isVolumeRoot).toBe(false);
+  expect(info.usable).toBe(false);
+  expect(info.reason).toBe("This drive is exfat. cable-twii needs a FAT32 (MS-DOS) drive.");
+});
+
+test("subfolder of a FAT32 volume is allowed and diskutil is asked about the mount point", async () => {
+  await mkdir(path.join(dir, "sub"));
+  const asked: string[] = [];
+  const info = await inspectDrive(path.join(dir, "sub"), {
+    findMountPoint: mountAt(dir),
+    runDiskutil: async (p) => {
+      asked.push(p);
+      return FAT;
+    },
+  });
+  expect(info.usable).toBe(true);
+  expect(asked).toEqual([dir]);
+});
+
+test("symlink earlier in the path to a games drive is refused and nothing is written", async () => {
+  const games = path.join(dir, "games");
+  await mkdir(path.join(games, "wbfs"), { recursive: true });
+  await mkdir(path.join(games, "sub"));
+  const other = path.join(dir, "other");
+  await mkdir(other);
+  await symlink(games, path.join(other, "link"));
+  const deps: DriveDeps = {
+    findMountPoint: async (p) => ({ mountPoint: p.startsWith(games) ? games : "/", external: p.startsWith(games) }),
+    runDiskutil: async () => FAT,
+  };
+  const info = await inspectDrive(path.join(other, "link", "sub"), deps);
+  expect(info.path).toBe(path.join(games, "sub"));
+  expect(info.usable).toBe(false);
+  await expect(initRoot(info, deps)).rejects.toThrow(/games drive/);
+  expect(existsSync(path.join(games, "sub", "cable-twii"))).toBe(false);
+});
+
+test("symlinked pick resolves to the real path", async () => {
+  await mkdir(path.join(dir, "real"));
+  await symlink(path.join(dir, "real"), path.join(dir, "link"));
+  const info = await inspectDrive(path.join(dir, "link"), plainDeps());
+  expect(info.path).toBe(path.join(dir, "real"));
+});
+
+test("wrong-case path cannot dodge the checks", async () => {
+  const games = path.join(dir, "Games");
+  await mkdir(path.join(games, "wbfs"), { recursive: true });
+  await mkdir(path.join(games, "sub"));
+  const deps: DriveDeps = {
+    findMountPoint: async (p) => ({ mountPoint: p.startsWith(games) ? games : "/", external: p.startsWith(games) }),
+    runDiskutil: async () => FAT,
+  };
+  const swapped = path.join(dir, "gAMES", "sub");
+  const info = await inspectDrive(swapped, deps);
+  expect(info.usable).toBe(false);
+});
+
+test("home reached through a symlink is refused", async () => {
+  await symlink(os.homedir(), path.join(dir, "homelink"));
+  const info = await inspectDrive(path.join(dir, "homelink"), plainDeps());
+  expect(info.usable).toBe(false);
+  expect(info.reason).toBe("Choose your media drive or a test folder, not a system folder.");
+});
+
+test("system folder reached through a symlink is refused", async () => {
+  await symlink("/System/Library", path.join(dir, "syslink"));
+  const info = await inspectDrive(path.join(dir, "syslink"), plainDeps());
+  expect(info.usable).toBe(false);
+});
+
+test("initRoot refuses a symlinked cable-twii and writes nothing through it", async () => {
+  const target = path.join(dir, "elsewhere");
+  await mkdir(target);
+  const work = path.join(dir, "work");
+  await mkdir(work);
+  await symlink(target, path.join(work, "cable-twii"));
+  const deps = plainDeps();
+  await expect(initRoot(await inspectDrive(work, deps), deps)).rejects.toThrow("cable-twii is not a normal folder");
+  expect(existsSync(path.join(target, "ads"))).toBe(false);
+});
+
+test("initRoot refuses ads that is a file", async () => {
+  const work = path.join(dir, "work");
+  await mkdir(path.join(work, "cable-twii"), { recursive: true });
+  await writeFile(path.join(work, "cable-twii", "ads"), "x");
+  const deps = plainDeps();
+  await expect(initRoot(await inspectDrive(work, deps), deps)).rejects.toThrow("cable-twii/ads is not a normal folder");
+  expect(existsSync(path.join(work, "cable-twii", ".studio"))).toBe(false);
+});
+
+test("initRoot refuses a symlinked .studio", async () => {
+  const target = path.join(dir, "elsewhere");
+  await mkdir(target);
+  const work = path.join(dir, "work");
+  await mkdir(path.join(work, "cable-twii"), { recursive: true });
+  await symlink(target, path.join(work, "cable-twii", ".studio"));
+  const deps = plainDeps();
+  await expect(initRoot(await inspectDrive(work, deps), deps)).rejects.toThrow("cable-twii/.studio is not a normal folder");
+});
+
+test("initRoot refuses a pick on a games drive subfolder", async () => {
+  await mkdir(path.join(dir, "wbfs"));
+  await mkdir(path.join(dir, "sub"));
+  const deps = volumeDeps(FAT);
+  await expect(initRoot({ ...(await inspectDrive(dir, plainDeps())), path: path.join(dir, "sub") }, deps)).rejects.toThrow(/games drive/);
+  expect(existsSync(path.join(dir, "sub", "cable-twii"))).toBe(false);
+});
+
+test("scan skips unreadable subfolders", async () => {
+  makeVideo("good.mkv", 1);
+  const locked = path.join(dir, "locked");
+  await mkdir(locked);
+  await writeFile(path.join(locked, "hidden.mkv"), "x");
+  await chmod(locked, 0o000);
+  try {
+    const result = await scanSource(dir);
+    expect(result.map((r) => path.basename(r.source))).toEqual(["good.mkv"]);
+  } finally {
+    await chmod(locked, 0o755);
+  }
+});
+
+test("scan skips dot folders and dot files", async () => {
+  makeVideo("good.mkv", 1);
+  for (const name of [".Trashes", ".Spotlight-V100", ".hidden"]) {
+    await mkdir(path.join(dir, name));
+    await writeFile(path.join(dir, name, "x.mkv"), "x");
+  }
+  await writeFile(path.join(dir, ".dot.mkv"), "x");
+  const result = await scanSource(dir);
+  expect(result.map((r) => path.basename(r.source))).toEqual(["good.mkv"]);
+});
+
 test("dotClean runs dot_clean -m on a usable volume root", async () => {
   const calls: { cmd: string; args: string[] }[] = [];
   await dotClean(dir, { ...volumeDeps(FAT), run: async (cmd, args) => void calls.push({ cmd, args }) });
@@ -212,7 +370,7 @@ test("dotClean runs dot_clean -m on a usable volume root", async () => {
 test("dotClean throws for non volume root, unusable and wbfs", async () => {
   const calls: string[] = [];
   const run = async (cmd: string) => void calls.push(cmd);
-  await expect(dotClean(dir, { isMountPoint: async () => false, runDiskutil: async () => FAT, run })).rejects.toThrow();
+  await expect(dotClean(dir, { ...plainDeps(), run })).rejects.toThrow();
   await expect(dotClean(dir, { ...volumeDeps({ FilesystemType: "apfs" }), run })).rejects.toThrow();
   await mkdir(path.join(dir, "wbfs"));
   await expect(dotClean(dir, { ...volumeDeps(FAT), run })).rejects.toThrow();
@@ -308,12 +466,12 @@ test("pickFiles passes prompt as argv and splits lines", async () => {
   const calls: string[][] = [];
   const result = await pickFiles("Pick files", async (args) => {
     calls.push(args);
-    return "/a/one.mkv\n/a/two.mkv\n";
+    return "/a/one.mkv\u001f/a/tw\no.mkv\n";
   });
   expect(calls[0].slice(-1)).toEqual(["Pick files"]);
   expect(calls[0].join(" ")).toContain("choose file with prompt (item 1 of argv) with multiple selections allowed");
   expect(calls[0].join(" ")).not.toContain("Pick files ");
-  expect(result).toEqual(["/a/one.mkv", "/a/two.mkv"]);
+  expect(result).toEqual(["/a/one.mkv", "/a/tw\no.mkv"]);
 });
 
 test("pickFiles returns empty list on cancel", async () => {
