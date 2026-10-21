@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { type DriveInfo, getDrive } from "./api";
+import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { LibraryPage } from "./pages/LibraryPage";
 
@@ -33,6 +34,7 @@ export function App() {
   else if (tab === "Drive") page = <DrivePage drive={drive} onDrive={onDrive} />;
   else if (!ready) page = <div className="card">Choose and set up a drive on the Drive tab first.</div>;
   else if (tab === "Library") page = <LibraryPage />;
+  else if (tab === "Channels") page = <ChannelsPage />;
   else page = <div className="card">Coming soon.</div>;
 
   return (
