@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { mkdirSync, readFileSync, renameSync } from "node:fs";
-import { mkdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 import { convert, probe } from "./ffmpeg.js";
+import { mkdirContained } from "./contain.js";
 import { atomicWriteFile, upsertSource } from "./sources.js";
 import type { Job, SourceRecord } from "./types.js";
 
@@ -186,7 +187,7 @@ export class ConversionQueue extends EventEmitter {
     try {
       this.persist();
       this.emitChange(job);
-      await mkdir(path.dirname(dst), { recursive: true });
+      await mkdirContained(this.root, path.dirname(dst));
       if (controller.signal.aborted) throw new Error("conversion aborted");
       await this.convertFn(
         job.source,

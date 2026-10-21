@@ -18,7 +18,7 @@ afterEach(async () => {
 test("icon resized", async () => {
   const input = await sharp({ create: { width: 500, height: 300, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer();
   const dst = path.join(dir, "Channel", "channel.png");
-  await makeIcon(input, dst);
+  await makeIcon(dir, input, dst);
   const meta = await sharp(await readFile(dst)).metadata();
   expect(meta.format).toBe("png");
   expect(meta.width).toBe(128);
@@ -29,5 +29,5 @@ test("icon resized", async () => {
 });
 
 test("non-image input is refused", async () => {
-  await expect(makeIcon(Buffer.from("hello, not an image"), path.join(dir, "x.png"))).rejects.toBeInstanceOf(NotImageError);
+  await expect(makeIcon(dir, Buffer.from("hello, not an image"), path.join(dir, "x.png"))).rejects.toBeInstanceOf(NotImageError);
 });

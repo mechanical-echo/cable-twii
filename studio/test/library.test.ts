@@ -102,8 +102,8 @@ test("natural order seasonless (Song 2 before Song 10)", async () => {
 
 test("descriptions from show.toml", async () => {
   await sampleTree();
-  await writeShowMeta(path.join(root, "Cartoon Network", "Gumball"), { episodes: { S01E01: "The first one." } });
-  await writeShowMeta(path.join(root, "mtv-00s", "Music Videos"), { episodes: { "Artist 2 - Song 2": "The cat." } });
+  await writeShowMeta(root, path.join(root, "Cartoon Network", "Gumball"), { episodes: { S01E01: "The first one." } });
+  await writeShowMeta(root, path.join(root, "mtv-00s", "Music Videos"), { episodes: { "Artist 2 - Song 2": "The cat." } });
   const { library } = await buildLibrary(root, [], fakeProbe());
   expect(library.show[0]!.episode[0]!.description).toBe("The first one.");
   expect(library.show[0]!.episode[1]!.description).toBe("");
@@ -112,7 +112,7 @@ test("descriptions from show.toml", async () => {
 
 test("show name override", async () => {
   await sampleTree();
-  await writeShowMeta(path.join(root, "Cartoon Network", "Gumball"), { name: "The Amazing World of Gumball", episodes: {} });
+  await writeShowMeta(root, path.join(root, "Cartoon Network", "Gumball"), { name: "The Amazing World of Gumball", episodes: {} });
   const { library } = await buildLibrary(root, [], fakeProbe());
   expect(library.show[0]!.name).toBe("The Amazing World of Gumball");
   expect(library.show[0]!.folder).toBe("Gumball");
@@ -122,7 +122,7 @@ test("show name override", async () => {
 test("show.toml name override and descriptions", async () => {
   await put("ch/Show/Season 1/S01E01 - A.mpg");
   const dir = path.join(root, "ch", "Show");
-  await writeShowMeta(dir, { name: "Nice Name", episodes: { S01E01: "Desc" } });
+  await writeShowMeta(root, dir, { name: "Nice Name", episodes: { S01E01: "Desc" } });
   const meta = await readShowMeta(dir);
   expect(meta).toEqual({ name: "Nice Name", episodes: { S01E01: "Desc" } });
   const text = await readFile(path.join(dir, "show.toml"), "utf8");
@@ -338,7 +338,7 @@ test("serializeLibrary escapes control characters and emoji", async () => {
 
 test("library round trip through engine", async () => {
   await sampleTree();
-  await writeShowMeta(path.join(root, "Cartoon Network", "Gumball"), { name: "The Amazing World of Gumball", episodes: { S01E01: "Desc" } });
+  await writeShowMeta(root, path.join(root, "Cartoon Network", "Gumball"), { name: "The Amazing World of Gumball", episodes: { S01E01: "Desc" } });
   const { library } = await buildLibrary(root, [], fakeProbe(60000));
   await writeLibrary(root, library);
   await writeFile(

@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -275,4 +275,28 @@ test("loaded invalid job is dropped with error", async () => {
   expect(errors).toHaveLength(3);
   await q.stop();
   expect(await readFile(path.join(dir, ".studio", "queue.toml"), "utf8")).not.toContain("evil");
+});
+
+test("queue job whose target folder is a symlink out of root fails and writes nothing outside", async () => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "studio-outside-"));
+  try {
+    await symlink(outside, path.join(dir, "Show"));
+    let converted = false;
+    const convertFn: typeof convert = async (_src, dst) => {
+      converted = true;
+      await writeFile(`${dst}.part`, "x");
+    };
+    const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+    q.start();
+    q.enqueue(srcFile, "Show/Season 1/a.mpg", "4:3");
+    await idle(q, 1);
+    const job = q.list()[0]!;
+    expect(job.state).toBe("failed");
+    expect(job.error).toContain("outside the cable-twii folder");
+    expect(converted).toBe(false);
+    expect(await readdir(outside)).toEqual([]);
+    await q.stop();
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
 });

@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -566,4 +566,50 @@ test("unknown routes are 404 JSON", async () => {
   const res = await app.inject({ method: "GET", url: "/api/nope" });
   expect(res.statusCode).toBe(404);
   expect(res.json()).toEqual({ error: expect.any(String) });
+});
+
+async function symlinkedOutside(link: string): Promise<string> {
+  const outside = path.join(dir, "outside");
+  await mkdir(outside);
+  await symlink(outside, link);
+  return outside;
+}
+
+test("icon upload into a symlinked channel folder is 400 and writes nothing outside", async () => {
+  await useFixture();
+  const outside = await symlinkedOutside(path.join(root, "Linked"));
+  const cases: Record<string, string>[] = [{ kind: "channel", channelFolder: "Linked" }, { kind: "show", channelFolder: "Linked", showFolder: "Show" }];
+  for (const fields of cases) {
+    const { payload, headers } = multipart(fields, { name: "logo.png", data: await png(20, 20) });
+    const res = await app.inject({ method: "POST", url: "/api/icon", payload, headers });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("outside the cable-twii folder");
+  }
+  expect(await readdir(outside)).toEqual([]);
+});
+
+test("import show into a symlinked channel or show folder is refused and writes nothing outside", async () => {
+  await useFixture();
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  const outside = await symlinkedOutside(path.join(root, "Linked"));
+  await mkdir(path.join(dir, "outside2"));
+  await symlink(path.join(dir, "outside2"), path.join(root, "Cartoon Network", "LinkedShow"));
+  for (const [channelFolder, showFolder] of [["Linked", "New Show"], ["Cartoon Network", "LinkedShow"]]) {
+    const body = { channelFolder, showFolder, showName: "X", episodes: [{ source: path.join(src, "a.mkv"), season: 1, episode: 1, title: "Pilot", description: "D", aspect: "4:3" }] };
+    const res = await app.inject({ method: "POST", url: "/api/import/show", payload: body });
+    expect(res.statusCode).toBe(400);
+  }
+  await sleep(100);
+  expect(await readdir(outside)).toEqual([]);
+  expect(await readdir(path.join(dir, "outside2"))).toEqual([]);
+  expect(((await app.inject({ method: "GET", url: "/api/jobs" })).json() as Job[]).length).toBe(0);
+});
+
+test("PUT /api/show-meta on a symlinked show folder is 400 and writes nothing outside", async () => {
+  await useFixture();
+  const outside = await symlinkedOutside(path.join(root, "Cartoon Network", "LinkedShow"));
+  const res = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "LinkedShow", name: "N", episodes: { S01E01: "d" } } });
+  expect(res.statusCode).toBe(400);
+  expect(await readdir(outside)).toEqual([]);
 });

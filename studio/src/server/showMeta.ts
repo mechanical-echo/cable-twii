@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
-import { atomicWriteFile } from "./sources.js";
+import { atomicWriteContained } from "./contain.js";
 
 export interface ShowMeta {
   name?: string;
@@ -40,9 +40,9 @@ export async function readShowMeta(showDir: string): Promise<ShowMeta> {
   return meta;
 }
 
-export async function writeShowMeta(showDir: string, meta: ShowMeta): Promise<void> {
+export async function writeShowMeta(root: string, showDir: string, meta: ShowMeta): Promise<void> {
   const doc: Record<string, unknown> = {};
   if (meta.name !== undefined && meta.name !== "") doc.name = meta.name;
   doc.episodes = meta.episodes;
-  await atomicWriteFile(path.join(showDir, SHOW_FILE), stringify(doc));
+  await atomicWriteContained(root, path.join(showDir, SHOW_FILE), stringify(doc));
 }

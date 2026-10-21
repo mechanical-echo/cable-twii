@@ -10,6 +10,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ConfigConflictError, ConfigShapeError, configMtime, randomSeed, readConfig, toConfig, writeConfig } from "./config.js";
 import { type DriveDeps, type DriveInfo, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
 import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
+import { ContainmentError, assertContained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
 import { episodeFileName, fatSafe, uniqueName } from "./names.js";
@@ -311,6 +312,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   app.setErrorHandler((error: unknown, request, reply) => {
     if (error instanceof ConfigConflictError) return reply.code(409).send({ error: error.message });
     if (error instanceof ConfigShapeError) return reply.code(422).send({ error: error.message });
+    if (error instanceof ContainmentError) return reply.code(400).send({ error: error.message });
     if (error instanceof NotImageError) return reply.code(400).send({ error: error.message });
     if (error instanceof SchedUsageError) return reply.code(400).send({ error: error.message });
     if (error instanceof HttpError) {
@@ -411,6 +413,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const rejected: Rejected[] = [];
     const descriptions: Record<string, string> = {};
     const showRel = `${channelFolder}/${showFolder}`;
+    await assertContained(root, inside(root, channelFolder, showFolder));
     for (const ep of episodes) {
       const problem = await checkSource(ep.source);
       if (problem !== null) {
@@ -431,7 +434,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const showDir = inside(root, channelFolder, showFolder);
       const meta = await readShowMeta(showDir);
       const name = showName.trim() !== "" ? showName.trim() : meta.name;
-      await writeShowMeta(showDir, { ...(name !== undefined ? { name } : {}), episodes: { ...meta.episodes, ...descriptions } });
+      await writeShowMeta(root, showDir, { ...(name !== undefined ? { name } : {}), episodes: { ...meta.episodes, ...descriptions } });
       scheduleRebuild(root);
     }
     return { jobs, rejected };
@@ -518,7 +521,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const root = await requireRoot();
     const showDir = inside(root, channelFolder, showFolder);
     if (!(await isDirectory(showDir))) throw new HttpError(404, "That show folder does not exist.");
-    await writeShowMeta(showDir, { ...(name.trim() !== "" ? { name: name.trim() } : {}), episodes });
+    await writeShowMeta(root, showDir, { ...(name.trim() !== "" ? { name: name.trim() } : {}), episodes });
     return (await rebuildNow(root)).library;
   });
 
@@ -583,7 +586,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const parts = kind === "channel" ? [channelFolder, "channel.png"] : [channelFolder, folderName(fields.showFolder, "showFolder"), "show.png"];
     const dst = inside(root, ...parts);
     if (file === null) throw bad("file is required.");
-    await makeIcon(file, dst);
+    await makeIcon(root, file, dst);
     scheduleRebuild(root);
     return { path: parts.join("/") };
   });

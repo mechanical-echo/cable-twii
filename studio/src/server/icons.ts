@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { atomicWriteFile } from "./sources.js";
+import { atomicWriteContained } from "./contain.js";
 
 const ICON_SIZE = 128;
 
@@ -10,7 +10,7 @@ export class NotImageError extends Error {
   }
 }
 
-export async function makeIcon(input: Buffer, dst: string): Promise<void> {
+export async function makeIcon(root: string, input: Buffer, dst: string): Promise<void> {
   let png: Buffer;
   try {
     const meta = await sharp(input).metadata();
@@ -22,5 +22,5 @@ export async function makeIcon(input: Buffer, dst: string): Promise<void> {
   } catch {
     throw new NotImageError();
   }
-  await atomicWriteFile(dst, png);
+  await atomicWriteContained(root, dst, png);
 }
