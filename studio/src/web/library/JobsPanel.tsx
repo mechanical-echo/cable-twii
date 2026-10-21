@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type Job, getJobs, subscribeJobs } from "../api";
 import { baseName } from "../format";
+import { mergeResync } from "../jobs";
 
 interface Props {
   onFinished: () => void;
@@ -14,19 +15,31 @@ export function JobsPanel({ onFinished }: Props) {
 
   useEffect(() => {
     let alive = true;
-    const resync = () =>
-      getJobs()
+    const current = new Map<string, Job>();
+    const pending = new Set<Set<string>>();
+    const resync = () => {
+      const seen = new Set<string>();
+      pending.add(seen);
+      return getJobs()
         .then((list) => {
           if (!alive) return;
-          setJobs(new Map(list.map((j) => [j.id, j] as const)));
+          const merged = mergeResync(current, list, seen);
+          current.clear();
+          for (const [id, job] of merged.jobs) current.set(id, job);
+          setJobs(new Map(current));
           setProblem(null);
+          if (merged.finished) finished.current();
         })
         .catch((err: Error) => {
           if (alive) setProblem(`Could not load jobs: ${err.message}`);
-        });
+        })
+        .finally(() => pending.delete(seen));
+    };
     const unsubscribe = subscribeJobs(
       (job) => {
-        setJobs((prev) => new Map(prev).set(job.id, job));
+        current.set(job.id, job);
+        for (const seen of pending) seen.add(job.id);
+        setJobs(new Map(current));
         if (job.state === "done") finished.current();
       },
       {
