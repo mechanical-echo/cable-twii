@@ -8,7 +8,7 @@
   },
   "scripts": {
     "prestart": "node scripts/check-node.mjs",
-    "start": "node scripts/placeholder.mjs",
+    "start": "node scripts/build-web.mjs && tsx src/server/main.ts",
     "predev": "node scripts/check-node.mjs",
     "dev": "node scripts/placeholder.mjs",
     "pretest": "node scripts/check-node.mjs",

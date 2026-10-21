@@ -1,5 +1,6 @@
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { parse } from "smol-toml";
 import { MIN_DURATION_MS, probe } from "./ffmpeg.js";
 import { readShowMeta } from "./showMeta.js";
 import { atomicWriteFile } from "./sources.js";
@@ -313,4 +314,64 @@ export function serializeLibrary(lib: Library): string {
 
 export async function writeLibrary(root: string, lib: Library): Promise<void> {
   await atomicWriteFile(path.join(root, LIBRARY_FILE), serializeLibrary(lib));
+}
+
+function libraryDamaged(reason: string): Error {
+  return new Error(`library.toml is damaged: ${reason}`);
+}
+
+function records(value: unknown): Record<string, unknown>[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw libraryDamaged("expected an array of tables");
+  return value.map((entry) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) throw libraryDamaged("expected a table");
+    return entry as Record<string, unknown>;
+  });
+}
+
+function text(value: unknown): string {
+  if (typeof value !== "string") throw libraryDamaged("expected a string");
+  return value;
+}
+
+function whole(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) throw libraryDamaged("expected an integer");
+  return value;
+}
+
+export async function readLibrary(root: string): Promise<Library | null> {
+  let raw: string;
+  try {
+    raw = await readFile(path.join(root, LIBRARY_FILE), "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+  let doc: Record<string, unknown>;
+  try {
+    doc = parse(raw);
+  } catch (err) {
+    throw libraryDamaged((err as Error).message);
+  }
+  if (doc.version !== 1) throw libraryDamaged("unsupported version");
+  const generated = doc.generated instanceof Date ? new Date(doc.generated.getTime()) : new Date(0);
+  return {
+    version: 1,
+    generated,
+    ad: records(doc.ad).map((a) => ({ path: text(a.path), channel: text(a.channel), duration_ms: whole(a.duration_ms) })),
+    show: records(doc.show).map((s) => ({
+      channel: text(s.channel),
+      folder: text(s.folder),
+      name: text(s.name),
+      icon: text(s.icon),
+      episode: records(s.episode).map((e) => ({
+        season: whole(e.season),
+        episode: whole(e.episode),
+        title: text(e.title),
+        description: text(e.description),
+        path: text(e.path),
+        duration_ms: whole(e.duration_ms),
+      })),
+    })),
+  };
 }

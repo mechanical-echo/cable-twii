@@ -223,6 +223,15 @@ export async function readConfig(root: string): Promise<{ config: Config; mtimeM
   return { config: parseConfig(text), mtimeMs };
 }
 
+export async function configMtime(root: string): Promise<number> {
+  try {
+    return Math.trunc((await stat(configPath(root))).mtimeMs);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
+}
+
 export async function writeConfig(root: string, cfg: Config, expectedMtimeMs: number): Promise<number> {
   const file = configPath(root);
   const text = serializeConfig(cfg);
