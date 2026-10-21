@@ -10,6 +10,7 @@
 #include "ctw/ctw.h"
 
 #define CHECK_ROOT "sd:/cable-twii/"
+#define UNICODE_ROOT "sd:/cable-twii-unicode/"
 
 static void *xfb;
 static GXRModeObj *rmode;
@@ -56,14 +57,14 @@ static void report_issues(const ctw_issues *issues)
     }
 }
 
-static void run_check(void)
+static void run_check(const char *root, const char *label)
 {
     ctw_db *db = NULL;
     ctw_issues issues = {0};
     size_t d, c;
-    if (ctw_db_load(CHECK_ROOT, &db, &issues)) {
+    if (ctw_db_load(root, &db, &issues)) {
         report_issues(&issues);
-        out("ERROR load failed: %s", CHECK_ROOT);
+        out("ERROR load failed: %s", root);
         ctw_issues_free(&issues);
         ctw_db_free(db);
         return;
@@ -76,14 +77,14 @@ static void run_check(void)
             ctw_lineup l = {0};
             uint64_t h;
             if (ctw_lineup_build(db, ch, day, &l)) {
-                out("ERROR lineup %04d-%02d-%02d %d failed", day.year, day.month, day.day,
-                    ch->number);
+                out("ERROR lineup %s%04d-%02d-%02d %d failed", label, day.year, day.month,
+                    day.day, ch->number);
                 ctw_lineup_free(&l);
                 continue;
             }
             h = ctw_lineup_hash(&l);
-            out("HASH %04d-%02d-%02d %d %08lx%08lx", day.year, day.month, day.day, ch->number,
-                (unsigned long)(uint32_t)(h >> 32), (unsigned long)(uint32_t)h);
+            out("HASH %s%04d-%02d-%02d %d %08lx%08lx", label, day.year, day.month, day.day,
+                ch->number, (unsigned long)(uint32_t)(h >> 32), (unsigned long)(uint32_t)h);
             ctw_lineup_free(&l);
         }
     }
@@ -118,7 +119,8 @@ int main(int argc, char **argv)
     if (!sd_ok) {
         out("ERROR sd mount failed");
     } else {
-        run_check();
+        run_check(CHECK_ROOT, "");
+        run_check(UNICODE_ROOT, "unicode ");
         fatUnmount("sd");
     }
     out("DONE");

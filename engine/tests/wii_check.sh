@@ -3,11 +3,13 @@ here="$(cd "$(dirname "$0")" && pwd)"
 engine="$(dirname "$here")"
 bin="$engine/build/cable-twii-sched"
 fixture="$here/fixtures/root_basic"
+unicode="$here/fixtures/root_unicode"
 expected_file="$here/wii_check_expected.txt"
 dol="$engine/wii-check/wii-check-autotest.dol"
 dolphin="${DOLPHIN:-/Applications/Dolphin.app/Contents/MacOS/Dolphin}"
 limit="${WII_CHECK_TIMEOUT:-60}"
 dates="2026-10-20 2026-10-21 2026-12-31 2027-01-01"
+lines=20
 
 tmp="$(mktemp -d)"
 pid=""
@@ -35,15 +37,25 @@ if grep -E '(/src/|/wii-check/)[^:]*:[0-9]+:[0-9]+: warning:' "$tmp/wii-build.lo
 fi
 echo "ok build"
 
-channels="$(sed -n 's/^number = \([0-9][0-9]*\)$/\1/p' "$fixture/config.toml")"
-: >"$tmp/expected.txt"
-for d in $dates; do
-    for c in $channels; do
-        h="$("$bin" hash "$fixture" --channel "$c" --date "$d")" || { echo "FAIL cli hash $d $c"; exit 1; }
-        echo "HASH $d $c $h" >>"$tmp/expected.txt"
+expect_root() {
+    local root="$1" label="$2" channels d c h
+    channels="$(sed -n 's/^number = \([0-9][0-9]*\)$/\1/p' "$root/config.toml")"
+    for d in $dates; do
+        for c in $channels; do
+            h="$("$bin" hash "$root" --channel "$c" --date "$d")" || { echo "FAIL cli hash $label$d $c"; exit 1; }
+            echo "HASH $label$d $c $h" >>"$tmp/expected.txt"
+        done
     done
-done
+}
+: >"$tmp/expected.txt"
+expect_root "$fixture" ""
+expect_root "$unicode" "unicode "
 [ -s "$expected_file" ] || { echo "FAIL $expected_file is empty"; exit 1; }
+count="$(wc -l <"$tmp/expected.txt" | tr -d ' ')"
+if [ "$count" != "$lines" ]; then
+    echo "FAIL expected $lines HASH lines from the cli, got $count"
+    exit 1
+fi
 if ! diff -u "$expected_file" "$tmp/expected.txt"; then
     echo "FAIL $expected_file is stale"
     exit 1
@@ -55,6 +67,7 @@ user="$tmp/dolphin-user"
 sync="$tmp/sd"
 mkdir -p "$user/Config" "$sync"
 cp -R "$fixture" "$sync/cable-twii"
+cp -R "$unicode" "$sync/cable-twii-unicode"
 cat >"$user/Config/Dolphin.ini" <<EOF
 [General]
 WiiSDCardSyncFolder = $sync/
@@ -108,8 +121,8 @@ grep -o 'OSREPORT[^:]*: ERROR .*' "$tmp/report.log" | sed 's/^[^:]*: //'
 grep -o 'OSREPORT[^:]*: HASH .*' "$tmp/report.log" | sed 's/^[^:]*: //' >"$tmp/actual.txt"
 cat "$tmp/actual.txt"
 count="$(wc -l <"$tmp/actual.txt" | tr -d ' ')"
-if [ "$count" != 8 ]; then
-    echo "FAIL expected 8 HASH lines from dolphin, got $count"
+if [ "$count" != "$lines" ]; then
+    echo "FAIL expected $lines HASH lines from dolphin, got $count"
     exit 1
 fi
 if diff -u "$tmp/expected.txt" "$tmp/actual.txt"; then
