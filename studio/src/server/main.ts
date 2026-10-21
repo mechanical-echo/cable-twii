@@ -7,7 +7,7 @@ const PORT = 4747;
 
 async function main(): Promise<void> {
   const schedBin = await ensureSchedBin();
-  const app = buildApp({ schedBin, logger: true });
+  const app = buildApp({ schedBin, logger: true, port: PORT });
   await app.listen({ host: HOST, port: PORT });
   let closing = false;
   const shutdown = () => {

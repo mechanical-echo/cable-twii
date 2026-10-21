@@ -13,6 +13,9 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    host: "localhost",
+    port: 5173,
+    strictPort: true,
     proxy: {
       "/api": "http://127.0.0.1:4747",
       "/media": "http://127.0.0.1:4747",

@@ -73,10 +73,12 @@ async function parse<T>(res: Response): Promise<T> {
   return body as T;
 }
 
+const API_HEADERS = { "x-cable-twii": "1" };
+
 function send<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method };
+  const init: RequestInit = { method, headers: API_HEADERS };
   if (body !== undefined) {
-    init.headers = { "content-type": "application/json" };
+    init.headers = { ...API_HEADERS, "content-type": "application/json" };
     init.body = JSON.stringify(body);
   }
   return fetch(url, init).then((res) => parse<T>(res));
@@ -108,7 +110,7 @@ export function uploadIcon(kind: "channel" | "show", channelFolder: string, show
   form.append("channelFolder", channelFolder);
   if (showFolder !== null) form.append("showFolder", showFolder);
   form.append("file", file);
-  return fetch("/api/icon", { method: "POST", body: form }).then((res) => parse<{ path: string }>(res));
+  return fetch("/api/icon", { method: "POST", headers: API_HEADERS, body: form }).then((res) => parse<{ path: string }>(res));
 }
 
 export interface JobStreamHandlers {

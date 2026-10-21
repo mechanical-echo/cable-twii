@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, InjectOptions } from "fastify";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { parseConfig } from "../src/server/config.js";
 import type { convert, probe } from "../src/server/ffmpeg.js";
@@ -32,7 +32,7 @@ const fakeConvert: typeof convert = async (_src, dst) => {
   await writeFile(dst, "converted");
 };
 
-function make(extra: Partial<AppOptions> = {}): FastifyInstance {
+function bare(extra: Partial<AppOptions> = {}): FastifyInstance {
   return buildApp({
     schedBin: schedBinPath(),
     settingsPath: path.join(dir, "settings.json"),
@@ -42,6 +42,18 @@ function make(extra: Partial<AppOptions> = {}): FastifyInstance {
     webDir: path.join(dir, "no-web"),
     ...extra,
   });
+}
+
+function make(extra: Partial<AppOptions> = {}): FastifyInstance {
+  const built = bare(extra);
+  const inject = built.inject.bind(built);
+  const trusted = (options: InjectOptions) => {
+    const address = built.server.address();
+    const port = typeof address === "object" && address !== null ? address.port : 4747;
+    return inject({ ...options, headers: { host: `127.0.0.1:${port}`, "x-cable-twii": "1", ...options.headers } });
+  };
+  built.inject = trusted as typeof built.inject;
+  return built;
 }
 
 beforeEach(async () => {
@@ -95,6 +107,83 @@ async function waitFor(check: () => Promise<boolean>, ms = 3000): Promise<void> 
   }
   throw new Error("condition not met in time");
 }
+
+test("requests with a foreign Host are refused", async () => {
+  const guarded = bare();
+  try {
+    const res = await guarded.inject({ method: "GET", url: "/api/drive", headers: { host: "evil.example:4747" } });
+    expect(res.statusCode).toBe(403);
+    expect(typeof res.json().error).toBe("string");
+    const post = await guarded.inject({ method: "POST", url: "/api/drive/init", headers: { host: "evil.example", "x-cable-twii": "1" } });
+    expect(post.statusCode).toBe(403);
+  } finally {
+    await guarded.close();
+  }
+});
+
+test("writes with a foreign Origin are refused", async () => {
+  const guarded = bare();
+  try {
+    await mkdir(root);
+    const res = await guarded.inject({
+      method: "POST",
+      url: "/api/drive",
+      headers: { host: "127.0.0.1:4747", "x-cable-twii": "1", origin: "http://evil.example" },
+      payload: { path: drive },
+    });
+    expect(res.statusCode).toBe(403);
+    expect((await guarded.inject({ method: "GET", url: "/api/drive", headers: { host: "127.0.0.1:4747" } })).body).toBe("null");
+  } finally {
+    await guarded.close();
+  }
+});
+
+test("writes without the studio header are refused", async () => {
+  const guarded = bare();
+  try {
+    const res = await guarded.inject({ method: "POST", url: "/api/drive/init", headers: { host: "127.0.0.1:4747" } });
+    expect(res.statusCode).toBe(403);
+    expect(typeof res.json().error).toBe("string");
+  } finally {
+    await guarded.close();
+  }
+});
+
+test("allowed hosts, origins and the dev proxy get through", async () => {
+  const guarded = bare();
+  try {
+    await mkdir(root);
+    expect((await guarded.inject({ method: "GET", url: "/api/drive", headers: { host: "localhost:4747" } })).statusCode).toBe(200);
+    const direct = await guarded.inject({
+      method: "POST",
+      url: "/api/drive",
+      headers: { host: "127.0.0.1:4747", "x-cable-twii": "1", origin: "http://127.0.0.1:4747" },
+      payload: { path: drive },
+    });
+    expect(direct.statusCode).toBe(200);
+    const proxied = await guarded.inject({
+      method: "POST",
+      url: "/api/drive",
+      headers: { host: "localhost:5173", "x-cable-twii": "1", origin: "http://localhost:5173" },
+      payload: { path: drive },
+    });
+    expect(proxied.statusCode).toBe(200);
+    const noOrigin = await guarded.inject({ method: "POST", url: "/api/drive", headers: { host: "localhost:4747", "x-cable-twii": "1" }, payload: { path: drive } });
+    expect(noOrigin.statusCode).toBe(200);
+  } finally {
+    await guarded.close();
+  }
+});
+
+test("the allowed host follows the server port", async () => {
+  const guarded = bare({ port: 5000 });
+  try {
+    expect((await guarded.inject({ method: "GET", url: "/api/drive", headers: { host: "127.0.0.1:5000" } })).statusCode).toBe(200);
+    expect((await guarded.inject({ method: "GET", url: "/api/drive", headers: { host: "127.0.0.1:4747" } })).statusCode).toBe(403);
+  } finally {
+    await guarded.close();
+  }
+});
 
 test("GET /api/config", async () => {
   await useFixture();

@@ -31,6 +31,7 @@ export interface AppOptions {
   rebuildDelayMs?: number;
   webDir?: string;
   logger?: boolean;
+  port?: number;
 }
 
 type Aspect = "16:9" | "4:3";
@@ -54,6 +55,10 @@ const MAX_U16 = 65535;
 const CHANNEL_QUERY = /^[1-9][0-9]*$/;
 const DATE_QUERY = /^\d{4}-\d{2}-\d{2}$/;
 const RESERVED = new Set(["ads"]);
+const DEFAULT_PORT = 4747;
+const DEV_HOST = "localhost:5173";
+const API_HEADER = "x-cable-twii";
+const SAFE_METHODS = new Set(["GET", "HEAD"]);
 
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string, readonly issues?: Issue[]) {
@@ -154,6 +159,15 @@ async function listNames(dir: string): Promise<string[]> {
     return await readdir(dir);
   } catch {
     return [];
+  }
+}
+
+function originHost(origin: string): string | null {
+  try {
+    const url = new URL(origin);
+    return url.protocol === "http:" ? url.host.toLowerCase() : null;
+  } catch {
+    return null;
   }
 }
 
@@ -327,6 +341,22 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: "Not found" }));
+
+  function allowedHosts(): Set<string> {
+    const address = app.server.address();
+    const port = typeof address === "object" && address !== null ? address.port : opts.port ?? DEFAULT_PORT;
+    return new Set([`127.0.0.1:${port}`, `localhost:${port}`, DEV_HOST]);
+  }
+
+  app.addHook("onRequest", async (request, reply) => {
+    const hosts = allowedHosts();
+    const host = request.headers.host?.toLowerCase();
+    if (host === undefined || !hosts.has(host)) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
+    if (SAFE_METHODS.has(request.method)) return;
+    if (request.headers[API_HEADER] !== "1") return reply.code(403).send({ error: "This request did not come from cable-twii Studio." });
+    const origin = request.headers.origin;
+    if (origin !== undefined && !hosts.has(originHost(origin) ?? "")) return reply.code(403).send({ error: "This request came from another site." });
+  });
 
   app.register(multipart, { limits: { fileSize: ICON_LIMIT, files: 1, fields: 10 } });
 
