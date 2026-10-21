@@ -15,16 +15,12 @@ import {
 } from "../channels";
 import { FailureBanner } from "../FailureBanner";
 import { type Failure, toFailure } from "../failure";
+import { IconImage } from "../IconImage";
 import { Dialog } from "../library/Dialog";
 
 interface Editing {
   original: number | null;
   draft: ChannelDraft;
-}
-
-function IconImage({ src }: { src: string }) {
-  const [failed, setFailed] = useState<string | null>(null);
-  return <img className="icon" src={src} alt="" style={{ visibility: failed === src ? "hidden" : "visible" }} onError={() => setFailed(src)} />;
 }
 
 export function ChannelsPage() {

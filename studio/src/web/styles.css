@@ -648,3 +648,82 @@ button.mini {
   flex-wrap: nowrap;
   margin: 0;
 }
+
+.guide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.guide-row,
+.guide-now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-row.upnext {
+  color: var(--muted);
+  background: #f3f4f6;
+}
+
+.guide-row.ad {
+  color: #555;
+}
+
+.guide-row.current {
+  background: #eef6ff;
+}
+
+.guide-time {
+  width: 150px;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-now {
+  color: #c0392b;
+  border-bottom: 2px solid #c0392b;
+  font-weight: 600;
+}
+
+.guide-code {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-show {
+  font-weight: 600;
+}
+
+.kind-badge {
+  flex: none;
+  width: 62px;
+  text-align: center;
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 2px 0;
+  background: #e4ecf7;
+  color: #2c4a73;
+}
+
+.kind-badge.ad {
+  background: #fff1d6;
+  color: #7a5a14;
+}
+
+.kind-badge.upnext {
+  background: #e5e7ea;
+  color: #666;
+}
+
+.guide.busy {
+  opacity: 0.6;
+}
+
+.guide-footer {
+  margin: 10px 0 0;
+  font-size: 12px;
+}

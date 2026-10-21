@@ -3,6 +3,7 @@ import { type DriveInfo, getDrive } from "./api";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { LibraryPage } from "./pages/LibraryPage";
+import { PreviewPage } from "./pages/PreviewPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { UNSAVED_PROMPT } from "./schedule/editing";
 
@@ -45,7 +46,7 @@ export function App() {
   else if (tab === "Library") page = <LibraryPage />;
   else if (tab === "Channels") page = <ChannelsPage />;
   else if (tab === "Schedule") page = <SchedulePage onDirty={setDirty} />;
-  else page = <div className="card">Coming soon.</div>;
+  else page = <PreviewPage />;
 
   return (
     <div className="shell">
