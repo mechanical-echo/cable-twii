@@ -8,7 +8,7 @@ endif
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Iinclude -Ivendor
 BUILD = build
 
-LIB_SRC = src/rng.c src/hash.c src/timeutil.c src/arena.c src/issues.c src/library.c
+LIB_SRC = src/rng.c src/hash.c src/timeutil.c src/arena.c src/issues.c src/library.c src/tomlutil.c src/config.c
 VENDOR_SRC = vendor/tomlc99/toml.c
 VENDOR_OBJ = $(BUILD)/toml.o
 VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -Ivendor

@@ -6,14 +6,6 @@
 #include "tomlc99/toml.h"
 
 #define LIB_FILE "library"
-#define LIB_ERR(code, line, ...) \
-    ctw_issues_add(issues, CTW_LEVEL_ERROR, (code), -1, -1, -1, (line), LIB_FILE, __VA_ARGS__)
-
-typedef struct {
-    ctw_db *db;
-    ctw_issues *issues;
-    int bad;
-} parse_ctx;
 
 ctw_db *ctw_db_new(void)
 {
@@ -60,69 +52,6 @@ const ctw_ad *ctw_db_ad_at(const ctw_db *db, size_t i)
     return i < db->ad_count ? &db->ads[i] : NULL;
 }
 
-static void report_oom(parse_ctx *pc)
-{
-    ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                   "out of memory");
-    pc->bad = 1;
-}
-
-static void not_table(parse_ctx *pc, const char *where)
-{
-    ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                   "%s: must be a table", where);
-    pc->bad = 1;
-}
-
-static int get_int(const toml_table_t *t, const char *key, int64_t lo, int64_t hi, int64_t *out,
-                   const char *where, parse_ctx *pc)
-{
-    toml_datum_t d;
-    if (!toml_key_exists(t, key)) {
-        ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                       "%s: missing %s", where, key);
-        return -1;
-    }
-    d = toml_int_in(t, key);
-    if (!d.ok || d.u.i < lo || d.u.i > hi) {
-        ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_BAD_VALUE, -1, -1, -1, 0, LIB_FILE,
-                       "%s: %s must be an integer from %lld to %lld", where, key,
-                       (long long)lo, (long long)hi);
-        return -1;
-    }
-    *out = d.u.i;
-    return 0;
-}
-
-static int get_str(const toml_table_t *t, const char *key, int required, const char **out,
-                   const char *where, parse_ctx *pc)
-{
-    toml_datum_t d;
-    if (!toml_key_exists(t, key)) {
-        if (!required) {
-            *out = "";
-            return 0;
-        }
-        ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                       "%s: missing %s", where, key);
-        return -1;
-    }
-    d = toml_string_in(t, key);
-    if (!d.ok) {
-        ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_BAD_VALUE, -1, -1, -1, 0, LIB_FILE,
-                       "%s: %s must be a string", where, key);
-        return -1;
-    }
-    *out = ctw_arena_strdup(&pc->db->arena, d.u.s);
-    free(d.u.s);
-    if (!*out) {
-        ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                       "%s: out of memory", where);
-        return -1;
-    }
-    return 0;
-}
-
 static int episode_less(const ctw_episode *a, const ctw_episode *b)
 {
     if (a->season != b->season) return a->season < b->season;
@@ -148,14 +77,14 @@ static void sort_episodes(ctw_episode *e, ctw_episode *tmp, size_t n)
     memcpy(e, tmp, n * sizeof *e);
 }
 
-static void parse_ads(parse_ctx *pc, const toml_array_t *arr)
+static void parse_ads(ctw_pctx *pc, const toml_array_t *arr)
 {
     int n = toml_array_nelem(arr);
     int i;
     ctw_ad *ads = ctw_arena_alloc(&pc->db->arena, (size_t)n * sizeof *ads);
     size_t count = 0;
     if (!ads) {
-        report_oom(pc);
+        ctw_pctx_oom(pc);
         return;
     }
     for (i = 0; i < n; i++) {
@@ -166,12 +95,12 @@ static void parse_ads(parse_ctx *pc, const toml_array_t *arr)
         int failed = 0;
         snprintf(where, sizeof where, "ad #%d", i + 1);
         if (!t) {
-            not_table(pc, where);
+            ctw_pctx_not_table(pc, where);
             continue;
         }
-        if (get_str(t, "path", 1, &ad.path, where, pc)) failed = 1;
-        if (get_str(t, "channel", 1, &ad.channel_folder, where, pc)) failed = 1;
-        if (get_int(t, "duration_ms", 1, 4294967295LL, &dur, where, pc)) failed = 1;
+        if (ctw_get_str(pc, t, "path", 1, &ad.path, where)) failed = 1;
+        if (ctw_get_str(pc, t, "channel", 1, &ad.channel_folder, where)) failed = 1;
+        if (ctw_get_int(pc, t, "duration_ms", 1, 4294967295LL, &dur, where)) failed = 1;
         if (failed) {
             pc->bad = 1;
             continue;
@@ -183,14 +112,14 @@ static void parse_ads(parse_ctx *pc, const toml_array_t *arr)
     pc->db->ad_count = count;
 }
 
-static void parse_episodes(parse_ctx *pc, ctw_show *show, const toml_array_t *arr, const char *swhere)
+static void parse_episodes(ctw_pctx *pc, ctw_show *show, const toml_array_t *arr, const char *swhere)
 {
     int n = toml_array_nelem(arr);
     int i;
     ctw_episode *eps = ctw_arena_alloc(&pc->db->arena, (size_t)(n ? n : 1) * sizeof *eps);
     size_t count = 0;
     if (!eps) {
-        report_oom(pc);
+        ctw_pctx_oom(pc);
         return;
     }
     for (i = 0; i < n; i++) {
@@ -201,15 +130,15 @@ static void parse_episodes(parse_ctx *pc, ctw_show *show, const toml_array_t *ar
         int failed = 0;
         snprintf(where, sizeof where, "%s episode #%d", swhere, i + 1);
         if (!t) {
-            not_table(pc, where);
+            ctw_pctx_not_table(pc, where);
             continue;
         }
-        if (get_int(t, "season", 0, 65535, &season, where, pc)) failed = 1;
-        if (get_int(t, "episode", 1, 65535, &episode, where, pc)) failed = 1;
-        if (get_str(t, "path", 1, &ep.path, where, pc)) failed = 1;
-        if (get_str(t, "title", 0, &ep.title, where, pc)) failed = 1;
-        if (get_str(t, "description", 0, &ep.description, where, pc)) failed = 1;
-        if (get_int(t, "duration_ms", 1, 4294967295LL, &dur, where, pc)) failed = 1;
+        if (ctw_get_int(pc, t, "season", 0, 65535, &season, where)) failed = 1;
+        if (ctw_get_int(pc, t, "episode", 1, 65535, &episode, where)) failed = 1;
+        if (ctw_get_str(pc, t, "path", 1, &ep.path, where)) failed = 1;
+        if (ctw_get_str(pc, t, "title", 0, &ep.title, where)) failed = 1;
+        if (ctw_get_str(pc, t, "description", 0, &ep.description, where)) failed = 1;
+        if (ctw_get_int(pc, t, "duration_ms", 1, 4294967295LL, &dur, where)) failed = 1;
         if (failed) {
             pc->bad = 1;
             continue;
@@ -237,14 +166,14 @@ static void parse_episodes(parse_ctx *pc, ctw_show *show, const toml_array_t *ar
     show->episode_count = count;
 }
 
-static void parse_shows(parse_ctx *pc, const toml_array_t *arr)
+static void parse_shows(ctw_pctx *pc, const toml_array_t *arr)
 {
     int n = toml_array_nelem(arr);
     int i;
     ctw_show *shows = ctw_arena_alloc(&pc->db->arena, (size_t)n * sizeof *shows);
     size_t count = 0;
     if (!shows) {
-        report_oom(pc);
+        ctw_pctx_oom(pc);
         return;
     }
     for (i = 0; i < n; i++) {
@@ -256,18 +185,17 @@ static void parse_shows(parse_ctx *pc, const toml_array_t *arr)
         memset(&s, 0, sizeof s);
         snprintf(where, sizeof where, "show #%d", i + 1);
         if (!t) {
-            not_table(pc, where);
+            ctw_pctx_not_table(pc, where);
             continue;
         }
-        if (get_str(t, "channel", 1, &s.channel_folder, where, pc)) failed = 1;
-        if (get_str(t, "folder", 1, &s.folder, where, pc)) failed = 1;
+        if (ctw_get_str(pc, t, "channel", 1, &s.channel_folder, where)) failed = 1;
+        if (ctw_get_str(pc, t, "folder", 1, &s.folder, where)) failed = 1;
         if (!failed) snprintf(where, sizeof where, "show %s/%s", s.channel_folder, s.folder);
-        if (get_str(t, "name", 1, &s.name, where, pc)) failed = 1;
-        if (get_str(t, "icon", 1, &s.icon, where, pc)) failed = 1;
+        if (ctw_get_str(pc, t, "name", 1, &s.name, where)) failed = 1;
+        if (ctw_get_str(pc, t, "icon", 1, &s.icon, where)) failed = 1;
         eps = toml_array_in(t, "episode");
         if (!eps) {
-            ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                           "%s: missing episode", where);
+            ctw_pctx_error(pc, CTW_E_PARSE, 0, "%s: missing episode", where);
             failed = 1;
         } else {
             parse_episodes(pc, &s, eps, where);
@@ -282,65 +210,21 @@ static void parse_shows(parse_ctx *pc, const toml_array_t *arr)
     pc->db->show_count = count;
 }
 
-static void wrong_top_level(parse_ctx *pc, const char *key)
-{
-    ctw_issues_add(pc->issues, CTW_LEVEL_ERROR, CTW_E_PARSE, -1, -1, -1, 0, LIB_FILE,
-                   "%s must be an array of tables", key);
-    pc->bad = 1;
-}
-
-static int parse_error_line(const char *errbuf)
-{
-    int line = 0;
-    if (sscanf(errbuf, "line %d:", &line) == 1 && line > 0) return line;
-    return 0;
-}
-
-static void check_version(parse_ctx *pc, const toml_table_t *root)
-{
-    ctw_issues *issues = pc->issues;
-    toml_datum_t d;
-    if (!toml_key_exists(root, "version")) {
-        LIB_ERR(CTW_E_PARSE, 0, "missing version");
-        pc->bad = 1;
-        return;
-    }
-    d = toml_int_in(root, "version");
-    if (!d.ok || d.u.i != 1) {
-        LIB_ERR(CTW_E_VERSION, 0, "version must be 1");
-        pc->bad = 1;
-    }
-}
-
 int ctw_library_parse(ctw_db *db, const char *toml_text, ctw_issues *issues)
 {
-    char errbuf[200];
-    char *copy;
     toml_table_t *root;
     toml_array_t *arr;
-    parse_ctx pc;
-    pc.db = db;
-    pc.issues = issues;
-    pc.bad = 0;
-    copy = malloc(strlen(toml_text) + 1);
-    if (!copy) {
-        LIB_ERR(CTW_E_PARSE, 0, "out of memory");
-        return -1;
-    }
-    strcpy(copy, toml_text);
-    root = toml_parse(copy, errbuf, sizeof errbuf);
-    free(copy);
-    if (!root) {
-        LIB_ERR(CTW_E_PARSE, parse_error_line(errbuf), "%s", errbuf);
-        return -1;
-    }
-    check_version(&pc, root);
+    ctw_pctx pc;
+    ctw_pctx_init(&pc, db, issues, LIB_FILE, CTW_E_BAD_VALUE);
+    root = ctw_toml_open(&pc, toml_text);
+    if (!root) return -1;
+    ctw_check_version(&pc, root);
     arr = toml_array_in(root, "ad");
     if (arr) parse_ads(&pc, arr);
-    else if (toml_key_exists(root, "ad")) wrong_top_level(&pc, "ad");
+    else if (toml_key_exists(root, "ad")) ctw_pctx_wrong_top_level(&pc, "ad");
     arr = toml_array_in(root, "show");
     if (arr) parse_shows(&pc, arr);
-    else if (toml_key_exists(root, "show")) wrong_top_level(&pc, "show");
+    else if (toml_key_exists(root, "show")) ctw_pctx_wrong_top_level(&pc, "show");
     toml_free(root);
     return pc.bad ? -1 : 0;
 }
