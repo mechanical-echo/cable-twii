@@ -767,6 +767,80 @@ test("the queue resumes when the drive comes back", async () => {
   expect((await readdir(path.join(root, "ads"))).filter((n) => n === "one.mpg" || n === "two.mpg").sort()).toEqual(["one.mpg", "two.mpg"]);
 });
 
+async function pausedQueue(holdAfterResume = false): Promise<{ queue: () => ConversionQueue; away: string; release: () => void }> {
+  await app.close();
+  let first!: () => void;
+  const firstGate = new Promise<void>((resolve) => {
+    first = resolve;
+  });
+  let later!: () => void;
+  const laterGate = new Promise<void>((resolve) => {
+    later = resolve;
+  });
+  let calls = 0;
+  const gated: typeof convert = async (src, dst, aspect, onProgress, signal) => {
+    calls++;
+    if (calls === 1) await firstGate;
+    else if (holdAfterResume) await laterGate;
+    await fakeConvert(src, dst, aspect, onProgress, signal);
+  };
+  let created: ConversionQueue | undefined;
+  app = make({
+    queueFactory: (r) => {
+      created = new ConversionQueue(r, { convertFn: gated, probeFn: fakeProbe, concurrency: 1 });
+      return created;
+    },
+  });
+  await useFixture();
+  const files = ["one.mov", "two.mov"].map((name) => ({ source: path.join(dir, name), aspect: "4:3" }));
+  for (const file of files) await writeFile(file.source, "video");
+  expect((await app.inject({ method: "POST", url: "/api/import/ads", payload: { channelFolder: "", files } })).statusCode).toBe(200);
+  const queue = () => created!;
+  await waitFor(async () => queue().list()[0]?.state === "running");
+  await sleep(30);
+  const away = path.join(dir, "away");
+  await rename(root, away);
+  first();
+  await waitFor(async () => queue().isPaused() && queue().list().every((j) => j.state === "queued"));
+  return { queue, away, release: later };
+}
+
+test("replug with a symlinked cable-twii folder does not resume the queue", async () => {
+  const { queue, away } = await pausedQueue();
+  const before = await readFile(path.join(away, ".studio", "queue.toml"), "utf8");
+  await symlink(away, root);
+  const res = await app.inject({ method: "POST", url: "/api/drive", payload: { path: drive } });
+  expect(res.statusCode).toBe(200);
+  await sleep(50);
+  expect(queue().isPaused()).toBe(true);
+  expect(queue().list().map((j) => j.state)).toEqual(["queued", "queued"]);
+  const ads = await readdir(path.join(away, "ads"));
+  expect(ads.filter((n) => n === "one.mpg" || n === "two.mpg" || n.endsWith(".part"))).toEqual([]);
+  expect(await readFile(path.join(away, ".studio", "queue.toml"), "utf8")).toBe(before);
+});
+
+test("done resumes a paused queue once the drive is back", async () => {
+  const { queue, away } = await pausedQueue();
+  await rename(away, root);
+  const busy = await app.inject({ method: "POST", url: "/api/drive/done" });
+  expect(busy.statusCode).toBe(409);
+  expect(queue().isPaused()).toBe(false);
+  await waitFor(async () => queue().list().every((j) => j.state === "done"));
+  const done = await app.inject({ method: "POST", url: "/api/drive/done" });
+  expect(done.json()).toEqual({ ok: true, skipped: true });
+});
+
+test("done after a resume still refuses while a job runs", async () => {
+  const { queue, away, release } = await pausedQueue(true);
+  await rename(away, root);
+  const res = await app.inject({ method: "POST", url: "/api/drive/done" });
+  expect(res.statusCode).toBe(409);
+  expect(res.json()).toEqual({ error: "2 conversions still running" });
+  expect(queue().list()[0]?.state).toBe("running");
+  release();
+  await waitFor(async () => queue().list().every((j) => j.state === "done"));
+});
+
 test("SSE emits a job change", async () => {
   await useFixture();
   await app.listen({ host: "127.0.0.1", port: 0 });

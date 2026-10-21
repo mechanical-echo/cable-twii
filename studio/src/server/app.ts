@@ -221,7 +221,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   async function requireRoot(): Promise<string> {
-    const info = await requireDrive();
+    return checkedRoot(await requireDrive());
+  }
+
+  async function checkedRoot(info: DriveInfo): Promise<string> {
     if (!info.usable) throw new HttpError(409, info.reason ?? "This drive cannot be used.");
     if (!info.hasRoot) throw new HttpError(409, "This drive has no cable-twii folder yet. Set it up first.");
     let real: string;
@@ -340,10 +343,19 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     };
   }
 
+  async function resumeIfReady(info: DriveInfo): Promise<void> {
+    if (!queues.has(info.rootPath)) return;
+    try {
+      await checkedRoot(info);
+    } catch (err) {
+      if (!(err instanceof HttpError)) throw err;
+    }
+  }
+
   async function rememberDrive(input: string): Promise<DriveInfo> {
     const info = await inspectDrive(input, deps);
     if (await pathExists(info.path)) await saveDrive(info.path);
-    if (info.usable && info.hasRoot) queues.get(info.rootPath)?.resume();
+    await resumeIfReady(info);
     return info;
   }
 
@@ -431,6 +443,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.post("/api/drive/done", async () => {
     const info = await requireDrive();
+    await resumeIfReady(info);
     const pending = (queues.get(info.rootPath)?.list() ?? []).filter((j) => j.state === "queued" || j.state === "running").length;
     if (pending > 0) throw new HttpError(409, `${pending} ${pending === 1 ? "conversion" : "conversions"} still running`);
     if (info.usable && info.hasRoot) await flushRebuild(info.rootPath);
