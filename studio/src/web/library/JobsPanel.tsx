@@ -8,25 +8,34 @@ interface Props {
 
 export function JobsPanel({ onFinished }: Props) {
   const [jobs, setJobs] = useState<Map<string, Job>>(new Map());
+  const [problem, setProblem] = useState<string | null>(null);
   const finished = useRef(onFinished);
   finished.current = onFinished;
 
   useEffect(() => {
     let alive = true;
-    const unsubscribe = subscribeJobs((job) => {
-      setJobs((prev) => new Map(prev).set(job.id, job));
-      if (job.state === "done") finished.current();
-    });
-    getJobs()
-      .then((list) => {
-        if (!alive) return;
-        setJobs((prev) => {
-          const next = new Map(list.map((j) => [j.id, j] as const));
-          for (const [id, job] of prev) next.set(id, job);
-          return next;
+    const resync = () =>
+      getJobs()
+        .then((list) => {
+          if (!alive) return;
+          setJobs(new Map(list.map((j) => [j.id, j] as const)));
+          setProblem(null);
+        })
+        .catch((err: Error) => {
+          if (alive) setProblem(`Could not load jobs: ${err.message}`);
         });
-      })
-      .catch(() => undefined);
+    const unsubscribe = subscribeJobs(
+      (job) => {
+        setJobs((prev) => new Map(prev).set(job.id, job));
+        if (job.state === "done") finished.current();
+      },
+      {
+        onOpen: () => void resync(),
+        onError: () => {
+          if (alive) setProblem("Lost connection to job updates. Reconnecting…");
+        },
+      },
+    );
     return () => {
       alive = false;
       unsubscribe();
@@ -34,10 +43,11 @@ export function JobsPanel({ onFinished }: Props) {
   }, []);
 
   const list = [...jobs.values()];
-  if (list.length === 0) return null;
+  if (list.length === 0 && problem === null) return null;
   return (
     <div className="card">
       <h3>Conversions</h3>
+      {problem !== null && <div className="banner error">{problem}</div>}
       {list.map((job) => (
         <div key={job.id} className="job">
           <div className="job-head">

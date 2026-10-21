@@ -12,7 +12,8 @@ export function App() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoadError(null);
     getDrive()
       .then((info) => {
         setDrive(info);
@@ -22,12 +23,13 @@ export function App() {
       .finally(() => setLoaded(true));
   }, []);
 
+  useEffect(load, [load]);
+
   const ready = drive !== null && drive.usable && drive.hasRoot;
   const onDrive = useCallback((info: DriveInfo | null) => setDrive(info), []);
 
   let page;
   if (!loaded) page = <p className="muted">Loading…</p>;
-  else if (loadError !== null) page = <div className="banner error">{loadError}</div>;
   else if (tab === "Drive") page = <DrivePage drive={drive} onDrive={onDrive} />;
   else if (!ready) page = <div className="card">Choose and set up a drive on the Drive tab first.</div>;
   else if (tab === "Library") page = <LibraryPage />;
@@ -43,7 +45,15 @@ export function App() {
           </button>
         ))}
       </nav>
-      <main className="content">{page}</main>
+      <main className="content">
+        {loadError !== null && (
+          <div className="banner error row">
+            <span className="grow">Could not read the drive setting: {loadError}</span>
+            <button onClick={load}>Retry</button>
+          </div>
+        )}
+        {page}
+      </main>
     </div>
   );
 }

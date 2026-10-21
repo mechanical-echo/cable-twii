@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type ScanResult, importAds } from "../api";
 import { baseName, formatDuration } from "../format";
+import { describeRejected, isUsable } from "../importing";
 import { Dialog } from "./Dialog";
 
 interface Props {
@@ -12,11 +13,11 @@ interface Props {
 }
 
 export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: Props) {
-  const usable = (f: ScanResult) => !f.tooShort && f.error === undefined;
   const [channel, setChannel] = useState("");
-  const [picked, setPicked] = useState(() => new Set(files.filter(usable).map((f) => f.source)));
+  const [picked, setPicked] = useState(() => new Set(files.filter(isUsable).map((f) => f.source)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imported, setImported] = useState(false);
 
   const toggle = (source: string, on: boolean) =>
     setPicked((prev) => {
@@ -32,13 +33,15 @@ export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: P
     try {
       const chosen = files.filter((f) => picked.has(f.source));
       const result = await importAds({ channelFolder: channel, files: chosen.map((f) => ({ source: f.source, aspect: f.aspect })) });
+      setImported(true);
       onImported();
-      if (result.rejected.length > 0) {
-        setError(`Imported ${result.jobs.length}. Skipped: ${result.rejected.map((x) => `${baseName(x.source)} (${x.reason})`).join("; ")}`);
-        setBusy(false);
+      const skipped = describeRejected(result.jobs.length, result.rejected);
+      if (skipped === null) {
+        onClose();
         return;
       }
-      onClose();
+      setError(skipped);
+      setBusy(false);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -63,9 +66,9 @@ export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: P
       <p className="muted">{dir}</p>
       <ul className="plain">
         {files.map((f) => (
-          <li key={f.source} className={usable(f) ? undefined : "blocked"}>
+          <li key={f.source} className={isUsable(f) ? undefined : "blocked"}>
             <label>
-              <input type="checkbox" checked={picked.has(f.source)} disabled={!usable(f)} onChange={(e) => toggle(f.source, e.target.checked)} />{" "}
+              <input type="checkbox" checked={picked.has(f.source)} disabled={!isUsable(f)} onChange={(e) => toggle(f.source, e.target.checked)} />{" "}
               {baseName(f.source)} <span className="muted">{formatDuration(f.durationMs)}</span>
               {f.error !== undefined && <span className="muted"> · {f.error}</span>}
             </label>
@@ -74,8 +77,8 @@ export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: P
       </ul>
       {error !== null && <div className="banner error">{error}</div>}
       <div className="row end">
-        <button onClick={onClose}>Cancel</button>
-        <button className="primary" disabled={busy || picked.size === 0} onClick={submit}>
+        <button onClick={onClose}>{imported ? "Close" : "Cancel"}</button>
+        <button className="primary" disabled={busy || imported || picked.size === 0} onClick={submit}>
           Import
         </button>
       </div>

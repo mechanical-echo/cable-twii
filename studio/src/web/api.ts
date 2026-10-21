@@ -111,8 +111,15 @@ export function uploadIcon(kind: "channel" | "show", channelFolder: string, show
   return fetch("/api/icon", { method: "POST", body: form }).then((res) => parse<{ path: string }>(res));
 }
 
-export function subscribeJobs(cb: (job: Job) => void): () => void {
+export interface JobStreamHandlers {
+  onOpen?: () => void;
+  onError?: () => void;
+}
+
+export function subscribeJobs(cb: (job: Job) => void, handlers: JobStreamHandlers = {}): () => void {
   const source = new EventSource("/api/jobs/stream");
+  source.onopen = () => handlers.onOpen?.();
+  source.onerror = () => handlers.onError?.();
   source.onmessage = (event) => {
     try {
       cb(JSON.parse(event.data as string) as Job);

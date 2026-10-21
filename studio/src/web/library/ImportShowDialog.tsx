@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type ImportEpisode, type ScanResult, importShow, uploadIcon } from "../api";
 import { baseName } from "../format";
+import { describeRejected, isUsable } from "../importing";
 import { Dialog } from "./Dialog";
 
 interface Props {
@@ -21,10 +22,9 @@ interface Row {
 }
 
 function toRow(scan: ScanResult): Row {
-  const usable = !scan.tooShort && scan.error === undefined;
   return {
     scan,
-    include: usable,
+    include: isUsable(scan),
     season: scan.guess.season === null ? "" : String(scan.guess.season),
     episode: scan.guess.episode === null ? "" : String(scan.guess.episode),
     title: scan.guess.title,
@@ -44,10 +44,11 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
   const [icon, setIcon] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imported, setImported] = useState(false);
 
   const patch = (i: number, change: Partial<Row>) => setRows((prev) => prev.map((r, k) => (k === i ? { ...r, ...change } : r)));
   const chosen = rows.filter((r) => r.include);
-  const canImport = !busy && channel.trim() !== "" && showName.trim() !== "" && chosen.length > 0;
+  const canImport = !busy && !imported && channel.trim() !== "" && showName.trim() !== "" && chosen.length > 0;
 
   async function submit() {
     setBusy(true);
@@ -62,20 +63,29 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
       description: r.description.trim(),
       aspect: r.scan.aspect,
     }));
+    let result;
     try {
-      const result = await importShow({ channelFolder, showFolder: folder, showName: folder, episodes });
-      if (icon !== null && result.jobs.length > 0) await uploadIcon("show", channelFolder, folder, icon);
-      onImported();
-      if (result.rejected.length > 0) {
-        setError(`Imported ${result.jobs.length}. Skipped: ${result.rejected.map((x) => `${baseName(x.source)} (${x.reason})`).join("; ")}`);
-        setBusy(false);
-        return;
-      }
-      onClose();
+      result = await importShow({ channelFolder, showFolder: folder, showName: folder, episodes });
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
+      return;
     }
+    setImported(true);
+    setBusy(false);
+    onImported();
+    const notes: string[] = [];
+    const skipped = describeRejected(result.jobs.length, result.rejected);
+    if (skipped !== null) notes.push(skipped);
+    if (icon !== null && result.jobs.length > 0) {
+      try {
+        await uploadIcon("show", channelFolder, folder, icon);
+      } catch (err) {
+        notes.push(`Imported, but the icon failed: ${(err as Error).message}`);
+      }
+    }
+    if (notes.length === 0) onClose();
+    else setError(notes.join(" "));
   }
 
   return (
@@ -114,7 +124,7 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
           </thead>
           <tbody>
             {rows.map((r, i) => {
-              const blocked = r.scan.tooShort || r.scan.error !== undefined;
+              const blocked = !isUsable(r.scan);
               return (
                 <tr key={r.scan.source} className={blocked ? "blocked" : undefined}>
                   <td>
@@ -141,7 +151,7 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
       </div>
       {error !== null && <div className="banner error">{error}</div>}
       <div className="row end">
-        <button onClick={onClose}>Cancel</button>
+        <button onClick={onClose}>{imported ? "Close" : "Cancel"}</button>
         <button className="primary" disabled={!canImport} onClick={submit}>
           Import
         </button>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { baseName, formatBytes, formatDuration } from "../src/web/format.js";
+import { describeRejected, isUsable } from "../src/web/importing.js";
 import { buildTree, descriptionKey, seasonLabel, type WebLibrary } from "../src/web/tree.js";
 
 const ep = (season: number, episode: number, title: string) => ({ season, episode, title, description: "", path: `C/S/${title}.mpg`, duration_ms: 30000 });
@@ -73,5 +74,25 @@ describe("descriptionKey", () => {
   it("uses SxxExx for seasoned episodes and the file stem otherwise", () => {
     expect(descriptionKey({ season: 1, episode: 2, path: "x.mpg" })).toBe("S01E02");
     expect(descriptionKey({ season: 0, episode: 1, path: "C/S/E01 - Pilot.mpg" })).toBe("E01 - Pilot");
+  });
+});
+
+describe("isUsable", () => {
+  it("rejects too short files and files with errors", () => {
+    expect(isUsable({ tooShort: false })).toBe(true);
+    expect(isUsable({ tooShort: true })).toBe(false);
+    expect(isUsable({ tooShort: false, error: "bad" })).toBe(false);
+  });
+});
+
+describe("describeRejected", () => {
+  it("returns null when nothing was rejected", () => {
+    expect(describeRejected(3, [])).toBeNull();
+  });
+
+  it("lists skipped files with reasons", () => {
+    expect(describeRejected(2, [{ source: "/a/b.mp4", reason: "too short" }, { source: "/c.mp4", reason: "bad" }])).toBe(
+      "Imported 2. Skipped: b.mp4 (too short); c.mp4 (bad)",
+    );
   });
 });
