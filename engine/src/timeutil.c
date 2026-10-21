@@ -1,24 +1,15 @@
 #include "ctw/ctw.h"
 
-/**
- * @throws never
- */
 static bool is_digit(char c)
 {
     return c >= '0' && c <= '9';
 }
 
-/**
- * @throws never
- */
 static bool is_leap(int year)
 {
     return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
 }
 
-/**
- * @throws never
- */
 static int days_in_month(int year, int month)
 {
     static const int days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -28,9 +19,6 @@ static int days_in_month(int year, int month)
     return days[month - 1];
 }
 
-/**
- * @throws never
- */
 int ctw_parse_hhmm(const char *s, uint32_t *out_ms)
 {
     if (!is_digit(s[0]) || !is_digit(s[1]) || s[2] != ':' ||
@@ -46,17 +34,11 @@ int ctw_parse_hhmm(const char *s, uint32_t *out_ms)
     return 0;
 }
 
-/**
- * @throws never
- */
 uint32_t ctw_date_key(ctw_date d)
 {
     return (uint32_t)d.year * 10000u + (uint32_t)d.month * 100u + (uint32_t)d.day;
 }
 
-/**
- * @throws never
- */
 ctw_date ctw_date_prev(ctw_date d)
 {
     if (d.day > 1) {
@@ -73,9 +55,6 @@ ctw_date ctw_date_prev(ctw_date d)
     return d;
 }
 
-/**
- * @throws never
- */
 ctw_date ctw_date_next(ctw_date d)
 {
     if (d.day < days_in_month(d.year, d.month)) {
@@ -92,9 +71,6 @@ ctw_date ctw_date_next(ctw_date d)
     return d;
 }
 
-/**
- * @throws never
- */
 int ctw_date_parse(const char *s, ctw_date *out)
 {
     static const int digit_at[8] = {0, 1, 2, 3, 5, 6, 8, 9};

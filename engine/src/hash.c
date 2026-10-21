@@ -2,9 +2,6 @@
 
 #define CTW_FNV_PRIME 0x100000001b3ULL
 
-/**
- * @throws never
- */
 uint64_t ctw_fnv1a(uint64_t h, const void *data, size_t len)
 {
     const unsigned char *p = data;
@@ -15,9 +12,6 @@ uint64_t ctw_fnv1a(uint64_t h, const void *data, size_t len)
     return h;
 }
 
-/**
- * @throws never
- */
 static uint64_t hash_u32_be(uint64_t h, uint32_t v)
 {
     unsigned char b[4];
@@ -28,9 +22,6 @@ static uint64_t hash_u32_be(uint64_t h, uint32_t v)
     return ctw_fnv1a(h, b, 4);
 }
 
-/**
- * @throws never
- */
 uint64_t ctw_day_seed(uint32_t seed, int channel_number, ctw_date day)
 {
     uint64_t h = CTW_FNV_OFFSET;

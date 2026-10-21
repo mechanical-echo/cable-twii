@@ -2,9 +2,6 @@
 
 #define CTW_PCG_MULT 6364136223846793005ULL
 
-/**
- * @throws never
- */
 uint32_t ctw_rng_next(ctw_rng *r)
 {
     uint64_t old = r->state;
@@ -14,9 +11,6 @@ uint32_t ctw_rng_next(ctw_rng *r)
     return (xorshifted >> rot) | (xorshifted << ((0u - rot) & 31u));
 }
 
-/**
- * @throws never
- */
 ctw_rng ctw_rng_seed(uint64_t initstate, uint64_t initseq)
 {
     ctw_rng r;
@@ -28,9 +22,6 @@ ctw_rng ctw_rng_seed(uint64_t initstate, uint64_t initseq)
     return r;
 }
 
-/**
- * @throws never
- */
 uint32_t ctw_rng_below(ctw_rng *r, uint32_t bound)
 {
     if (bound == 0u) {
@@ -45,9 +36,6 @@ uint32_t ctw_rng_below(ctw_rng *r, uint32_t bound)
     }
 }
 
-/**
- * @throws never
- */
 void ctw_shuffle(ctw_rng *r, uint32_t *items, size_t n)
 {
     for (size_t i = n; i > 1; i--) {

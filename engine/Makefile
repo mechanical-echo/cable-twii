@@ -1,4 +1,10 @@
 CC ?= cc
+
+ifeq ($(shell uname -s),Darwin)
+SDKROOT ?= $(shell xcrun --sdk macosx --show-sdk-path)
+export SDKROOT
+endif
+
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Iinclude -Ivendor
 BUILD = build
 

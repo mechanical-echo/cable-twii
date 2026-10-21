@@ -38,6 +38,12 @@ TEST date_arithmetic(void)
     ASSERT_EQ(1, p.day);
     p = ctw_date_next((ctw_date){2024, 2, 28});
     ASSERT_EQ(29, p.day);
+    p = ctw_date_next((ctw_date){1900, 2, 28});
+    ASSERT_EQ(3, p.month);
+    ASSERT_EQ(1, p.day);
+    p = ctw_date_next((ctw_date){2000, 2, 28});
+    ASSERT_EQ(2, p.month);
+    ASSERT_EQ(29, p.day);
     ASSERT_EQ(20261020u, ctw_date_key((ctw_date){2026, 10, 20}));
     PASS();
 }
@@ -51,6 +57,8 @@ TEST date_parse_valid(void)
     ASSERT_EQ(20, d.day);
     ASSERT_EQ(0, ctw_date_parse("2024-02-29", &d));
     ASSERT_EQ(29, d.day);
+    ASSERT_EQ(0, ctw_date_parse("2000-02-29", &d));
+    ASSERT_EQ(29, d.day);
     PASS();
 }
 
@@ -59,6 +67,7 @@ TEST date_parse_rejects_invalid(void)
     ctw_date d;
     ASSERT_EQ(-1, ctw_date_parse("2023-02-29", &d));
     ASSERT_EQ(-1, ctw_date_parse("2026-1-05", &d));
+    ASSERT_EQ(-1, ctw_date_parse("1900-02-29", &d));
     ASSERT_EQ(-1, ctw_date_parse("2026-13-01", &d));
     ASSERT_EQ(-1, ctw_date_parse("2026-00-10", &d));
     ASSERT_EQ(-1, ctw_date_parse("2026-04-31", &d));
