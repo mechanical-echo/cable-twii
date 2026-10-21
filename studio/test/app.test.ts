@@ -283,6 +283,41 @@ test("POST /api/drive remembers a usable folder and init creates the root", asyn
   expect(done.json()).toEqual({ ok: true, skipped: true });
 });
 
+test("done refuses while conversions are running and does not run dot_clean", async () => {
+  await app.close();
+  const calls: string[][] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const gated: typeof convert = async (src, dst, aspect, onProgress, signal) => {
+    await gate;
+    await fakeConvert(src, dst, aspect, onProgress, signal);
+  };
+  app = make({
+    queueFactory: (r) => new ConversionQueue(r, { convertFn: gated, probeFn: fakeProbe, concurrency: 1 }),
+    inspectDeps: {
+      findMountPoint: async () => ({ mountPoint: drive, external: true }),
+      runDiskutil: async () => ({ FilesystemType: "msdos", FilesystemName: "MS-DOS FAT32" }),
+      run: async (cmd, args) => void calls.push([cmd, ...args]),
+    },
+  });
+  await useFixture();
+  const files = ["one.mov", "two.mov"].map((name) => ({ source: path.join(dir, name), aspect: "4:3" }));
+  for (const file of files) await writeFile(file.source, "video");
+  expect((await app.inject({ method: "POST", url: "/api/import/ads", payload: { channelFolder: "", files } })).statusCode).toBe(200);
+  const busy = await app.inject({ method: "POST", url: "/api/drive/done" });
+  expect(busy.statusCode).toBe(409);
+  expect(busy.json()).toEqual({ error: "2 conversions still running" });
+  expect(calls).toEqual([]);
+  release();
+  const jobs = async () => (await app.inject({ method: "GET", url: "/api/jobs" })).json() as Job[];
+  await waitFor(async () => (await jobs()).every((j) => j.state === "done"));
+  const done = await app.inject({ method: "POST", url: "/api/drive/done" });
+  expect(done.json()).toEqual({ ok: true });
+  expect(calls).toEqual([["dot_clean", "-m", drive]]);
+});
+
 test("POST /api/drive with a missing path is not remembered", async () => {
   const res = await app.inject({ method: "POST", url: "/api/drive", payload: { path: path.join(dir, "missing") } });
   expect(res.statusCode).toBe(200);

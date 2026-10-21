@@ -430,6 +430,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.post("/api/drive/done", async () => {
     const info = await requireDrive();
+    const pending = (queues.get(info.rootPath)?.list() ?? []).filter((j) => j.state === "queued" || j.state === "running").length;
+    if (pending > 0) throw new HttpError(409, `${pending} ${pending === 1 ? "conversion" : "conversions"} still running`);
     if (info.usable && info.hasRoot) await flushRebuild(info.rootPath);
     if (!(info.usable && info.isVolumeRoot && info.fsType !== null)) return { ok: true, skipped: true };
     await dotClean(info.path, deps);
