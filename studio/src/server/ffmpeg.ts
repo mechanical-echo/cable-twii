@@ -28,9 +28,13 @@ export interface ProbeResult {
   width: number;
   height: number;
   displayAspect: number;
+  videoStreamIndex: number;
 }
 
 export interface FfprobeStream {
+  index?: number;
+  duration?: string;
+  disposition?: { attached_pic?: number };
   codec_type?: string;
   width?: number;
   height?: number;
@@ -60,12 +64,9 @@ export function displayAspectOf(stream: FfprobeStream): number {
   return ((stream.width ?? 0) * sar) / (stream.height ?? 1);
 }
 
-/**
- * @throws {Error} when ffprobe cannot run, exits non-zero, prints invalid JSON or the file has no video stream
- */
 export function probe(path: string): Promise<ProbeResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", path]);
+    const child = spawn("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", "-i", `file:${path}`]);
     let out = "";
     let err = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -87,17 +88,19 @@ export function probe(path: string): Promise<ProbeResult> {
         reject(new Error("ffprobe returned invalid JSON"));
         return;
       }
-      const video = (parsed.streams ?? []).find((s) => s.codec_type === "video");
+      const video = (parsed.streams ?? []).find((s) => s.codec_type === "video" && !s.disposition?.attached_pic);
       if (!video || !video.width || !video.height) {
         reject(new Error(`no video stream found in ${path}`));
         return;
       }
-      const seconds = Number(parsed.format?.duration);
+      const formatSeconds = parsed.format?.duration === undefined ? NaN : Number(parsed.format.duration);
+      const streamSeconds = video.duration === undefined ? NaN : Number(video.duration);
+      const seconds = Number.isFinite(formatSeconds) ? formatSeconds : streamSeconds;
       if (!Number.isFinite(seconds)) {
-        reject(new Error(`ffprobe reported no duration for ${path}`));
+        reject(new Error(`duration unknown for ${path}`));
         return;
       }
-      resolve({ durationMs: Math.round(seconds * 1000), width: video.width, height: video.height, displayAspect: displayAspectOf(video) });
+      resolve({ durationMs: Math.round(seconds * 1000), width: video.width, height: video.height, displayAspect: displayAspectOf(video), videoStreamIndex: video.index ?? 0 });
     });
   });
 }
@@ -110,7 +113,7 @@ export function aspectFor(displayAspect: number): Aspect {
   return displayAspect >= WIDE_ASPECT_THRESHOLD ? "16:9" : "4:3";
 }
 
-export function conversionArgs(src: string, dst: string, aspect: Aspect): string[] {
+export function conversionArgs(src: string, dst: string, aspect: Aspect, videoStreamIndex = 0): string[] {
   const { width, height } = FRAME_SIZE[aspect];
   const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,fps=${FRAME_RATE}`;
   return [
@@ -120,7 +123,13 @@ export function conversionArgs(src: string, dst: string, aspect: Aspect): string
     "pipe:1",
     "-nostats",
     "-i",
-    src,
+    `file:${src}`,
+    "-map",
+    `0:${videoStreamIndex}`,
+    "-map",
+    "0:a:0?",
+    "-sn",
+    "-dn",
     "-vf",
     videoFilter,
     "-c:v",
@@ -145,13 +154,10 @@ export function conversionArgs(src: string, dst: string, aspect: Aspect): string
     AUDIO_BITRATE,
     "-f",
     CONTAINER_FORMAT,
-    dst,
+    `file:${dst}`,
   ];
 }
 
-/**
- * @throws {Error} when probing fails, ffmpeg fails or the conversion is aborted
- */
 export async function convert(
   src: string,
   dst: string,
@@ -161,12 +167,12 @@ export async function convert(
 ): Promise<void> {
   const abortError = () => new Error("conversion aborted");
   if (signal?.aborted) throw abortError();
-  const { durationMs } = await probe(src);
+  const { durationMs, videoStreamIndex } = await probe(src);
   if (signal?.aborted) throw abortError();
   const part = dst + ".part";
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("ffmpeg", conversionArgs(src, part, aspect));
+    const child = spawn("ffmpeg", conversionArgs(src, part, aspect, videoStreamIndex));
     let stdoutBuffer = "";
     let stderrBuffer = "";
     let aborted = false;
@@ -200,7 +206,10 @@ export async function convert(
       if (stderrBuffer.length > 65536) stderrBuffer = stderrBuffer.slice(-65536);
     });
 
+    let settled = false;
     const finish = async (error: Error | null) => {
+      if (settled) return;
+      settled = true;
       signal?.removeEventListener("abort", onAbort);
       clearTimeout(killTimer);
       if (error) {

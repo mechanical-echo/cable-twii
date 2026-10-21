@@ -38,7 +38,8 @@ test("args 16:9", () => {
   expect(a.join(" ")).toContain("pad=640:360:(ow-iw)/2:(oh-ih)/2,fps=30");
   expect(a.join(" ")).toContain("loudnorm=I=-16:TP=-1.5:LRA=11");
   expect(a.slice(0, 5)).toEqual(["-y", "-nostdin", "-progress", "pipe:1", "-nostats"]);
-  expect(a.at(-1)).toBe("out.mpg.part");
+  expect(a.at(-1)).toBe("file:out.mpg.part");
+  expect(a).toEqual(expect.arrayContaining(["-i", "file:in.mkv", "-map", "0:0", "0:a:0?", "-sn", "-dn"]));
 });
 test("args 4:3", () => expect(conversionArgs("a", "b", "4:3").join(" ")).toContain("scale=480:360:force_original_aspect_ratio=decrease,pad=480:360"));
 test("aspectFor", () => {
@@ -66,6 +67,48 @@ test("displayAspectOf prefers declared ratio and falls back to SAR", () => {
   expect(displayAspectOf({ width: 320, height: 240, display_aspect_ratio: "0:1", sample_aspect_ratio: "2:1" })).toBeCloseTo(8 / 3, 5);
   expect(displayAspectOf({ width: 320, height: 240, sample_aspect_ratio: "0:1" })).toBeCloseTo(4 / 3, 5);
   expect(displayAspectOf({ width: 320, height: 240 })).toBeCloseTo(4 / 3, 5);
+});
+function makeCover(): string {
+  const png = path.join(dir, "cover.png");
+  const r = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", png]);
+  if (r.status !== 0) throw new Error(String(r.stderr));
+  return png;
+}
+test("rejects mp3 with only cover art", async () => {
+  const mp3 = path.join(dir, "a.mp3");
+  const r = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "sine=d=1", "-i", makeCover(), "-map", "0", "-map", "1", "-c:a", "libmp3lame", "-c:v", "copy", "-disposition:v", "attached_pic", mp3]);
+  if (r.status !== 0) throw new Error(String(r.stderr));
+  await expect(probe(mp3)).rejects.toThrow(/no video stream/i);
+});
+test("video with attached cover probes and converts the real video (mp4)", async () => {
+  const base = makeVideo("base.mkv", "320x240", 1.2);
+  const withPic = path.join(dir, "pic.mp4");
+  const r = spawnSync("ffmpeg", ["-y", "-v", "error", "-i", makeCover(), "-i", base, "-map", "0", "-map", "1:v", "-map", "1:a", "-c:v:0", "copy", "-c:v:1", "mpeg4", "-c:a", "aac", "-disposition:v:0", "attached_pic", withPic]);
+  if (r.status !== 0) throw new Error(String(r.stderr));
+  const p = await probe(withPic);
+  expect([p.width, p.height]).toEqual([320, 240]);
+  const dst = path.join(dir, "out.mpg");
+  await convert(withPic, dst, "4:3", () => {});
+  const q = await probe(dst);
+  expect([q.width, q.height]).toEqual([480, 360]);
+});
+test("dash and odd names work for source and destination", async () => {
+  const src = makeVideo("-dash é 'q\".mkv", "320x240", 1.2);
+  expect((await probe(src)).width).toBe(320);
+  const dst = path.join(dir, "-out é.mpg");
+  await convert(src, dst, "4:3", () => {});
+  expect(existsSync(dst)).toBe(true);
+});
+test("relative dash destination works", async () => {
+  const src = makeVideo("a.mkv", "320x240", 1.2);
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    await convert(src, "-rel.mpg", "4:3", () => {});
+  } finally {
+    process.chdir(cwd);
+  }
+  expect(existsSync(path.join(dir, "-rel.mpg"))).toBe(true);
 });
 test("probe rejects missing file", async () => {
   await expect(probe(path.join(dir, "nope.mkv"))).rejects.toThrow(/ffprobe/);
