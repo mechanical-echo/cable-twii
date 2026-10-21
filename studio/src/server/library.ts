@@ -234,6 +234,10 @@ async function scanShow(scan: Scan, root: string, channel: string, folder: strin
     episodes.push(ep);
   }
   if (seasons.length === 0 && mpgFiles(files).length === 0) return null;
+  if (episodes.length === 0) {
+    scan.skipped.push({ path: showRel, reason: "no usable episodes yet" });
+    return null;
+  }
   episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
   const icon = (await exists(path.join(showDir, ICON_FILE))) ? posix(channel, folder, ICON_FILE) : "";
   return { channel, folder, name: meta.name ?? folder, icon, episode: episodes };

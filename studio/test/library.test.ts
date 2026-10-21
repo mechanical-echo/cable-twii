@@ -155,6 +155,23 @@ test("skips part and dot files", async () => {
   expect(skipped).toEqual([]);
 });
 
+test("show with an empty season folder is left out and the engine accepts the library", async () => {
+  await sampleTree();
+  await put("Cartoon Network/New Show/Season 1/S01E01 - A.mpg.part");
+  await put("Cartoon Network/Failed/Season 2/notes.txt");
+  const { library, skipped } = await buildLibrary(root, [], fakeProbe(60000));
+  expect(library.show.map((s) => s.folder)).not.toContain("New Show");
+  expect(library.show.map((s) => s.folder)).not.toContain("Failed");
+  expect(skipped).toEqual([
+    { path: "Cartoon Network/Failed", reason: "no usable episodes yet" },
+    { path: "Cartoon Network/New Show", reason: "no usable episodes yet" },
+  ]);
+  await writeLibrary(root, library);
+  await writeFile(path.join(root, "config.toml"), "version = 1\nseed = 1\n");
+  const validated = await run(SCHED, ["validate", root]);
+  expect((JSON.parse(validated.stdout) as { ok: boolean }).ok).toBe(true);
+});
+
 test("durations prefer sources", async () => {
   await put("ch/Show/Season 1/S01E01 - A.mpg");
   await put("ch/Show/Season 1/S01E02 - B.mpg");
