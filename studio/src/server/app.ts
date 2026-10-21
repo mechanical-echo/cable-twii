@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createReadStream, existsSync } from "node:fs";
-import { readFile, readdir, realpath, stat } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -18,8 +18,8 @@ import { pickFolder } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
 import { readShowMeta, writeShowMeta } from "./showMeta.js";
-import { atomicWriteFile, readSources } from "./sources.js";
-import type { Config, Issue, Job } from "./types.js";
+import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
+import type { Config, Issue, Job, SourceRecord } from "./types.js";
 
 export interface AppOptions {
   schedBin: string;
@@ -55,6 +55,7 @@ const MAX_U16 = 65535;
 const CHANNEL_QUERY = /^[1-9][0-9]*$/;
 const DATE_QUERY = /^\d{4}-\d{2}-\d{2}$/;
 const RESERVED = new Set(["ads"]);
+const ALREADY_CONVERTED = "already on the drive";
 const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
 const API_HEADER = "x-cable-twii";
@@ -303,6 +304,26 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
   }
 
+  async function sourceRecords(root: string): Promise<SourceRecord[]> {
+    try {
+      return await readSources(root);
+    } catch (err) {
+      app.log.warn(err);
+      return [];
+    }
+  }
+
+  async function earlierConversion(root: string, records: SourceRecord[], source: string, dirRel: string): Promise<{ current: boolean; target: string } | null> {
+    const rec = records.find((r) => r.source === source && path.posix.dirname(r.target) === dirRel);
+    if (!rec) return null;
+    try {
+      if (!(await lstat(path.join(root, ...rec.target.split("/")))).isFile()) return null;
+      return { current: !needsConversion(rec, await stat(source), true), target: rec.target };
+    } catch {
+      return null;
+    }
+  }
+
   function takenNames(root: string, queue: ConversionQueue) {
     const cache = new Map<string, Set<string>>();
     return async (dirRel: string): Promise<Set<string>> => {
@@ -446,16 +467,22 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const descriptions: Record<string, string> = {};
     const showRel = `${channelFolder}/${showFolder}`;
     assertContained(root, inside(root, channelFolder, showFolder));
+    const records = await sourceRecords(root);
     for (const ep of episodes) {
+      const seasoned = ep.season !== null && ep.season >= 1;
+      const dirRel = seasoned ? `${showRel}/Season ${ep.season}` : showRel;
+      const earlier = await earlierConversion(root, records, ep.source, dirRel);
+      if (earlier?.current) {
+        rejected.push({ source: ep.source, reason: ALREADY_CONVERTED });
+        continue;
+      }
       const problem = await checkSource(ep.source);
       if (problem !== null) {
         rejected.push({ source: ep.source, reason: problem });
         continue;
       }
-      const seasoned = ep.season !== null && ep.season >= 1;
-      const dirRel = seasoned ? `${showRel}/Season ${ep.season}` : showRel;
       const names = await taken(dirRel);
-      const name = uniqueName(episodeFileName({ season: seasoned ? ep.season : null, episode: ep.episode, title: ep.title }), names);
+      const name = earlier ? path.posix.basename(earlier.target) : uniqueName(episodeFileName({ season: seasoned ? ep.season : null, episode: ep.episode, title: ep.title }), names);
       names.add(name);
       jobs.push(queue.enqueue(ep.source, `${dirRel}/${name}`, ep.aspect));
       if (ep.description === "") continue;
@@ -485,9 +512,15 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const queue = queueFor(root);
     const dirRel = channelFolder === "" ? "ads" : `${channelFolder}/ads`;
     const names = await takenNames(root, queue)(dirRel);
+    const records = await sourceRecords(root);
     const jobs: Job[] = [];
     const rejected: Rejected[] = [];
     for (const file of files) {
+      const earlier = await earlierConversion(root, records, file.source, dirRel);
+      if (earlier?.current) {
+        rejected.push({ source: file.source, reason: ALREADY_CONVERTED });
+        continue;
+      }
       const problem = await checkSource(file.source);
       if (problem !== null) {
         rejected.push({ source: file.source, reason: problem });
@@ -495,7 +528,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       }
       const base = path.basename(file.source);
       const stem = base.lastIndexOf(".") > 0 ? base.slice(0, base.lastIndexOf(".")) : base;
-      const name = uniqueName(`${fatSafe(stem) || "Ad"}.mpg`, names);
+      const name = earlier ? path.posix.basename(earlier.target) : uniqueName(`${fatSafe(stem) || "Ad"}.mpg`, names);
       names.add(name);
       jobs.push(queue.enqueue(file.source, `${dirRel}/${name}`, file.aspect));
     }

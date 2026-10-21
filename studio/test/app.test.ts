@@ -9,6 +9,7 @@ import { parseConfig } from "../src/server/config.js";
 import type { convert, probe } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
+import { writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
 
 const FIXTURE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_basic");
@@ -554,6 +555,45 @@ test("import show avoids names already on the drive", async () => {
     },
   });
   expect((res.json() as { jobs: Job[] }).jobs[0]!.target).toBe("Cartoon Network/Gumball/Season 1/S01E01 - gumball 1 (2).mpg");
+});
+
+test("re-import skips sources already on the drive and reconverts changed ones in place", async () => {
+  await useFixture();
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  const pilot = path.join(src, "pilot.mkv");
+  const ad = path.join(src, "promo.mov");
+  await writeFile(pilot, "pilot");
+  await writeFile(ad, "promo");
+  const showTarget = "Cartoon Network/Fresh/Season 1/S01E01 - Pilot.mpg";
+  const adTarget = "ads/promo.mpg";
+  for (const target of [showTarget, adTarget]) {
+    await mkdir(path.dirname(path.join(root, target)), { recursive: true });
+    await writeFile(path.join(root, target), "converted");
+  }
+  const record = async (source: string, target: string) => {
+    const st = await stat(source);
+    return { target, source, size: st.size, mtimeMs: Math.trunc(st.mtimeMs), durationMs: 60000 };
+  };
+  await writeSources(root, [await record(pilot, showTarget), await record(ad, adTarget)]);
+  const showBody = {
+    channelFolder: "Cartoon Network",
+    showFolder: "Fresh",
+    episodes: [{ source: pilot, season: 1, episode: 1, title: "Pilot", description: "", aspect: "4:3" }],
+  };
+  const adsBody = { channelFolder: "", files: [{ source: ad, aspect: "4:3" }] };
+  const show = (await app.inject({ method: "POST", url: "/api/import/show", payload: showBody })).json() as { jobs: Job[]; rejected: { source: string; reason: string }[] };
+  expect(show).toEqual({ jobs: [], rejected: [{ source: pilot, reason: "already on the drive" }] });
+  const ads = (await app.inject({ method: "POST", url: "/api/import/ads", payload: adsBody })).json() as { jobs: Job[]; rejected: { source: string; reason: string }[] };
+  expect(ads).toEqual({ jobs: [], rejected: [{ source: ad, reason: "already on the drive" }] });
+  await writeFile(pilot, "pilot, recut");
+  await writeFile(ad, "promo, recut");
+  const changedShow = (await app.inject({ method: "POST", url: "/api/import/show", payload: showBody })).json() as { jobs: Job[]; rejected: unknown[] };
+  expect(changedShow.rejected).toEqual([]);
+  expect(changedShow.jobs.map((j) => j.target)).toEqual([showTarget]);
+  const changedAds = (await app.inject({ method: "POST", url: "/api/import/ads", payload: adsBody })).json() as { jobs: Job[]; rejected: unknown[] };
+  expect(changedAds.rejected).toEqual([]);
+  expect(changedAds.jobs.map((j) => j.target)).toEqual([adTarget]);
 });
 
 test("import rejects a too-short source", async () => {
