@@ -31,8 +31,12 @@ export class SchedUsageError extends Error {
   }
 }
 
+const isWindows = process.platform === "win32";
+
 export function schedBinPath(): string {
-  return process.env.CTW_SCHED_BIN ?? path.join(ENGINE_DIR, "build", "cable-twii-sched");
+  if (process.env.CTW_SCHED_BIN) return process.env.CTW_SCHED_BIN;
+  const name = isWindows ? "cable-twii-sched.exe" : "cable-twii-sched";
+  return path.join(ENGINE_DIR, "build", name);
 }
 
 async function isExecutable(file: string): Promise<boolean> {
@@ -46,11 +50,19 @@ async function isExecutable(file: string): Promise<boolean> {
 
 export async function ensureSchedBin(bin: string = schedBinPath()): Promise<string> {
   if (await isExecutable(bin)) return bin;
+  // MSYS2's make.exe drops TMP/TEMP from its own process environment, so cc.exe
+  // can't create temp files unless they're re-supplied as make command-line vars.
+  const winTmpVars = isWindows ? [`TMP=${process.env.TMP ?? ""}`, `TEMP=${process.env.TEMP ?? ""}`] : [];
   await new Promise<void>((resolve, reject) => {
-    execFile("make", ["-C", ENGINE_DIR, "cli"], { timeout: MAKE_TIMEOUT_MS, maxBuffer: MAX_BUFFER }, (error, _stdout, stderr) => {
-      if (error) reject(new Error(`could not build ${bin}: ${String(stderr).trim() || error.message}`));
-      else resolve();
-    });
+    execFile(
+      "make",
+      [...winTmpVars, "-C", ENGINE_DIR, "cli"],
+      { timeout: MAKE_TIMEOUT_MS, maxBuffer: MAX_BUFFER },
+      (error, _stdout, stderr) => {
+        if (error) reject(new Error(`could not build ${bin}: ${String(stderr).trim() || error.message}`));
+        else resolve();
+      },
+    );
   });
   if (!(await isExecutable(bin))) throw new Error(`${bin} is missing after building the engine`);
   return bin;

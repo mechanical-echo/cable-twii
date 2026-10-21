@@ -32,6 +32,15 @@ function normaliseTarget(root: string, target: string): string {
   return rel;
 }
 
+function defaultConcurrency(): number {
+  const override = Number(process.env.CTW_CONVERT_CONCURRENCY);
+  if (Number.isInteger(override) && override > 0) return override;
+  const half = Math.max(1, Math.floor(os.cpus().length / 2));
+  // Spawning many ffmpeg/ffprobe processes at once can hit a DLL-init race on Windows
+  // (STATUS_DLL_INIT_FAILED), so keep default parallelism modest there.
+  return process.platform === "win32" ? Math.min(half, 4) : half;
+}
+
 export class ConversionQueue extends EventEmitter {
   private readonly jobs = new Map<string, Job>();
   private readonly controllers = new Map<string, AbortController>();
@@ -50,7 +59,7 @@ export class ConversionQueue extends EventEmitter {
   constructor(private readonly root: string, opts: QueueOptions = {}) {
     super();
     this.on("error", () => undefined);
-    this.concurrency = Math.max(1, opts.concurrency ?? Math.max(1, Math.floor(os.cpus().length / 2)));
+    this.concurrency = Math.max(1, opts.concurrency ?? defaultConcurrency());
     this.convertFn = opts.convertFn ?? convert;
     this.probeFn = opts.probeFn ?? probe;
     this.load();

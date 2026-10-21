@@ -50,6 +50,8 @@ const SYSTEM_REASON = "Choose your media drive or a test folder, not a system fo
 const WBFS_REASON = "This looks like your games drive (it has a wbfs folder). cable-twii will never write to it.";
 const PROBE_CONCURRENCY = 4;
 
+const isWindows = process.platform === "win32";
+
 export const execCommand: RunCommand = (cmd, args, input) =>
   new Promise((resolve, reject) => {
     const child = execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024 }, (error, stdout) => {
@@ -68,6 +70,22 @@ export async function defaultRunDiskutil(p: string, exec: RunCommand = execComma
   return JSON.parse(json) as DiskutilInfo;
 }
 
+export async function defaultRunVolumeInfo(p: string, exec: RunCommand = execCommand): Promise<DiskutilInfo> {
+  const driveLetter = path.parse(p).root.replace(/\\$/, "").replace(/:$/, "");
+  const json = await exec("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `Get-Volume -DriveLetter ${driveLetter} | Select-Object FileSystemType, SizeRemaining | ConvertTo-Json -Compress`,
+  ]);
+  const raw = JSON.parse(json) as { FileSystemType?: string; SizeRemaining?: number };
+  const fsName = raw.FileSystemType ?? null;
+  const fsType = fsName !== null && fsName.toLowerCase() === "fat32" ? "msdos" : fsName;
+  return { FilesystemType: fsType ?? undefined, FilesystemName: fsName ?? undefined, FreeSpace: raw.SizeRemaining };
+}
+
+const defaultRunFsInfo: (p: string) => Promise<DiskutilInfo> = isWindows ? defaultRunVolumeInfo : defaultRunDiskutil;
+
 export interface MountInfo {
   mountPoint: string;
   external: boolean;
@@ -78,6 +96,10 @@ export type StatDev = (p: string) => Promise<number>;
 const defaultStatDev: StatDev = async (p) => (await stat(p)).dev;
 
 export async function defaultBootDevices(statDev: StatDev = defaultStatDev): Promise<number[]> {
+  if (isWindows) {
+    const systemDrive = `${(process.env.SystemDrive ?? "C:").replace(/\\$/, "")}\\`;
+    return [await statDev(systemDrive)];
+  }
   const devs: number[] = [await statDev("/")];
   try {
     devs.push(await statDev("/System/Volumes/Data"));
@@ -101,27 +123,46 @@ export async function defaultFindMountPoint(
     current = parent;
   }
   const boot = await bootDevices();
-  return { mountPoint: current, external: current.startsWith("/Volumes/") || !boot.includes(dev) };
+  const external = isWindows ? !boot.includes(dev) : current.startsWith("/Volumes/") || !boot.includes(dev);
+  return { mountPoint: current, external };
 }
 
 const BLOCKED_PREFIXES = ["/System", "/Library", "/usr", "/bin", "/sbin", "/Applications", "/private"];
 const ALLOWED_PRIVATE = ["/private/tmp", "/private/var/folders"];
 
 function under(p: string, prefix: string): boolean {
+  if (isWindows) return p.toLowerCase() === prefix.toLowerCase() || p.toLowerCase().startsWith(prefix.toLowerCase() + "\\");
   return p === prefix || p.startsWith(prefix + "/");
 }
 
+function windowsBlockedPrefixes(): string[] {
+  const systemDrive = (process.env.SystemDrive ?? "C:").replace(/\\$/, "");
+  const prefixes = [
+    process.env.SystemRoot ?? `${systemDrive}\\Windows`,
+    process.env.ProgramFiles ?? `${systemDrive}\\Program Files`,
+    process.env["ProgramFiles(x86)"] ?? `${systemDrive}\\Program Files (x86)`,
+    process.env.ProgramData ?? `${systemDrive}\\ProgramData`,
+  ];
+  return prefixes;
+}
+
 async function isSystemPath(p: string): Promise<boolean> {
-  if (p === "/" || p === "/Volumes" || p === "/dev" || p === "/Users") return true;
+  if (isWindows) {
+    const systemDriveRoot = `${(process.env.SystemDrive ?? "C:").replace(/\\$/, "")}\\`;
+    if (p.toLowerCase() === systemDriveRoot.toLowerCase()) return true;
+    if (windowsBlockedPrefixes().some((b) => under(p, b))) return true;
+  } else {
+    if (p === "/" || p === "/Volumes" || p === "/dev" || p === "/Users") return true;
+    if (ALLOWED_PRIVATE.some((a) => under(p, a))) return false;
+    if (BLOCKED_PREFIXES.some((b) => under(p, b))) return true;
+  }
   let home = path.resolve(os.homedir());
   try {
     home = await realpath(home);
   } catch {
     home = path.resolve(os.homedir());
   }
-  if (p === home) return true;
-  if (ALLOWED_PRIVATE.some((a) => under(p, a))) return false;
-  return BLOCKED_PREFIXES.some((b) => under(p, b));
+  return p === home;
 }
 
 async function dirExists(p: string): Promise<boolean> {
@@ -200,7 +241,7 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
   let fsType: string | null = null;
   let fsName: string | null = null;
   try {
-    const info = await (deps.runDiskutil ?? ((x: string) => defaultRunDiskutil(x)))(mount.mountPoint);
+    const info = await (deps.runDiskutil ?? ((x: string) => defaultRunFsInfo(x)))(mount.mountPoint);
     fsType = info.FilesystemType ?? null;
     fsName = info.FilesystemName ?? null;
   } catch {
@@ -276,6 +317,7 @@ export async function dotClean(volumePath: string, deps: DriveDeps = {}): Promis
   const info = await inspectDrive(volumePath, deps);
   if (!info.usable) throw new Error(info.reason ?? "This drive cannot be used.");
   if (!info.isVolumeRoot || info.fsType !== "msdos") throw new Error("dot_clean only runs on a FAT32 drive root.");
+  if (isWindows) return; // macOS-only cleanup of its own ._* AppleDouble files; nothing to do here.
   const run = deps.run ?? ((cmd: string, args: string[]) => execCommand(cmd, args));
   await run("dot_clean", ["-m", info.path]);
 }

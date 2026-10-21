@@ -12,6 +12,6 @@ export function formatBytes(bytes: number): string {
 }
 
 export function baseName(p: string): string {
-  const i = p.lastIndexOf("/");
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return i < 0 ? p : p.slice(i + 1);
 }

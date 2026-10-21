@@ -67,9 +67,85 @@ export async function pickFiles(prompt: string, run: OsascriptRunner = defaultOs
       "end run",
       prompt,
     ]);
-    return out.replace(/\n$/, "").split("\u001f").filter((line) => line !== "");
+    return out.replace(/\n$/, "").split("").filter((line) => line !== "");
   } catch (error) {
     if (isCancel(error)) return [];
     throw error;
   }
+}
+
+export type PowershellRunner = (script: string) => Promise<string>;
+
+export const defaultPowershell: PowershellRunner = (script) =>
+  new Promise((resolve, reject) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { maxBuffer: 1024 * 1024 },
+      (error: ExecFileException | null, stdout: string, stderr: string) => {
+        if (error) {
+          reject(Object.assign(error, { stderr }));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
+  });
+
+function psSingleQuote(s: string): string {
+  return `'${s.replace(/'/g, "''")}'`;
+}
+
+// A dialog shown from a background Node process has no foreground-focus rights of its
+// own, so Windows opens it behind other windows with no visible indication at all. Giving
+// it a hidden TopMost owner form forces it above everything else and lets it take focus.
+const TOPMOST_OWNER = [
+  "Add-Type -AssemblyName System.Windows.Forms",
+  "Add-Type -AssemblyName System.Drawing",
+  "$owner = New-Object System.Windows.Forms.Form",
+  "$owner.TopMost = $true",
+  "$owner.StartPosition = 'CenterScreen'",
+  "$owner.Size = New-Object System.Drawing.Size(0,0)",
+  "$owner.ShowInTaskbar = $false",
+  "$owner.Show()",
+  "$owner.Activate()",
+].join("; ");
+
+export async function pickFolderWindows(prompt: string, run: PowershellRunner = defaultPowershell): Promise<string | null> {
+  const script = [
+    TOPMOST_OWNER,
+    "$f = New-Object System.Windows.Forms.FolderBrowserDialog",
+    `$f.Description = ${psSingleQuote(prompt)}`,
+    "$f.ShowNewFolderButton = $true",
+    "$result = $f.ShowDialog($owner)",
+    "$owner.Close()",
+    "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($f.SelectedPath) }",
+  ].join("; ");
+  const out = await run(script);
+  const picked = out.trim();
+  return picked === "" ? null : picked;
+}
+
+export async function pickFilesWindows(prompt: string, run: PowershellRunner = defaultPowershell): Promise<string[]> {
+  const script = [
+    TOPMOST_OWNER,
+    "$f = New-Object System.Windows.Forms.OpenFileDialog",
+    `$f.Title = ${psSingleQuote(prompt)}`,
+    "$f.Multiselect = $true",
+    "$result = $f.ShowDialog($owner)",
+    "$owner.Close()",
+    "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write(($f.FileNames -join [char]31)) }",
+  ].join("; ");
+  const out = await run(script);
+  return out.split("").filter((line) => line !== "");
+}
+
+const isWindows = process.platform === "win32";
+
+export async function pickFolderNative(prompt: string): Promise<string | null> {
+  return isWindows ? pickFolderWindows(prompt) : pickFolder(prompt);
+}
+
+export async function pickFilesNative(prompt: string): Promise<string[]> {
+  return isWindows ? pickFilesWindows(prompt) : pickFiles(prompt);
 }

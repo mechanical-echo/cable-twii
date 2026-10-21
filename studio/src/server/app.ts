@@ -14,7 +14,7 @@ import { ContainmentError, assertContained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
 import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
-import { pickFolder } from "./picker.js";
+import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
 import { readShowMeta, writeShowMeta } from "./showMeta.js";
@@ -181,7 +181,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const settingsPath = opts.settingsPath ?? DEFAULT_SETTINGS;
   const deps = opts.inspectDeps ?? {};
   const probeFn = opts.probeFn ?? probe;
-  const pick = opts.pickFolderFn ?? ((prompt: string) => pickFolder(prompt));
+  const pick = opts.pickFolderFn ?? ((prompt: string) => pickFolderNative(prompt));
   const rebuildDelay = opts.rebuildDelayMs ?? REBUILD_DELAY_MS;
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
   const bin = opts.schedBin;

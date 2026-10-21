@@ -25,7 +25,8 @@ test("schedBinPath points at the engine build unless overridden", () => {
   const saved = process.env.CTW_SCHED_BIN;
   delete process.env.CTW_SCHED_BIN;
   try {
-    expect(schedBinPath()).toBe(path.resolve(import.meta.dirname, "../../engine/build/cable-twii-sched"));
+    const name = process.platform === "win32" ? "cable-twii-sched.exe" : "cable-twii-sched";
+    expect(schedBinPath()).toBe(path.resolve(import.meta.dirname, `../../engine/build/${name}`));
     process.env.CTW_SCHED_BIN = "/x/y";
     expect(schedBinPath()).toBe("/x/y");
   } finally {
@@ -74,7 +75,10 @@ test("a missing binary throws a clear error", async () => {
   await expect(validateRoot(root, false, path.join(dir, "nope"))).rejects.toThrow(/nope/);
 });
 
-test("a failing binary throws", async () => {
+// Windows' execFile needs shell:true to run .bat/.cmd scripts (the real sched
+// binary is a compiled .exe and isn't affected); a shell script fixture can't
+// stand in for that here, so this exercises the shebang path on POSIX only.
+test.skipIf(process.platform === "win32")("a failing binary throws", async () => {
   const bin = path.join(dir, "bad.sh");
   await writeFile(bin, "#!/bin/sh\necho boom >&2\nexit 7\n");
   await chmod(bin, 0o755);

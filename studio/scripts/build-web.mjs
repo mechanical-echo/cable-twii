@@ -10,5 +10,5 @@ if (!existsSync(path.join(studio, "src", "web", "index.html"))) {
   process.exit(0);
 }
 
-const result = spawnSync("npx", ["vite", "build"], { cwd: studio, stdio: "inherit" });
+const result = spawnSync("npx", ["vite", "build"], { cwd: studio, stdio: "inherit", shell: process.platform === "win32" });
 process.exit(result.status ?? 1);
