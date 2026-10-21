@@ -4,12 +4,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "ctw/ctw.h"
+#include "tuner.h"
 
 typedef enum { SCR_LOGO, SCR_GUIDE, SCR_FULL, SCR_ERROR } screen_id;
 
 typedef struct {
     char root[256];
     ctw_db *db;
+    tuner tuner;
     screen_id screen;
     bool home_open;
     int current_channel;

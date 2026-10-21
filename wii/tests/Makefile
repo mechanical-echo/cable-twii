@@ -8,7 +8,15 @@ endif
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -I../source -I../../engine/vendor -I../../engine/include
 BUILD = build
 
-SRC = ../source/ui/tween.c ../source/ui/textfit.c
+ENGINE_SRC = ../../engine/src/rng.c ../../engine/src/hash.c ../../engine/src/timeutil.c ../../engine/src/arena.c \
+             ../../engine/src/issues.c ../../engine/src/library.c ../../engine/src/tomlutil.c ../../engine/src/config.c \
+             ../../engine/src/pool.c ../../engine/src/lineup.c ../../engine/src/lineup_place.c ../../engine/src/lineup_timed.c \
+             ../../engine/src/lineup_loop.c ../../engine/src/db.c
+VENDOR_SRC = ../../engine/vendor/tomlc99/toml.c
+VENDOR_OBJ = $(BUILD)/toml.o
+VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -I../../engine/vendor
+
+SRC = ../source/ui/tween.c ../source/ui/textfit.c ../source/clock.c ../source/tuner.c $(ENGINE_SRC)
 TEST_SRC = $(wildcard *.c)
 
 .PHONY: test clean
@@ -16,9 +24,13 @@ TEST_SRC = $(wildcard *.c)
 test: $(BUILD)/tests
 	$(BUILD)/tests
 
-$(BUILD)/tests: $(SRC) $(TEST_SRC) $(wildcard ../source/ui/*.h)
+$(VENDOR_OBJ): $(VENDOR_SRC)
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) $(SRC) $(TEST_SRC) -o $@
+	$(CC) $(VENDOR_CFLAGS) -c $(VENDOR_SRC) -o $@
+
+$(BUILD)/tests: $(SRC) $(VENDOR_OBJ) $(TEST_SRC) $(wildcard ../source/ui/*.h) $(wildcard ../source/*.h)
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) $(SRC) $(VENDOR_OBJ) $(TEST_SRC) -o $@
 
 clean:
 	rm -rf $(BUILD)
