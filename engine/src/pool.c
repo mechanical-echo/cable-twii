@@ -10,8 +10,10 @@ static bool in_pool(const ctw_episode *e, uint16_t season)
 size_t ctw_pool_list(const ctw_show *show, uint16_t season, const ctw_episode **out, size_t cap)
 {
     size_t n = 0;
-    for (size_t i = 0; i < show->episode_count && n < cap; i++) {
-        if (in_pool(&show->episodes[i], season)) out[n++] = &show->episodes[i];
+    for (size_t i = 0; i < show->episode_count; i++) {
+        if (!in_pool(&show->episodes[i], season)) continue;
+        if (n < cap) out[n] = &show->episodes[i];
+        n++;
     }
     return n;
 }
@@ -23,7 +25,7 @@ ctw_bag *ctw_bagset_get(ctw_bagset *s, const ctw_show *show, uint16_t season)
     uint32_t *order = NULL;
 
     for (size_t i = 0; i < s->count; i++) {
-        if (s->bags[i].show == show && s->bags[i].season == season) return &s->bags[i];
+        if (s->bags[i]->show == show && s->bags[i]->season == season) return s->bags[i];
     }
 
     for (size_t i = 0; i < show->episode_count; i++) {
@@ -40,7 +42,7 @@ ctw_bag *ctw_bagset_get(ctw_bagset *s, const ctw_show *show, uint16_t season)
 
     if (s->count == s->cap) {
         size_t cap = s->cap ? s->cap * 2 : 8;
-        ctw_bag *grown = realloc(s->bags, cap * sizeof *grown);
+        ctw_bag **grown = realloc(s->bags, cap * sizeof *grown);
         if (!grown) {
             free(order);
             return NULL;
@@ -49,7 +51,12 @@ ctw_bag *ctw_bagset_get(ctw_bagset *s, const ctw_show *show, uint16_t season)
         s->cap = cap;
     }
 
-    b = &s->bags[s->count++];
+    b = malloc(sizeof *b);
+    if (!b) {
+        free(order);
+        return NULL;
+    }
+    s->bags[s->count++] = b;
     b->show = show;
     b->season = season;
     b->order = order;
@@ -132,7 +139,10 @@ const ctw_ad *ctw_ads_draw_fitting(const ctw_db *db, const ctw_channel *ch, ctw_
 void ctw_bagset_free(ctw_bagset *s)
 {
     if (!s) return;
-    for (size_t i = 0; i < s->count; i++) free(s->bags[i].order);
+    for (size_t i = 0; i < s->count; i++) {
+        free(s->bags[i]->order);
+        free(s->bags[i]);
+    }
     free(s->bags);
     s->bags = NULL;
     s->count = 0;

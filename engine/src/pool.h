@@ -16,7 +16,7 @@ typedef struct {
 } ctw_bag;
 
 typedef struct {
-    ctw_bag *bags;
+    ctw_bag **bags;
     size_t count;
     size_t cap;
     uint32_t last_ad;

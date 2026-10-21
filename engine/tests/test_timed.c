@@ -65,7 +65,9 @@ TEST pool_list_filters_by_season(void)
     ASSERT_EQ(2, out[0]->season);
     ASSERT_EQ(1, out[0]->episode);
     ASSERT_EQ(0u, ctw_pool_list(g, 9, out, 8));
-    ASSERT_EQ(3u, ctw_pool_list(g, 0, out, 3));
+    ASSERT_EQ(6u, ctw_pool_list(g, 0, out, 3));
+    ASSERT_EQ(6u, ctw_pool_list(g, 0, NULL, 0));
+    ASSERT_EQ(0u, ctw_pool_list(g, 9, NULL, 0));
     ctw_db_free(db);
     PASS();
 }
@@ -209,6 +211,50 @@ TEST bag_known_sequence_pinned(void)
     PASS();
 }
 
+TEST bag_reshuffle_pinned(void)
+{
+    ctw_db *db = load_library(NULL);
+    const ctw_show *g = ctw_db_show(db, "Cartoon Network", "Gumball");
+    ctw_bagset s = {0};
+    ctw_rng r = ctw_rng_seed(12345, CTW_RNG_STREAM);
+    ctw_bag *b = ctw_bagset_get(&s, g, 0);
+    int expected[6][2] = {{2, 1}, {1, 1}, {1, 2}, {1, 4}, {2, 2}, {1, 3}};
+    for (int i = 0; i < 6; i++) ASSERT(ctw_bag_draw_fitting(b, &r, UINT32_MAX));
+    for (int i = 0; i < 6; i++) {
+        const ctw_episode *e = ctw_bag_draw_fitting(b, &r, UINT32_MAX);
+        ASSERT(e);
+        ASSERT_EQ(expected[i][0], e->season);
+        ASSERT_EQ(expected[i][1], e->episode);
+    }
+    ctw_bagset_free(&s);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST bagset_pointers_stable(void)
+{
+    ctw_db *db = load_library(NULL);
+    const ctw_show *g = ctw_db_show(db, "Cartoon Network", "Gumball");
+    const ctw_show *at = ctw_db_show(db, "Cartoon Network", "Adventure Time");
+    const ctw_show *ben = ctw_db_show(db, "Cartoon Network", "Ben 10");
+    const ctw_show *mtv = ctw_db_show(db, "mtv-00s", "Music Videos");
+    const ctw_show *shows[4] = {g, at, ben, mtv};
+    uint16_t seasons[4] = {0, 1, 2, 5};
+    ctw_bagset s = {0};
+    ctw_rng r = ctw_rng_seed(3, CTW_RNG_STREAM);
+    ctw_bag *first = ctw_bagset_get(&s, g, 0);
+    ASSERT(first);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) ASSERT(ctw_bagset_get(&s, shows[i], seasons[j]));
+    }
+    ASSERT(s.count >= 12);
+    ASSERT(first == ctw_bagset_get(&s, g, 0));
+    ASSERT(ctw_bag_draw_fitting(first, &r, UINT32_MAX));
+    ctw_bagset_free(&s);
+    ctw_db_free(db);
+    PASS();
+}
+
 TEST bagset_free_null_safe(void)
 {
     ctw_bagset_free(NULL);
@@ -329,6 +375,8 @@ SUITE(pool_suite)
     RUN_TEST(bag_no_fit_does_not_reshuffle);
     RUN_TEST(bag_deterministic);
     RUN_TEST(bag_known_sequence_pinned);
+    RUN_TEST(bag_reshuffle_pinned);
+    RUN_TEST(bagset_pointers_stable);
     RUN_TEST(bagset_free_null_safe);
     RUN_TEST(ads_prefer_channel_folder);
     RUN_TEST(ads_shared_when_no_channel_ads);
