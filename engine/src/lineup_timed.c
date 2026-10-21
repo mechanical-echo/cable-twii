@@ -13,6 +13,18 @@ static const ctw_episode *find_episode(const ctw_show *show, uint16_t season, ui
     return NULL;
 }
 
+static void mark_last_ad(ctw_build *b, const ctw_ad *ad)
+{
+    size_t total = ctw_db_ad_count(b->db);
+    for (size_t i = 0; i < total; i++) {
+        if (ctw_db_ad_at(b->db, i) == ad) {
+            b->bags.last_ad = (uint32_t)i;
+            b->bags.has_last_ad = true;
+            return;
+        }
+    }
+}
+
 static int place_fixed(ctw_build *b, int64_t end, ctw_air_kind kind, const ctw_show *show,
                        const ctw_episode *episode, const ctw_ad *ad, uint32_t duration_ms,
                        int slot, int item)
@@ -26,7 +38,9 @@ static int place_fixed(ctw_build *b, int64_t end, ctw_air_kind kind, const ctw_s
         duration_ms = left;
         ctw_build_warn(b, CTW_W_CUT, slot, item, msg_cut);
     }
-    return ctw_build_push(b, duration_ms, kind, show, episode, ad, slot, item);
+    if (ctw_build_push(b, duration_ms, kind, show, episode, ad, slot, item)) return -1;
+    if (ad) mark_last_ad(b, ad);
+    return 0;
 }
 
 static int place_random(ctw_build *b, const ctw_item *it, int64_t end, int slot, int item)
@@ -152,7 +166,7 @@ int ctw_lineup_build_timed(ctw_build *b)
         for (size_t j = 0; j < sl->item_count; j++) {
             if (place_item(b, &sl->items[j], end, (int)i, (int)j)) return -1;
         }
-        if (ctw_build_fill_leftover(b, end, (int)i)) return -1;
+        if (ctw_build_fill_leftover(b, end)) return -1;
     }
     return 0;
 }

@@ -1,8 +1,16 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "lineup_internal.h"
 
 #define CTW_LINEUP_INITIAL_CAP 32u
+
+static int16_t index16(int v)
+{
+    if (v > INT16_MAX) return INT16_MAX;
+    if (v < -1) return -1;
+    return (int16_t)v;
+}
 
 uint32_t ctw_build_left(const ctw_build *b, int64_t end)
 {
@@ -29,8 +37,8 @@ int ctw_build_push(ctw_build *b, uint32_t duration_ms, ctw_air_kind kind, const 
     a->show = show;
     a->episode = episode;
     a->ad = ad;
-    a->slot_index = (int16_t)slot;
-    a->item_index = (int16_t)item;
+    a->slot_index = index16(slot);
+    a->item_index = index16(item);
     b->cursor += (int64_t)duration_ms;
     return 0;
 }
@@ -41,18 +49,18 @@ void ctw_build_warn(ctw_build *b, ctw_code code, int slot, int item, const char 
                    "lineup", "%s", message);
 }
 
-int ctw_build_fill_leftover(ctw_build *b, int64_t end, int slot)
+int ctw_build_fill_leftover(ctw_build *b, int64_t end)
 {
     if (b->ch->ads) {
         for (;;) {
             const ctw_ad *a = ctw_ads_draw_fitting(b->db, b->ch, &b->bags, &b->rng,
                                                    ctw_build_left(b, end));
             if (!a) break;
-            if (ctw_build_push(b, a->duration_ms, CTW_AIR_AD, NULL, NULL, a, slot, -1)) return -1;
+            if (ctw_build_push(b, a->duration_ms, CTW_AIR_AD, NULL, NULL, a, -1, -1)) return -1;
         }
     }
     if (b->cursor < end) {
-        return ctw_build_push(b, ctw_build_left(b, end), CTW_AIR_UPNEXT, NULL, NULL, NULL, slot, -1);
+        return ctw_build_push(b, ctw_build_left(b, end), CTW_AIR_UPNEXT, NULL, NULL, NULL, -1, -1);
     }
     return 0;
 }

@@ -475,13 +475,21 @@ static int has_warning(const ctw_lineup *l, ctw_code code, int slot, int item)
     return 0;
 }
 
-static int64_t slot_end(const ctw_lineup *l, int slot)
+static int has_end_at(const ctw_lineup *l, int64_t t)
 {
-    int64_t end = -1;
     for (size_t i = 0; i < l->count; i++) {
-        if (l->items[i].slot_index == slot) end = l->items[i].start_ms + (int64_t)l->items[i].duration_ms;
+        if (l->items[i].start_ms + (int64_t)l->items[i].duration_ms == t) return 1;
     }
-    return end;
+    return 0;
+}
+
+static size_t count_warnings(const ctw_lineup *l, ctw_code code)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < l->warnings.count; i++) {
+        if (l->warnings.items[i].code == code) n++;
+    }
+    return n;
 }
 
 static int64_t pool_index(const ctw_show *show, uint16_t season, const ctw_episode *e)
@@ -501,14 +509,17 @@ TEST timed_contiguous_coverage(void)
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     for (size_t i = 0; i < l.count; i++) {
         const ctw_airing *a = &l.items[i];
-        ASSERT(a->slot_index == 0 || a->slot_index == 1);
-        if (a->slot_index == 0) {
-            ASSERT(a->start_ms + (int64_t)a->duration_ms <= 68400000);
+        ASSERT(a->slot_index == 0 || a->slot_index == 1 || a->slot_index == -1);
+        if (a->slot_index == -1) {
+            ASSERT_EQ(-1, a->item_index);
+            ASSERT(a->kind != CTW_AIR_EPISODE);
         } else {
-            ASSERT(a->start_ms >= 68400000);
+            ASSERT(a->item_index >= 0);
         }
+        if (a->slot_index == 0) ASSERT(a->start_ms + (int64_t)a->duration_ms <= 68400000);
+        if (a->slot_index == 1) ASSERT(a->start_ms >= 68400000);
     }
-    ASSERT_EQ_FMT((int64_t)68400000, slot_end(&l, 0), "%lld");
+    ASSERT(has_end_at(&l, 68400000));
     ctw_lineup_free(&l);
     PASS();
 }
@@ -571,6 +582,7 @@ TEST timed_random_no_repeat(void)
 TEST timed_random_run_consecutive(void)
 {
     ctw_date day = tl_day;
+    int moved = 0;
     for (int d = 0; d < 8; d++) {
         ctw_lineup l = {0};
         ctw_db *db = build_keep(TL_CH("7", "true")
@@ -583,6 +595,7 @@ TEST timed_random_run_consecutive(void)
         ASSERT_EQ(3u, count_kind(&l, 0, CTW_AIR_EPISODE));
         k = pool_index(g, 0, l.items[0].episode);
         ASSERT(k >= 0 && k <= 3);
+        if (k != 0) moved = 1;
         for (int i = 0; i < 3; i++) {
             ASSERT_EQ(CTW_AIR_EPISODE, l.items[i].kind);
             ASSERT_EQ(g, l.items[i].show);
@@ -594,6 +607,7 @@ TEST timed_random_run_consecutive(void)
         ctw_db_free(db);
         day = ctw_date_next(day);
     }
+    ASSERT(moved);
     PASS();
 }
 
@@ -635,11 +649,12 @@ TEST timed_fill_with_ads_between(void)
     ASSERT(eps >= 10);
     fill_end = l.items[i - 1].start_ms + (int64_t)l.items[i - 1].duration_ms;
     ASSERT(28800000 - fill_end < 600000);
-    for (; i < l.count && l.items[i].slot_index == 0; i++) {
+    for (; i < l.count && l.items[i].start_ms < 28800000; i++) {
+        ASSERT_EQ(-1, l.items[i].slot_index);
         ASSERT_EQ(-1, l.items[i].item_index);
         ASSERT(l.items[i].kind != CTW_AIR_EPISODE);
     }
-    ASSERT_EQ_FMT((int64_t)28800000, slot_end(&l, 0), "%lld");
+    ASSERT(has_end_at(&l, 28800000));
     ASSERT_EQ(0u, l.warnings.count);
     ctw_lineup_free(&l);
     PASS();
@@ -655,11 +670,11 @@ TEST timed_ads_off(void)
     ASSERT_EQ(3u, l.count);
     ASSERT_EQ(CTW_AIR_EPISODE, l.items[0].kind);
     ASSERT_EQ(CTW_AIR_UPNEXT, l.items[1].kind);
-    ASSERT_EQ(0, l.items[1].slot_index);
+    ASSERT_EQ(-1, l.items[1].slot_index);
     ASSERT_EQ(-1, l.items[1].item_index);
     ASSERT_EQ(3000000u, l.items[1].duration_ms);
     ASSERT_EQ(CTW_AIR_UPNEXT, l.items[2].kind);
-    ASSERT_EQ(1, l.items[2].slot_index);
+    ASSERT_EQ(-1, l.items[2].slot_index);
     ASSERT_EQ(-1, l.items[2].item_index);
     ASSERT_EQ(CTW_DAY_MS - 3600000u, l.items[2].duration_ms);
     ASSERT_EQ(NULL, l.items[2].episode);
@@ -676,7 +691,8 @@ TEST timed_specific_ad_on_ads_off(void)
         TL_SLOT("07:00", "{ type = \"ad\", path = \"ads/ad-a.mpg\" }")
         TL_SLOT("08:00", "{ type = \"ads\" }"), tl_day, &l));
     ASSERT_EQ(1u, count_kind(&l, 0, CTW_AIR_AD));
-    ASSERT_EQ(1u, count_kind(&l, 1, CTW_AIR_AD) + 1u);
+    ASSERT_EQ(0u, count_kind(&l, 1, CTW_AIR_AD));
+    ASSERT_EQ(0u, count_kind(&l, -1, CTW_AIR_AD));
     ASSERT_EQ(CTW_AIR_AD, l.items[0].kind);
     ASSERT_STR_EQ("ads/ad-a.mpg", l.items[0].ad->path);
     ASSERT_EQ(30000u, l.items[0].duration_ms);
@@ -695,7 +711,7 @@ TEST timed_nothing_fits(void)
         TL_SLOT("07:10", "{ type = \"ads\" }"), tl_day, &l));
     ASSERT_EQ(0u, count_kind(&l, 0, CTW_AIR_EPISODE));
     ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 0));
-    ASSERT_EQ_FMT((int64_t)25800000, slot_end(&l, 0), "%lld");
+    ASSERT(has_end_at(&l, 25800000));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ctw_lineup_free(&l);
     PASS();
@@ -719,6 +735,75 @@ TEST timed_last_slot_spills(void)
         TL_SLOT("23:00", "{ type = \"fill\", show = \"Gumball\" }"), tl_day, &l));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ASSERT(l.items[l.count - 1].start_ms >= TL_DAY_MS);
+    ctw_lineup_free(&l);
+    PASS();
+}
+
+TEST timed_fixed_after_end_partial(void)
+{
+    ctw_lineup l = {0};
+    ASSERT_EQ(0, build_day(TL_CH("7", "true")
+        TL_SLOT("07:00", "{ type = \"episode\", show = \"Ben 10\", season = 1, episode = 5 }, "
+                         "{ type = \"episode\", show = \"Gumball\", season = 1, episode = 1 }")
+        TL_SLOT("07:15", "{ type = \"ads\" }"), tl_day, &l));
+    ASSERT(has_warning(&l, CTW_W_CUT, 0, 0));
+    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 1));
+    for (size_t i = 0; i < l.count; i++) {
+        ASSERT(!(l.items[i].slot_index == 0 && l.items[i].item_index == 1));
+    }
+    ASSERT_EQ(1, l.items[1].slot_index);
+    CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
+    ctw_lineup_free(&l);
+    PASS();
+}
+
+TEST timed_fixed_ad_cut(void)
+{
+    ctw_lineup l = {0};
+    ASSERT_EQ(0, build_day(TL_CH("7", "true")
+        TL_SLOT("07:00", "{ type = \"episode\", show = \"Gumball\", season = 1, episode = 1 }, "
+                         "{ type = \"ad\", path = \"ads/ad-a.mpg\" }, "
+                         "{ type = \"ad\", path = \"ads/ad-c.mpg\" }")
+        TL_SLOT("07:11", "{ type = \"ads\" }"), tl_day, &l));
+    ASSERT_EQ(CTW_AIR_AD, l.items[2].kind);
+    ASSERT_STR_EQ("ads/ad-c.mpg", l.items[2].ad->path);
+    ASSERT_EQ(30000u, l.items[2].duration_ms);
+    ASSERT_EQ(2, l.items[2].item_index);
+    ASSERT(has_warning(&l, CTW_W_CUT, 0, 2));
+    ASSERT_EQ(1u, count_warnings(&l, CTW_W_CUT));
+    CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
+    ctw_lineup_free(&l);
+    PASS();
+}
+
+TEST timed_fixed_ad_counts_as_last(void)
+{
+    ctw_date day = tl_day;
+    for (int d = 0; d < 16; d++) {
+        ctw_lineup l = {0};
+        ASSERT_EQ(0, build_day(TL_CH("7", "true")
+            TL_SLOT("07:00", "{ type = \"ad\", path = \"ads/ad-a.mpg\" }, "
+                             "{ type = \"ads\", count = 1 }")
+            TL_SLOT("07:01", "{ type = \"ads\" }"), day, &l));
+        ASSERT_STR_EQ("ads/ad-a.mpg", l.items[0].ad->path);
+        ASSERT_EQ(CTW_AIR_AD, l.items[1].kind);
+        ASSERT_EQ(1, l.items[1].item_index);
+        ASSERT_STR_EQ("ads/ad-b.mpg", l.items[1].ad->path);
+        ctw_lineup_free(&l);
+        day = ctw_date_next(day);
+    }
+    PASS();
+}
+
+TEST timed_random_run_pool_smaller(void)
+{
+    ctw_lineup l = {0};
+    ASSERT_EQ(0, build_day(TL_CH("7", "true")
+        TL_SLOT("07:00", "{ type = \"random-run\", show = \"Ben 10\", count = 2 }")
+        TL_SLOT("12:00", "{ type = \"ads\" }"), tl_day, &l));
+    ASSERT_EQ(1u, count_kind(&l, 0, CTW_AIR_EPISODE));
+    ASSERT_EQ(1u, count_warnings(&l, CTW_W_PARTIAL));
+    ASSERT(has_warning(&l, CTW_W_PARTIAL, 0, 0));
     ctw_lineup_free(&l);
     PASS();
 }
@@ -867,6 +952,10 @@ SUITE(timed_suite)
     RUN_TEST(timed_nothing_fits);
     RUN_TEST(timed_single_slot);
     RUN_TEST(timed_last_slot_spills);
+    RUN_TEST(timed_fixed_after_end_partial);
+    RUN_TEST(timed_fixed_ad_cut);
+    RUN_TEST(timed_fixed_ad_counts_as_last);
+    RUN_TEST(timed_random_run_pool_smaller);
     RUN_TEST(timed_deterministic);
     RUN_TEST(timed_seed_changes);
     RUN_TEST(timed_day_changes);

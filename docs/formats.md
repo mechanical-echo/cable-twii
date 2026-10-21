@@ -48,8 +48,8 @@ Codes appear in the CLI JSON as lowercase names, from the engine's `ctw_code` na
 | `no_slots` | error | A timed channel without any slot. |
 | `empty_pool` | error | A `random`, `random-run` or `fill` item whose show and season have no episodes. |
 | `missing_file` | error | A file listed in the library does not exist on the drive. Only checked with `validate --check-files`. |
-| `cut` | warning | A fixed `episode` runs past its slot window and is cut off at the window end. |
-| `partial` | warning | A `random` or `random-run` item could not place all `count` episodes in the time that was left. |
+| `cut` | warning | A fixed episode or ad was cut at the next slot's start. |
+| `partial` | warning | A `random`/`random-run` item placed fewer than `count` episodes, or a fixed item could not start because its slot was already full. |
 | `loop_empty` | warning | A looping channel placed nothing in a full pass (for example only `ads` items on a channel with `ads = false`). The day is one "Up next" card. |
 
 Each issue carries `channel` (channel number), `slot` and `item` (zero-based), `line`, the `file` (`config` or `library`) and a human message. When an issue is not tied to a channel, slot or item, those fields are `-1`. `line` is `0` when unknown. Slot indexes in issues refer to the slots sorted by `at`; Studio always writes slots sorted.
