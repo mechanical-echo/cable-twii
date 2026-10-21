@@ -14,7 +14,7 @@ VENDOR_OBJ = $(BUILD)/toml.o
 VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -Ivendor
 TEST_SRC = $(wildcard tests/*.c)
 
-.PHONY: test cli cli-test clean
+.PHONY: test cli cli-test wii-check clean
 
 test: $(BUILD)/tests
 	$(BUILD)/tests
@@ -38,6 +38,9 @@ $(CLI_BIN): $(LIB_SRC) $(VENDOR_OBJ) $(CLI_SRC) cli/json.h $(wildcard src/*.h) i
 
 cli-test: cli
 	bash tests/cli_test.sh
+
+wii-check:
+	bash tests/wii_check.sh
 
 clean:
 	rm -rf $(BUILD)
