@@ -6,10 +6,12 @@ import {
   applySchedule,
   canHold,
   deleteItem,
+  dropsBefore,
   insertItem,
   itemAt,
   itemId,
   moveItem,
+  pointerY,
   removeSlot,
   renameSlot,
   replaceItem,
@@ -157,6 +159,35 @@ describe("resolveDrop", () => {
   it("appends when dropped on the slot", () => {
     expect(resolveDrop(lists, { slot: 1 }, false)).toEqual({ slot: 1, index: 1 });
     expect(resolveDrop(lists, { slot: 3 }, false)).toBeNull();
+  });
+});
+
+describe("pointer drop position", () => {
+  const tall = { top: 100, height: 1440 };
+
+  it("reads the pointer Y from the activator plus the drag delta", () => {
+    expect(pointerY({ clientY: 50 } as unknown as Event, 300)).toBe(350);
+  });
+
+  it("returns null for activators without a pointer position", () => {
+    expect(pointerY(null, 10)).toBeNull();
+    expect(pointerY({ key: "Enter" } as unknown as Event, 10)).toBeNull();
+  });
+
+  it("drops before when the pointer is in the top half", () => {
+    expect(dropsBefore(110, { top: 100, height: 44 })).toBe(true);
+    expect(dropsBefore(pointerY({ clientY: 120 } as unknown as Event, 600)!, tall)).toBe(true);
+  });
+
+  it("drops after when the pointer is in the bottom half", () => {
+    expect(dropsBefore(140, { top: 100, height: 44 })).toBe(false);
+    expect(dropsBefore(pointerY({ clientY: 120 } as unknown as Event, 800)!, tall)).toBe(false);
+  });
+
+  it("uses the pointer, not the dragged block, on a tall fill block", () => {
+    expect(dropsBefore(101, tall)).toBe(true);
+    expect(dropsBefore(819, tall)).toBe(true);
+    expect(dropsBefore(821, tall)).toBe(false);
   });
 });
 

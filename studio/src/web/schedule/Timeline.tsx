@@ -65,6 +65,7 @@ function Blocks(props: Props & { blocks: Block[]; slot: number }) {
               pxPerHour={props.pxPerHour}
               selected={props.selected?.slot === props.slot && props.selected.item === index}
               error={props.errors.has(blockKey(props.slot, index))}
+              disabled={props.busy}
               onSelect={props.onSelect}
             />
           );

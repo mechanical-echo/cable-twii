@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import type { ReactNode } from "react";
+import { type ReactNode, createContext, useContext } from "react";
 import type { Mode } from "../../server/types.js";
 import { baseName, formatDuration } from "../format";
 import { type ChannelNode, type ShowNode, type WebLibrary, buildTree, descriptionKey, seasonLabel } from "../tree";
@@ -9,6 +9,7 @@ interface Props {
   library: WebLibrary;
   folder: string;
   mode: Mode;
+  disabled: boolean;
 }
 
 export interface LibraryDragData {
@@ -16,9 +17,12 @@ export interface LibraryDragData {
   entry: LibraryEntry;
 }
 
+const DisabledContext = createContext(false);
+
 function Chip({ entry, className, children }: { entry: LibraryEntry; className: string; children: ReactNode }) {
+  const disabled = useContext(DisabledContext);
   const data: LibraryDragData = { source: "library", entry };
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `lib:${entryKey(entry)}`, data });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `lib:${entryKey(entry)}`, data, disabled });
   return (
     <div ref={setNodeRef} className={`${className}${isDragging ? " dragging" : ""}`} {...attributes} {...listeners}>
       {children}
@@ -74,40 +78,42 @@ function Shows({ node, mode }: { node: ChannelNode | undefined; mode: Mode }) {
   );
 }
 
-export function LibraryPanel({ library, folder, mode }: Props) {
+export function LibraryPanel({ library, folder, mode, disabled }: Props) {
   const tree = buildTree(library);
   const own = tree.find((n) => n.channel === folder);
   const others = tree.filter((n) => n.channel !== folder && n.channel !== "" && n.shows.length > 0);
   const ads = adsFor(library, folder);
   return (
-    <aside className="pane lib">
-      <h4 className="pane-head">Library · {folder}</h4>
-      <div className="lib-body">
-        <Shows node={own} mode={mode} />
-        {others.length > 0 && (
-          <details className="lib-group">
-            <summary>Other channels</summary>
-            {others.map((node) => (
-              <details key={node.channel} className="lib-show">
-                <summary>{node.channel}</summary>
-                <Shows node={node} mode={mode} />
-              </details>
+    <DisabledContext.Provider value={disabled}>
+      <aside className="pane lib">
+        <h4 className="pane-head">Library · {folder}</h4>
+        <div className="lib-body">
+          <Shows node={own} mode={mode} />
+          {others.length > 0 && (
+            <details className="lib-group">
+              <summary>Other channels</summary>
+              {others.map((node) => (
+                <details key={node.channel} className="lib-show">
+                  <summary>{node.channel}</summary>
+                  <Shows node={node} mode={mode} />
+                </details>
+              ))}
+            </details>
+          )}
+          <details className="lib-group" open>
+            <summary>Ads</summary>
+            <Chip className="rule ad" entry={{ kind: "ads" }}>
+              Random ad
+            </Chip>
+            {ads.map((ad) => (
+              <Chip key={ad.path} className="ep ad" entry={{ kind: "ad", path: ad.path }}>
+                <span>{baseName(ad.path).replace(/\.mpg$/, "")}</span>
+                <span className="muted">{formatDuration(ad.duration_ms)}</span>
+              </Chip>
             ))}
           </details>
-        )}
-        <details className="lib-group" open>
-          <summary>Ads</summary>
-          <Chip className="rule ad" entry={{ kind: "ads" }}>
-            Random ad
-          </Chip>
-          {ads.map((ad) => (
-            <Chip key={ad.path} className="ep ad" entry={{ kind: "ad", path: ad.path }}>
-              <span>{baseName(ad.path).replace(/\.mpg$/, "")}</span>
-              <span className="muted">{formatDuration(ad.duration_ms)}</span>
-            </Chip>
-          ))}
-        </details>
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </DisabledContext.Provider>
   );
 }

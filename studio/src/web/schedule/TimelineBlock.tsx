@@ -15,6 +15,7 @@ interface Props {
   pxPerHour: number;
   selected: boolean;
   error: boolean;
+  disabled: boolean;
   onSelect: (ref: ItemRef) => void;
 }
 
@@ -36,10 +37,10 @@ function kindClass(block: Block): string {
   }
 }
 
-export function TimelineBlock({ id, block, pxPerHour, selected, error, onSelect }: Props) {
+export function TimelineBlock({ id, block, pxPerHour, selected, error, disabled, onSelect }: Props) {
   const ref: ItemRef = { slot: block.slotIndex, item: block.itemIndex ?? 0 };
   const data: BlockDragData = { source: "block", ref, label: block.label };
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id, data });
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id, data, disabled });
   const height = Math.max(MIN_HEIGHT, msToPx(block.durationMs, pxPerHour));
   const length = describeLength(block.durationMs, block.exact);
   const classes = ["blk", kindClass(block)];

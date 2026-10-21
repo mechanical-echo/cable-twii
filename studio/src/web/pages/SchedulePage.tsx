@@ -19,10 +19,12 @@ import {
   UNSAVED_PROMPT,
   addSlot,
   deleteItem,
+  dropsBefore,
   insertItem,
   itemAt,
   itemLists,
   moveItem,
+  pointerY,
   removeSlot,
   renameSlot,
   replaceItem,
@@ -47,6 +49,10 @@ const collide: CollisionDetection = (args) => {
   const blocks = hits.filter((hit) => (hit.data?.droppableContainer?.data.current as DragData | undefined)?.source === "block");
   return blocks.length > 0 ? blocks : hits;
 };
+
+function dialogOpen(): boolean {
+  return document.querySelector(".overlay") !== null;
+}
 
 function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
@@ -94,13 +100,14 @@ export function SchedulePage({ onDirty }: Props) {
   );
 
   function removeSelected() {
-    if (!schedule || !selected || !selectedItem) return;
+    if (busy || !schedule || !selected || !selectedItem) return;
     editor.edit(deleteItem(schedule, selected));
     setSelected(null);
   }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (busy || addingSlot || dialogOpen()) return;
       if ((event.key === "Delete" || event.key === "Backspace") && !isTyping(event.target) && selectedItem) {
         event.preventDefault();
         removeSelected();
@@ -130,9 +137,9 @@ export function SchedulePage({ onDirty }: Props) {
     if (!over || !schedule) return null;
     const data = over.data.current as DragData | undefined;
     const rect = event.active.rect.current.translated;
-    const centre = rect ? rect.top + rect.height / 2 : 0;
+    const y = pointerY(event.activatorEvent, event.delta.y) ?? (rect ? rect.top + rect.height / 2 : 0);
     const lists = itemLists(schedule);
-    if (data?.source === "block") return resolveDrop(lists, data.ref, centre < over.rect.top + over.rect.height / 2);
+    if (data?.source === "block") return resolveDrop(lists, data.ref, dropsBefore(y, over.rect));
     if (data?.source === "slot") return resolveDrop(lists, { slot: data.slot }, false);
     return null;
   }
@@ -151,6 +158,7 @@ export function SchedulePage({ onDirty }: Props) {
   function onDragEnd(event: DragEndEvent) {
     setDragLabel(null);
     setHint(null);
+    if (busy) return;
     const drop = target(event);
     const data = event.active.data.current as DragData | undefined;
     if (!drop || !schedule || !channel || !data) return;
@@ -239,7 +247,7 @@ export function SchedulePage({ onDirty }: Props) {
         }}
       >
         <div className="ed">
-          <LibraryPanel library={library} folder={effectiveFolder(channel)} mode={channel.mode} />
+          <LibraryPanel library={library} folder={effectiveFolder(channel)} mode={channel.mode} disabled={busy} />
           <div className="pane timeline">
             <Timeline
               channel={view}
@@ -261,7 +269,7 @@ export function SchedulePage({ onDirty }: Props) {
             channel={view}
             library={library}
             disabled={busy}
-            onChange={(item) => selected && editor.edit(replaceItem(schedule, selected, item))}
+            onChange={(item) => !busy && selected && editor.edit(replaceItem(schedule, selected, item))}
             onDelete={removeSelected}
           />
         </div>

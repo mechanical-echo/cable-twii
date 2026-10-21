@@ -112,6 +112,16 @@ export function resolveDrop(lists: Item[][], over: ItemRef | { slot: number }, b
   return { slot: over.slot, index: over.item + (before ? 0 : 1) };
 }
 
+export function pointerY(activator: Event | null, deltaY: number): number | null {
+  if (activator === null || !("clientY" in activator)) return null;
+  const y = (activator as { clientY: unknown }).clientY;
+  return typeof y === "number" && Number.isFinite(y) ? y + deltaY : null;
+}
+
+export function dropsBefore(y: number, rect: { top: number; height: number }): boolean {
+  return y < rect.top + rect.height / 2;
+}
+
 export function validAt(at: string): boolean {
   return AT_PATTERN.test(at);
 }
