@@ -13,13 +13,14 @@
 #include "ui/cursor.h"
 #include "ui/sfx.h"
 #include "screens/error.h"
-#include "media/player.h"
+#include "screens/full.h"
 
 static app g_app;
 
 void app_go(app *a, screen_id s)
 {
     a->screen = s;
+    if (s == SCR_FULL) full_enter(a);
 }
 
 void app_fail(app *a, const char *title, const char *body)
@@ -28,7 +29,7 @@ void app_fail(app *a, const char *title, const char *body)
     a->error_title[sizeof(a->error_title) - 1] = '\0';
     strncpy(a->error_body, body, sizeof(a->error_body) - 1);
     a->error_body[sizeof(a->error_body) - 1] = '\0';
-    app_go(a, SCR_ERROR);
+    a->screen = SCR_ERROR;
     error_enter(a);
 }
 
@@ -75,12 +76,13 @@ static void boot(app *a)
     ctw_issues_free(&issues);
 
     tn_init(&a->tuner, a->db);
-    app_go(a, SCR_LOGO);
-}
 
-static bool point_in(float px, float py, float x, float y, float w, float h)
-{
-    return px >= x && px <= x + w && py >= y && py <= y + h;
+    if (ctw_db_channel_count(a->db) > 0) {
+        a->current_channel = ctw_db_channel_at(a->db, 0)->number;
+        app_go(a, SCR_FULL);
+    } else {
+        app_go(a, SCR_LOGO);
+    }
 }
 
 static void logo_placeholder_draw(app *a)
@@ -104,12 +106,10 @@ int main(int argc, char **argv)
     memset(&g_app, 0, sizeof g_app);
     boot(&g_app);
 
-    bool was_hot = false;
-    const float pill_x = 240.0f, pill_y = 220.0f, pill_w = 160.0f, pill_h = 44.0f;
-
     for (;;) {
         in_poll();
         cur_update();
+        g_app.now_ms += 16;
         if (in_pressed(WPAD_BUTTON_HOME)) break;
 
         switch (g_app.screen) {
@@ -117,32 +117,15 @@ int main(int argc, char **argv)
             error_update(&g_app);
             error_draw(&g_app);
             break;
-        case SCR_LOGO:
-        default: {
-            bool hot = cur_visible() && point_in(cur_x(), cur_y(), pill_x, pill_y, pill_w, pill_h);
-            if (hot && !was_hot) {
-                sfx_play(SFX_HOVER);
-                in_rumble_pulse(30);
-            }
-            was_hot = hot;
-
-            if (in_pressed(WPAD_BUTTON_A)) pl_open("sd:/test.mpg", 0);
-            if (in_pressed(WPAD_BUTTON_1)) pl_open("sd:/test.mpg", 5000);
-            if (in_pressed(WPAD_BUTTON_B)) pl_close();
-            if (in_pressed(WPAD_BUTTON_PLUS)) pl_set_volume(100);
-            if (in_pressed(WPAD_BUTTON_MINUS)) pl_set_volume(30);
-
-            if (pl_status() != PL_IDLE) {
-                pl_draw(120, 60, 400, 225, 1.0f);
-                char buf[32];
-                snprintf(buf, sizeof buf, "%u ms", (unsigned)pl_position_ms());
-                ui_text(FONT_BODY, 16, 120, 300, buf, THEME_TEXT_PRIMARY, ALIGN_LEFT);
-            } else {
-                logo_placeholder_draw(&g_app);
-                ui_pill(pill_x, pill_y, pill_w, pill_h, g_app.root[0] != '\0' ? g_app.root : "no root", hot);
-            }
+        case SCR_FULL:
+            full_update(&g_app);
+            full_draw(&g_app);
             break;
-        }
+        case SCR_GUIDE:
+        case SCR_LOGO:
+        default:
+            logo_placeholder_draw(&g_app);
+            break;
         }
 
         cur_draw();

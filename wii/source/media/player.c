@@ -255,7 +255,7 @@ int pl_video_size(int *w, int *h)
 
 void pl_draw(float x, float y, float w, float h, float alpha)
 {
-    if (plm == NULL || status == PL_IDLE) {
+    if (plm == NULL || status == PL_IDLE || status == PL_ENDED) {
         GRRLIB_Rectangle(x, y, w, h, RGBA(0, 0, 0, 0xFF), 1);
         return;
     }

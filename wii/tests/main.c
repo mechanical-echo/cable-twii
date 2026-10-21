@@ -4,6 +4,8 @@ SUITE_EXTERN(tween_suite);
 SUITE_EXTERN(textfit_suite);
 SUITE_EXTERN(clock_suite);
 SUITE_EXTERN(tuner_suite);
+SUITE_EXTERN(nav_suite);
+SUITE_EXTERN(osd_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -14,5 +16,7 @@ int main(int argc, char **argv)
     RUN_SUITE(textfit_suite);
     RUN_SUITE(clock_suite);
     RUN_SUITE(tuner_suite);
+    RUN_SUITE(nav_suite);
+    RUN_SUITE(osd_suite);
     GREATEST_MAIN_END();
 }

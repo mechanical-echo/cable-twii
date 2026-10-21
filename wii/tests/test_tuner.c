@@ -79,7 +79,6 @@ TEST tuner_rebuilds_on_day_change(void)
     ctw_date d2 = { 2026, 10, 21 };
     uint32_t offset = 0;
     tn_current(&t, 1, d1, 1000, &offset);
-    const ctw_airing *day1_items = t.entries[0].today.items;
 
     ctw_lineup ref_today, ref_yesterday;
     memset(&ref_today, 0, sizeof ref_today);
@@ -90,9 +89,8 @@ TEST tuner_rebuilds_on_day_change(void)
     const ctw_airing *ref = ctw_lineup_at(&ref_today, &ref_yesterday, 2000, &ref_offset);
 
     const ctw_airing *got = tn_current(&t, 1, d2, 2000, &offset);
-    const ctw_airing *day2_items = t.entries[0].today.items;
 
-    ASSERT(day1_items != day2_items);
+    ASSERT_EQ(ctw_date_key(d2), ctw_date_key(t.entries[0].day));
     ASSERT(got != NULL);
     ASSERT(ref != NULL);
     ASSERT_EQ(ref->start_ms, got->start_ms);

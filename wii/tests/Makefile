@@ -16,7 +16,7 @@ VENDOR_SRC = ../../engine/vendor/tomlc99/toml.c
 VENDOR_OBJ = $(BUILD)/toml.o
 VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -I../../engine/vendor
 
-SRC = ../source/ui/tween.c ../source/ui/textfit.c ../source/clock.c ../source/tuner.c $(ENGINE_SRC)
+SRC = ../source/ui/tween.c ../source/ui/textfit.c ../source/clock.c ../source/tuner.c ../source/nav.c ../source/osd.c $(ENGINE_SRC)
 TEST_SRC = $(wildcard *.c)
 
 .PHONY: test clean
