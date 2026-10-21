@@ -46,7 +46,7 @@ fi
 encode() {
     local file="$1" source="$2" label="$3" seconds="$4" size="$5" freq="$6"
     local dur
-    dur=$(awk -v s="$seconds" -v d="$DIV" 'BEGIN { printf "%.3f", s / d }')
+    dur=$(awk -v s="$seconds" -v d="$DIV" 'BEGIN { v = s / d; if (v < 2.05) v = 2.05; printf "%.3f", v }')
     local vf="null"
     if [ "$HAS_DRAWTEXT" = 1 ]; then
         vf="drawtext=fontfile=${FONT}:text='${label} %{pts\:hms}':fontcolor=white:fontsize=28:box=1:boxcolor=black@0.6:x=(w-text_w)/2:y=h-text_h-20"
