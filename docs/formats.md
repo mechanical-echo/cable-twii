@@ -105,7 +105,7 @@ Every item has a `type`. Other fields depend on the type. A field marked `?` is 
 |---|---|---|
 | `episode` | `show`, `season`, `episode`, `from`? | One specific episode (`season` must match exactly, see the season rule above). Cut off at the window end if it does not fit (`cut` warning). |
 | `random` | `show`, `season`?, `count`?, `from`? | `count` random episodes, no repeats within the item. Only episodes that fit the remaining time are chosen. |
-| `random-run` | `show`, `season`?, `count`?, `from`? | A random starting episode, then the following episodes in order. If the full run does not fit, the longest run that fits is used. |
+| `random-run` | `show`, `season`?, `count`?, `from`? | A random starting episode, then the following episodes in order. The start is chosen only among episodes that fit the remaining time (if none fits, nothing is placed and the item gets `partial`). If the full run does not fit, the longest run that fits is used. |
 | `ads` | `count`? | `count` random ads. Skipped when the channel has `ads = false`. |
 | `ad` | `path` | One specific ad, path relative to `/cable-twii/`. It always airs, even on a channel with `ads = false`, because it was placed deliberately. |
 | `fill` | `show`, `season`?, `ads_between`?, `from`? | Random episodes until the slot is full. Timed channels only (`fill_in_loop` in a loop). |

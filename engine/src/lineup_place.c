@@ -81,7 +81,22 @@ static int place_random_run(ctw_build *b, const ctw_item *it, int64_t end, int s
     if (n < count) {
         partial = 1;
     } else {
-        start = (size_t)ctw_rng_below(&b->rng, (uint32_t)(n - count + 1u));
+        uint32_t left = ctw_build_left(b, end);
+        size_t span = n - count + 1u;
+        size_t fits = 0;
+        for (size_t s = 0; s < span; s++) {
+            if (list[s]->duration_ms <= left) fits++;
+        }
+        if (fits == 0u) {
+            start = n;
+        } else {
+            size_t pick = (size_t)ctw_rng_below(&b->rng, (uint32_t)fits);
+            for (start = 0; start < span; start++) {
+                if (list[start]->duration_ms > left) continue;
+                if (pick == 0u) break;
+                pick--;
+            }
+        }
     }
     for (size_t k = start; k < n && taken < count; k++) {
         if (list[k]->duration_ms > ctw_build_left(b, end)) break;

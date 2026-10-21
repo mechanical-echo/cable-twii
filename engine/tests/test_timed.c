@@ -822,6 +822,64 @@ TEST timed_lineup_capped_later_slots_skipped(void)
     PASS();
 }
 
+#define ALT_EP(n, dur) \
+    "[[show.episode]]\nseason = 1\nepisode = " #n "\npath = \"Alt/Show/e" #n ".mpg\"\n" \
+    "duration_ms = " dur "\n"
+
+#define ALT_LIB \
+    "version = 1\n" \
+    "[[show]]\nchannel = \"Alt\"\nfolder = \"Show\"\nname = \"Show\"\nicon = \"\"\n" \
+    ALT_EP(1, "2640000") ALT_EP(2, "1320000") ALT_EP(3, "2640000") \
+    ALT_EP(4, "1320000") ALT_EP(5, "2640000") ALT_EP(6, "1320000")
+
+TEST timed_random_run_skips_unfitting_starts(void)
+{
+    ctw_db *db = load_inline(ALT_LIB,
+        "version = 1\nseed = 7\n[[channel]]\nnumber = 6\nname = \"Alt\"\ncategory = \"T\"\n"
+        "ads = false\nmode = \"timed\"\n"
+        TL_SLOT("07:00", "{ type = \"random-run\", show = \"Show\", count = 2 }")
+        TL_SLOT("07:25", "{ type = \"ads\" }"));
+    ctw_date day = tl_day;
+    int starts[7] = {0};
+    ASSERT(db);
+    for (int d = 0; d < 16; d++) {
+        ctw_lineup l = {0};
+        ASSERT_EQ(0, ctw_lineup_build(db, ctw_db_channel(db, 6), day, &l));
+        ASSERT(count_kind(&l, 0, CTW_AIR_EPISODE) >= 1u);
+        ASSERT_EQ(CTW_AIR_EPISODE, l.items[0].kind);
+        ASSERT_EQ(0, l.items[0].slot_index);
+        ASSERT_EQ(1320000u, l.items[0].duration_ms);
+        starts[l.items[0].episode->episode]++;
+        ASSERT(has_warning(&l, 6, CTW_W_PARTIAL, 0, 0));
+        CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
+        ctw_lineup_free(&l);
+        day = ctw_date_next(day);
+    }
+    ASSERT_EQ(16, starts[2] + starts[4]);
+    ASSERT(starts[2] > 0 && starts[4] > 0);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST timed_random_run_no_fitting_start(void)
+{
+    ctw_lineup l = {0};
+    ctw_db *db = load_inline(ALT_LIB,
+        "version = 1\nseed = 7\n[[channel]]\nnumber = 6\nname = \"Alt\"\ncategory = \"T\"\n"
+        "ads = false\nmode = \"timed\"\n"
+        TL_SLOT("07:00", "{ type = \"random-run\", show = \"Show\", count = 2 }")
+        TL_SLOT("07:20", "{ type = \"ads\" }"));
+    ASSERT(db);
+    ASSERT_EQ(0, ctw_lineup_build(db, ctw_db_channel(db, 6), tl_day, &l));
+    ASSERT_EQ(0u, count_kind(&l, 0, CTW_AIR_EPISODE));
+    ASSERT_EQ(1u, count_warnings(&l, CTW_W_PARTIAL));
+    ASSERT(has_warning(&l, 6, CTW_W_PARTIAL, 0, 0));
+    CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
+    ctw_lineup_free(&l);
+    ctw_db_free(db);
+    PASS();
+}
+
 TEST lineup_hash_encoding(void)
 {
     ctw_episode ep = {0};
@@ -899,6 +957,8 @@ SUITE(timed_suite)
     RUN_TEST(timed_known_lineup_pinned);
     RUN_TEST(timed_lineup_capped);
     RUN_TEST(timed_lineup_capped_later_slots_skipped);
+    RUN_TEST(timed_random_run_skips_unfitting_starts);
+    RUN_TEST(timed_random_run_no_fitting_start);
     RUN_TEST(lineup_hash_encoding);
     RUN_TEST(lineup_free_null_safe);
 }
