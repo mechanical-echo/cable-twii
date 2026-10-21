@@ -192,6 +192,8 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
   if (!mount.external) {
     if (await isSystemPath(p)) return refuse(SYSTEM_REASON);
     if (await looksLikeWbfs([...new Set([mount.mountPoint, p])])) return refuse(WBFS_REASON, { hasWbfs: true, isVolumeRoot });
+    const nested = await nestedMountLabel(p, deps.statDev ?? defaultStatDev);
+    if (nested !== null) return refuse(`${nested} is on a different drive`, { isVolumeRoot });
     return { path: p, rootPath, isVolumeRoot, fsType: null, freeBytes, hasRoot, hasWbfs: false, usable: true };
   }
 
@@ -212,18 +214,44 @@ export async function inspectDrive(inputPath: string, deps: DriveDeps = {}): Pro
   else if (fsType !== "msdos") reason = `This drive is ${fsType ?? "unknown"}. cable-twii needs a FAT32 (MS-DOS) drive.`;
   else if (!isVolumeRoot) reason = NOT_ROOT_REASON;
 
+  if (reason === undefined) {
+    const nested = await nestedMountLabel(p, deps.statDev ?? defaultStatDev);
+    if (nested !== null) reason = `${nested} is on a different drive`;
+  }
+
   const info: DriveInfo = { path: p, rootPath, isVolumeRoot, fsType, freeBytes, hasRoot, hasWbfs, usable: reason === undefined };
   if (reason !== undefined) info.reason = reason;
   return info;
 }
 
-async function ensureNormalDir(full: string, label: string): Promise<void> {
+const NESTED_LEVELS: [string[], string][] = [
+  [["cable-twii"], "cable-twii"],
+  [["cable-twii", "ads"], "cable-twii/ads"],
+  [["cable-twii", ".studio"], "cable-twii/.studio"],
+];
+
+async function nestedMountLabel(p: string, statDev: StatDev): Promise<string | null> {
+  const rootDev = await statDev(p);
+  for (const [parts, label] of NESTED_LEVELS) {
+    let dev: number;
+    try {
+      dev = await statDev(path.join(p, ...parts));
+    } catch {
+      continue;
+    }
+    if (dev !== rootDev) return label;
+  }
+  return null;
+}
+
+async function ensureNormalDir(full: string, label: string, rootDev: number, statDev: StatDev): Promise<void> {
   let st = await lstat(full).catch(() => null);
   if (st === null) {
     await mkdir(full);
     st = await lstat(full);
   }
   if (!st.isDirectory() || (await realpath(full)) !== full) throw new Error(`${label} is not a normal folder`);
+  if ((await statDev(full)) !== rootDev) throw new Error(`${label} is on a different drive`);
 }
 
 export async function initRoot(info: DriveInfo, deps: DriveDeps = {}): Promise<void> {
@@ -235,8 +263,10 @@ export async function initRoot(info: DriveInfo, deps: DriveDeps = {}): Promise<v
     [path.join(base, "cable-twii", "ads"), "cable-twii/ads"],
     [path.join(base, "cable-twii", ".studio"), "cable-twii/.studio"],
   ];
+  const statDev = deps.statDev ?? defaultStatDev;
+  const rootDev = await statDev(base);
   for (const [full, label] of steps) {
-    await ensureNormalDir(full, label);
+    await ensureNormalDir(full, label, rootDev, statDev);
   }
   const resolved = await realpath(path.join(base, "cable-twii"));
   if (resolved !== path.join(base, "cable-twii")) throw new Error("cable-twii is not a normal folder");

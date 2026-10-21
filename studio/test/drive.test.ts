@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -312,6 +312,56 @@ test("refuses /Volumes, /dev and /Users", async () => {
     const info = await inspectDrive(p, plainDeps());
     expect(info.usable, p).toBe(false);
   }
+});
+
+function nestedDeps(work: string, nestedPath: string): DriveDeps {
+  return {
+    statDev: async (p) => {
+      if (p === nestedPath) return 99;
+      return (await stat(p)).dev;
+    },
+    bootDevices: async () => [(await stat(work)).dev],
+    runDiskutil: async () => FAT,
+  };
+}
+
+test("initRoot refuses cable-twii on another device", async () => {
+  const work = path.join(dir, "work");
+  await mkdir(path.join(work, "cable-twii"), { recursive: true });
+  const deps = nestedDeps(work, path.join(work, "cable-twii"));
+  const info = await inspectDrive(work, deps);
+  expect(info.usable).toBe(false);
+  expect(info.reason).toBe("cable-twii is on a different drive");
+  await expect(initRoot(info, deps)).rejects.toThrow("cable-twii is on a different drive");
+  expect(existsSync(path.join(work, "cable-twii", "ads"))).toBe(false);
+  expect(existsSync(path.join(work, "cable-twii", ".studio"))).toBe(false);
+});
+
+test("initRoot refuses ads on another device", async () => {
+  const work = path.join(dir, "work");
+  await mkdir(path.join(work, "cable-twii", "ads"), { recursive: true });
+  const deps = nestedDeps(work, path.join(work, "cable-twii", "ads"));
+  const info = await inspectDrive(work, deps);
+  expect(info.usable).toBe(false);
+  await expect(initRoot(info, deps)).rejects.toThrow("cable-twii/ads is on a different drive");
+  expect(existsSync(path.join(work, "cable-twii", ".studio"))).toBe(false);
+});
+
+test("initRoot refuses .studio on another device", async () => {
+  const work = path.join(dir, "work");
+  await mkdir(path.join(work, "cable-twii", ".studio"), { recursive: true });
+  const deps = nestedDeps(work, path.join(work, "cable-twii", ".studio"));
+  const info = await inspectDrive(work, deps);
+  expect(info.usable).toBe(false);
+  await expect(initRoot(info, deps)).rejects.toThrow("cable-twii/.studio is on a different drive");
+});
+
+test("initRoot refuses a folder that lands on another device right after mkdir", async () => {
+  const work = path.join(dir, "work");
+  await mkdir(work);
+  const deps = nestedDeps(work, path.join(work, "cable-twii", "ads"));
+  await expect(initRoot(await inspectDrive(work, deps), deps)).rejects.toThrow("cable-twii/ads is on a different drive");
+  expect(existsSync(path.join(work, "cable-twii", ".studio"))).toBe(false);
 });
 
 test("initRoot checks each level with realpath before going deeper", async () => {
