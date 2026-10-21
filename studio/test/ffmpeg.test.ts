@@ -32,7 +32,7 @@ function makeAudioOnly(name: string): string {
 }
 
 test("args 16:9", () => {
-  const a = conversionArgs("in.mkv", "out.mpg.part", "16:9");
+  const a = conversionArgs("in.mkv", "out.mpg.part", "16:9", 0);
   expect(a).toEqual(expect.arrayContaining(["-c:v", "mpeg1video", "-b:v", "1500k", "-maxrate", "2000k", "-bufsize", "1000k", "-g", "15", "-c:a", "mp2", "-ar", "48000", "-ac", "2", "-b:a", "192k", "-f", "mpeg"]));
   expect(a.join(" ")).toContain("scale=640:360");
   expect(a.join(" ")).toContain("pad=640:360:(ow-iw)/2:(oh-ih)/2,fps=30");
@@ -41,7 +41,7 @@ test("args 16:9", () => {
   expect(a.at(-1)).toBe("file:out.mpg.part");
   expect(a).toEqual(expect.arrayContaining(["-i", "file:in.mkv", "-map", "0:0", "0:a:0?", "-sn", "-dn"]));
 });
-test("args 4:3", () => expect(conversionArgs("a", "b", "4:3").join(" ")).toContain("scale=480:360:force_original_aspect_ratio=decrease,pad=480:360"));
+test("args 4:3", () => expect(conversionArgs("a", "b", "4:3", 0).join(" ")).toContain("scale=480:360:force_original_aspect_ratio=decrease,pad=480:360"));
 test("aspectFor", () => {
   expect(aspectFor(16 / 9)).toBe("16:9");
   expect(aspectFor(4 / 3)).toBe("4:3");

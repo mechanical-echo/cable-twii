@@ -113,7 +113,7 @@ export function aspectFor(displayAspect: number): Aspect {
   return displayAspect >= WIDE_ASPECT_THRESHOLD ? "16:9" : "4:3";
 }
 
-export function conversionArgs(src: string, dst: string, aspect: Aspect, videoStreamIndex = 0): string[] {
+export function conversionArgs(src: string, dst: string, aspect: Aspect, videoStreamIndex: number): string[] {
   const { width, height } = FRAME_SIZE[aspect];
   const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,fps=${FRAME_RATE}`;
   return [
