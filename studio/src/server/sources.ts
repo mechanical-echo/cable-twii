@@ -7,13 +7,13 @@ import type { SourceRecord } from "./types.js";
 const STUDIO_DIR = ".studio";
 const SOURCES_FILE = "sources.toml";
 
-export async function atomicWriteFile(file: string, text: string): Promise<void> {
+export async function atomicWriteFile(file: string, data: string | Uint8Array): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${randomBytes(6).toString("hex")}.tmp`);
   try {
     const handle = await open(tmp, "w");
     try {
-      await handle.writeFile(text, "utf8");
+      await handle.writeFile(data);
       await handle.sync();
     } finally {
       await handle.close();
