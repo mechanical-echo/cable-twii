@@ -14,7 +14,7 @@ VENDOR_OBJ = $(BUILD)/toml.o
 VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -Ivendor
 TEST_SRC = $(wildcard tests/*.c)
 
-.PHONY: test cli clean
+.PHONY: test cli cli-test clean
 
 test: $(BUILD)/tests
 	$(BUILD)/tests
@@ -27,8 +27,17 @@ $(BUILD)/tests: $(LIB_SRC) $(VENDOR_OBJ) $(TEST_SRC) $(wildcard src/*.h) include
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) $(LIB_SRC) $(VENDOR_OBJ) $(TEST_SRC) -o $@
 
-cli:
-	@echo "cli not built yet"
+CLI_SRC = cli/main.c cli/json.c
+CLI_BIN = $(BUILD)/cable-twii-sched
+
+cli: $(CLI_BIN)
+
+$(CLI_BIN): $(LIB_SRC) $(VENDOR_OBJ) $(CLI_SRC) cli/json.h $(wildcard src/*.h) include/ctw/ctw.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -Icli $(LIB_SRC) $(VENDOR_OBJ) $(CLI_SRC) -o $@
+
+cli-test: cli
+	bash tests/cli_test.sh
 
 clean:
 	rm -rf $(BUILD)
