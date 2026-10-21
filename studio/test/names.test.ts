@@ -22,3 +22,9 @@ test("isVideoFile", () => {
   expect(isVideoFile("._a.mkv")).toBe(false);
   expect(isVideoFile("a.srt")).toBe(false);
 });
+test("episodeFileName never starts with a dot", () => {
+  expect(episodeFileName({ season: null, episode: null, title: ".hidden" })).toBe("hidden.mpg");
+  expect(episodeFileName({ season: null, episode: null, title: ". . .Dots" })).toBe("Dots.mpg");
+  expect(episodeFileName({ season: null, episode: null, title: "..." })).toBe("Untitled.mpg");
+  expect(episodeFileName({ season: null, episode: 3, title: ".x" })).toBe("E03 - x.mpg");
+});

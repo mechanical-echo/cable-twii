@@ -13,7 +13,7 @@ import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
 import { ContainmentError, assertContained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
-import { episodeFileName, fatSafe, uniqueName } from "./names.js";
+import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
 import { pickFolder } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
@@ -288,6 +288,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   async function saveConfig(root: string, cfg: Config, mtimeMs: number): Promise<{ mtimeMs: number; issues: Issue[] }> {
     if ((await configMtime(root)) !== Math.trunc(mtimeMs)) throw new ConfigConflictError();
+    await flushRebuild(root).catch((err: unknown) => app.log.warn(err));
     const result = await validateCandidate(root, cfg, bin);
     if (!result.ok || result.issues.some((i) => i.level === "error")) throw new HttpError(422, "invalid", result.issues);
     const saved = await writeConfig(root, cfg, mtimeMs);
@@ -530,7 +531,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       }
       const base = path.basename(file.source);
       const stem = base.lastIndexOf(".") > 0 ? base.slice(0, base.lastIndexOf(".")) : base;
-      const name = earlier ? path.posix.basename(earlier.target) : uniqueName(`${fatSafe(stem) || "Ad"}.mpg`, names);
+      const name = earlier ? path.posix.basename(earlier.target) : uniqueName(`${fileStem(stem) || "Ad"}.mpg`, names);
       names.add(name);
       jobs.push(queue.enqueue(file.source, `${dirRel}/${name}`, file.aspect));
     }

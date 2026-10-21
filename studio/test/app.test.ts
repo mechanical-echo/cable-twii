@@ -214,6 +214,25 @@ test("put_config_rejects_invalid", async () => {
   expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
 });
 
+test("PUT /api/config sees a show imported moments ago", async () => {
+  await app.close();
+  app = make({ rebuildDelayMs: 60000 });
+  await useFixture();
+  const source = path.join(dir, "fresh.mkv");
+  await writeFile(source, "video");
+  const imported = await app.inject({
+    method: "POST",
+    url: "/api/import/show",
+    payload: { channelFolder: "Cartoon Network", showFolder: "Fresh Show", episodes: [{ source, season: 1, episode: 1, title: "One", description: "", aspect: "4:3" }] },
+  });
+  expect(imported.statusCode).toBe(200);
+  await waitFor(async () => ((await app.inject({ method: "GET", url: "/api/jobs" })).json() as Job[]).every((j) => j.state === "done"));
+  const { config, mtimeMs } = await getConfig();
+  config.channel[0]!.slot![0]!.items.push({ type: "random", show: "Fresh Show", count: 1 });
+  const res = await app.inject({ method: "PUT", url: "/api/config", payload: { config, mtimeMs } });
+  expect(res.statusCode).toBe(200);
+});
+
 test("PUT /api/config conflict", async () => {
   await useFixture();
   const { config, mtimeMs } = await getConfig();

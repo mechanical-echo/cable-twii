@@ -62,6 +62,10 @@ export function fatSafe(name: string): string {
   return capped.replace(/[ .]+$/, "").replace(/^ +/, "");
 }
 
+export function fileStem(name: string): string {
+  return fatSafe(name).replace(/^[ .]+/, "");
+}
+
 export function uniqueName(name: string, taken: Set<string>): string {
   const lowered = new Set(Array.from(taken, (entry) => entry.toLowerCase()));
   if (!lowered.has(name.toLowerCase())) return name;
@@ -79,7 +83,7 @@ function pad(value: number): string {
 }
 
 export function episodeFileName(e: EpisodeGuess): string {
-  const title = fatSafe(e.title);
+  const title = fileStem(e.title);
   let code = "";
   if (e.season !== null && e.episode !== null) code = `S${pad(e.season)}E${pad(e.episode)}`;
   else if (e.episode !== null) code = `E${pad(e.episode)}`;
