@@ -3,7 +3,9 @@ dist/
 build/
 *.dol
 *.elf
+*.map
 .superpowers/
 .DS_Store
 ._*
 samples/out/
+.tooling/
