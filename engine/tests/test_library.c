@@ -5,6 +5,8 @@
 #include "ctw/ctw.h"
 #include "../src/internal.h"
 
+#define FIXTURE_PATH "tests/fixtures/lib_basic.toml"
+
 static char *read_fixture(const char *path)
 {
     FILE *f = fopen(path, "rb");
@@ -23,6 +25,9 @@ static char *read_fixture(const char *path)
     fclose(f);
     return buf;
 }
+
+#define FIXTURE_OK(t) \
+    do { if (!(t)) FAILm("cannot read " FIXTURE_PATH); } while (0)
 
 static const char *HEAD = "version = 1\n\n";
 
@@ -46,10 +51,10 @@ static int parse_episode(const char *episode_body, ctw_issues *is)
 
 TEST library_basic_counts(void)
 {
-    char *text = read_fixture("tests/fixtures/lib_basic.toml");
+    char *text = read_fixture(FIXTURE_PATH);
     ctw_db *db = ctw_db_new();
     ctw_issues is = {0};
-    ASSERT(text != NULL);
+    FIXTURE_OK(text);
     ASSERT_EQ(0, ctw_library_parse(db, text, &is));
     ASSERT_EQ(0u, is.count);
     ASSERT_EQ(4, ctw_db_show_count(db));
@@ -62,11 +67,12 @@ TEST library_basic_counts(void)
 
 TEST library_episodes_sorted(void)
 {
-    char *text = read_fixture("tests/fixtures/lib_basic.toml");
+    char *text = read_fixture(FIXTURE_PATH);
     ctw_db *db = ctw_db_new();
     ctw_issues is = {0};
     const ctw_show *g;
     const ctw_show *m;
+    FIXTURE_OK(text);
     ASSERT_EQ(0, ctw_library_parse(db, text, &is));
     g = ctw_db_show(db, "Cartoon Network", "Gumball");
     ASSERT(g != NULL);
@@ -92,9 +98,10 @@ TEST library_episodes_sorted(void)
 
 TEST library_accessors_and_ads(void)
 {
-    char *text = read_fixture("tests/fixtures/lib_basic.toml");
+    char *text = read_fixture(FIXTURE_PATH);
     ctw_db *db = ctw_db_new();
     ctw_issues is = {0};
+    FIXTURE_OK(text);
     ASSERT_EQ(0, ctw_library_parse(db, text, &is));
     ASSERT_STR_EQ("Cartoon Network", ctw_db_show_at(db, 0)->channel_folder);
     ASSERT_STR_EQ("Ben 10", ctw_db_show_at(db, 2)->folder);
@@ -111,10 +118,11 @@ TEST library_accessors_and_ads(void)
 
 TEST library_strings_survive_input_free(void)
 {
-    char *text = read_fixture("tests/fixtures/lib_basic.toml");
+    char *text = read_fixture(FIXTURE_PATH);
     ctw_db *db = ctw_db_new();
     ctw_issues is = {0};
     const ctw_show *g;
+    FIXTURE_OK(text);
     ASSERT_EQ(0, ctw_library_parse(db, text, &is));
     memset(text, 'x', strlen(text));
     free(text);
@@ -310,6 +318,57 @@ TEST library_field_errors_have_no_line(void)
     PASS();
 }
 
+TEST library_ad_not_table(void)
+{
+    ctw_issues is = {0};
+    ASSERT_EQ(-1, parse_text("version = 1\nad = [1, 2]\n", &is));
+    ASSERT(is.count >= 1);
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ASSERT(strstr(is.items[0].message, "ad #1") != NULL);
+    ctw_issues_free(&is);
+    PASS();
+}
+
+TEST library_show_not_table(void)
+{
+    ctw_issues is = {0};
+    ASSERT_EQ(-1, parse_text("version = 1\nshow = [1]\n", &is));
+    ASSERT(is.count >= 1);
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ASSERT(strstr(is.items[0].message, "show #1") != NULL);
+    ctw_issues_free(&is);
+    PASS();
+}
+
+TEST library_episode_not_table(void)
+{
+    char text[512];
+    ctw_issues is = {0};
+    snprintf(text, sizeof text, "%s[[show]]\nchannel = \"c\"\nfolder = \"f\"\nname = \"n\"\n"
+             "icon = \"\"\nepisode = [1]\n", HEAD);
+    ASSERT_EQ(-1, parse_text(text, &is));
+    ASSERT(is.count >= 1);
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ASSERT(strstr(is.items[0].message, "episode #1") != NULL);
+    ctw_issues_free(&is);
+    PASS();
+}
+
+TEST library_wrong_type_top_level(void)
+{
+    ctw_issues is = {0};
+    ASSERT_EQ(-1, parse_text("version = 1\nad = \"x\"\n", &is));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ctw_issues_free(&is);
+    memset(&is, 0, sizeof is);
+    ASSERT_EQ(-1, parse_text("version = 1\nshow = \"x\"\n", &is));
+    ASSERT_EQ(1u, is.count);
+    ASSERT_EQ(CTW_E_PARSE, is.items[0].code);
+    ctw_issues_free(&is);
+    PASS();
+}
+
 TEST db_free_null_is_safe(void)
 {
     ctw_db_free(NULL);
@@ -413,6 +472,10 @@ SUITE(library_suite)
     RUN_TEST(library_wrong_version);
     RUN_TEST(library_syntax_error_line);
     RUN_TEST(library_field_errors_have_no_line);
+    RUN_TEST(library_ad_not_table);
+    RUN_TEST(library_show_not_table);
+    RUN_TEST(library_episode_not_table);
+    RUN_TEST(library_wrong_type_top_level);
     RUN_TEST(db_free_null_is_safe);
     RUN_TEST(db_empty_accessors);
     RUN_TEST(issues_helpers);
