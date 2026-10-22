@@ -34,6 +34,8 @@
 
 ## Status (2026-10-22)
 
+- The UI was redesigned on 2026-10-22 after the "Wii app redesign" deck; see plan 05 (`2026-10-22-cable-twii-05-wii-redesign.md`) and its spec. The OSD pill row described in Task 9 below was removed on purpose; the hardware checklist was updated (items 8, 17, 19, 20, 47, 51-55).
+
 - Done: Tasks 1-10 are implemented, host-tested (`make -C wii/tests`) and reviewed; Task 11 Step 1 (the 50-item checklist `docs/testing/wii-checklist.md`) is written.
 - Left: Task 11 Steps 2-4, running the checklist on a real Wii, fixing what fails and committing the results. Every "Verify on the real Wii" step in Tasks 2, 4, 5, 6, 7, 8 and 9 was done in Dolphin only.
 - Blocked on: the owner and real hardware (including 50 Hz and 16:9 TVs). Video playback, unplugging and 16:9 have not been seen in Dolphin either.

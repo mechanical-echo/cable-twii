@@ -4,22 +4,27 @@
 
 #include "../input.h"
 #include "../ui/draw.h"
+#include "../ui/press.h"
+#include "../ui/sfx.h"
 #include "../ui/text.h"
 #include "../ui/cursor.h"
 #include "../ui/theme.h"
 
 #define BODY_MAX_LINES 14
+#define PILL_ID 1
 
 static const float SCREEN_W = 640.0f, SCREEN_H = 480.0f;
 static const float PANEL_W = 440.0f, PAD = 24.0f;
 static const float TITLE_H = 28.0f, TITLE_GAP = 12.0f, BODY_LINE_H = 20.0f, PILL_GAP = 20.0f;
 static const float PILL_W = 260.0f, PILL_H = 40.0f;
-static const int TITLE_PX = 20, BODY_PX = 15;
+static const int TITLE_PX = 20, BODY_PX = 15, PILL_PX = 14;
 
 static char title_line[TF_LINE_BYTES];
 static tf_line body_lines[BODY_MAX_LINES];
 static size_t body_count;
 static float panel_x, panel_y, panel_h;
+static ps_state press;
+static bool hot;
 
 static float pill_x(void)
 {
@@ -39,6 +44,8 @@ void error_enter(app *a)
     panel_h = PAD + TITLE_H + TITLE_GAP + (float)body_count * BODY_LINE_H + PILL_GAP + PILL_H + PAD;
     panel_x = (SCREEN_W - PANEL_W) / 2.0f;
     panel_y = (SCREEN_H - panel_h) / 2.0f;
+    press.armed = 0;
+    hot = false;
 }
 
 static bool point_in(float px, float py, float x, float y, float w, float h)
@@ -48,15 +55,24 @@ static bool point_in(float px, float py, float x, float y, float w, float h)
 
 void error_update(app *a)
 {
-    bool clicked = cur_visible() && in_pressed(WPAD_BUTTON_A) && point_in(cur_x(), cur_y(), pill_x(), pill_y(), PILL_W, PILL_H);
-    if (clicked) app_quit(a, QUIT_DEST_HOMEBREW);
+    bool now_hot = cur_visible() && point_in(cur_x(), cur_y(), pill_x(), pill_y(), PILL_W, PILL_H);
+    if (now_hot && !hot) {
+        sfx_play(SFX_HOVER);
+        in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
+    }
+    hot = now_hot;
+    int fired = ps_update(&press, hot ? PILL_ID : 0, in_pressed(WPAD_BUTTON_A), in_held(WPAD_BUTTON_A), in_released(WPAD_BUTTON_A));
+    if (fired == PILL_ID) {
+        sfx_play(SFX_SELECT);
+        app_quit(a, QUIT_DEST_HOMEBREW);
+    }
 }
 
 void error_draw(app *a)
 {
     (void)a;
     ui_stripes();
-    ui_panel(panel_x, panel_y, PANEL_W, panel_h, THEME_PANEL_RADIUS, THEME_PANEL_FILL, THEME_PANEL_BORDER);
+    ui_card(panel_x, panel_y, PANEL_W, panel_h, THEME_PANEL_RADIUS, 0.6f, THEME_GLOSS_BOTTOM, UI_SHADOW_PANEL);
     ui_text(FONT_BOLD, TITLE_PX, panel_x + PAD, panel_y + PAD, title_line, THEME_TEXT_PRIMARY, ALIGN_LEFT);
 
     float y = panel_y + PAD + TITLE_H + TITLE_GAP;
@@ -65,6 +81,6 @@ void error_draw(app *a)
         y += BODY_LINE_H;
     }
 
-    bool hot = cur_visible() && point_in(cur_x(), cur_y(), pill_x(), pill_y(), PILL_W, PILL_H);
-    ui_pill(pill_x(), pill_y(), PILL_W, PILL_H, "Back to Homebrew Channel", hot);
+    ui_pill_state state = ps_pressed(&press, hot ? PILL_ID : 0) == PILL_ID ? UI_PILL_PRESSED : (hot ? UI_PILL_HOT : UI_PILL_REST);
+    ui_pill_ex(pill_x(), pill_y(), PILL_W, PILL_H, "Back to Homebrew Channel", PILL_PX, state, UI_SHADOW_PANEL);
 }

@@ -9,6 +9,7 @@ cable-twii is a Homebrew Channel app that turns a modded Wii into your own cable
   - [02 Studio](docs/superpowers/plans/2026-10-20-cable-twii-02-studio.md)
   - [03 Wii app](docs/superpowers/plans/2026-10-20-cable-twii-03-wii-app.md)
   - [04 Release](docs/superpowers/plans/2026-10-20-cable-twii-04-release.md)
+  - [05 Wii redesign](docs/superpowers/plans/2026-10-22-cable-twii-05-wii-redesign.md) (spec: [Wii redesign](docs/superpowers/specs/2026-10-22-wii-redesign-design.md))
 - [File formats](docs/formats.md)
 - [Engine C API](docs/engine-api.md)
 - [Mac setup](docs/setup.md)
