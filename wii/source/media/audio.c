@@ -4,15 +4,16 @@
 #include <asndlib.h>
 #include <ogc/lwp_watchdog.h>
 
+#include "audiobuf.h"
+
 #define AUDIO_VOICE 15
 #define AUDIO_CHUNK 4096
 #define AUDIO_CHUNK_BYTES (AUDIO_CHUNK * 4)
-#define AUDIO_BUFS 2
 #define AUDIO_RING (AUDIO_CHUNK * 16)
 
 static u32 ring[AUDIO_RING] __attribute__((aligned(32)));
-static u32 bufs[AUDIO_BUFS][AUDIO_CHUNK] __attribute__((aligned(32)));
-static int buf_idx;
+static u32 bufs[AB_BUFS][AUDIO_CHUNK] __attribute__((aligned(32)));
+static ab_state ab;
 static volatile u32 r_pos, w_pos, consumed, underruns;
 static volatile int running, need_base, eof;
 static volatile double base_time;
@@ -34,25 +35,25 @@ unsigned int au_ring_fill(void)
     return ring_fill();
 }
 
-static void audio_cb(s32 voice)
+static void fill_buf(u32 *buf)
 {
-    u32 *buf = bufs[buf_idx];
-    buf_idx = (buf_idx + 1) % AUDIO_BUFS;
-    u32 n = 0;
     if (running) {
-        u32 avail = w_pos - r_pos;
-        n = avail < AUDIO_CHUNK ? avail : AUDIO_CHUNK;
         u32 r = r_pos;
-        for (u32 i = 0; i < n; i++) {
-            buf[i] = ring[(r + i) & (AUDIO_RING - 1)];
-        }
-        r_pos = r + n;
+        u32 n = ab_drain(buf, AUDIO_CHUNK, ring, AUDIO_RING, &r, w_pos);
+        r_pos = r;
         consumed += n;
         if (n < AUDIO_CHUNK && !eof) underruns++;
         cb_tick = gettime();
+    } else {
+        memset(buf, 0, AUDIO_CHUNK_BYTES);
     }
-    if (n < AUDIO_CHUNK) memset(buf + n, 0, (AUDIO_CHUNK - n) * 4);
     DCFlushRange(buf, AUDIO_CHUNK_BYTES);
+}
+
+static void audio_cb(s32 voice)
+{
+    u32 *buf = bufs[ab_take(&ab)];
+    fill_buf(buf);
     ASND_AddVoice(voice, buf, AUDIO_CHUNK_BYTES);
 }
 
@@ -63,6 +64,7 @@ void au_init(void)
 
 void au_reset(void)
 {
+    ASND_StopVoice(AUDIO_VOICE);
     u32 lvl = IRQ_Disable();
     running = 0;
     r_pos = 0;
@@ -71,6 +73,9 @@ void au_reset(void)
     underruns = 0;
     need_base = 1;
     eof = 0;
+    ab_start(&ab);
+    memset(bufs, 0, sizeof bufs);
+    DCFlushRange(bufs, sizeof bufs);
     IRQ_Restore(lvl);
 }
 
@@ -95,10 +100,12 @@ void au_push(const float *interleaved, unsigned int count, double pts)
 void au_go(void)
 {
     u32 lvl = IRQ_Disable();
+    u32 *first = bufs[ab_start(&ab)];
     cb_tick = gettime();
     running = 1;
+    fill_buf(first);
     IRQ_Restore(lvl);
-    ASND_SetVoice(AUDIO_VOICE, VOICE_STEREO_16BIT, 48000, 0, bufs[0], AUDIO_CHUNK_BYTES, volume, volume, audio_cb);
+    ASND_SetVoice(AUDIO_VOICE, VOICE_STEREO_16BIT, 48000, 0, first, AUDIO_CHUNK_BYTES, volume, volume, audio_cb);
 }
 
 double au_clock(int sample_rate)
