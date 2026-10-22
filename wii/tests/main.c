@@ -13,6 +13,7 @@ SUITE_EXTERN(playback_suite);
 SUITE_EXTERN(aspect_suite);
 SUITE_EXTERN(tile_suite);
 SUITE_EXTERN(audiobuf_suite);
+SUITE_EXTERN(quit_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -32,5 +33,6 @@ int main(int argc, char **argv)
     RUN_SUITE(aspect_suite);
     RUN_SUITE(tile_suite);
     RUN_SUITE(audiobuf_suite);
+    RUN_SUITE(quit_suite);
     GREATEST_MAIN_END();
 }

@@ -321,6 +321,12 @@ int st_find_root(char *out, size_t out_size, st_volume *vol)
     return 0;
 }
 
+void st_release(st_volume *vol)
+{
+    release_unchosen(-1);
+    vol->found = false;
+}
+
 bool st_drive_present(const st_volume *vol)
 {
     if (!vol->found || vol->disk < 0 || vol->disk >= disk_count) return false;

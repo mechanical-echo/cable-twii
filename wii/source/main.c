@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <gccore.h>
 #include <grrlib.h>
+#include <asndlib.h>
 #include <wiiuse/wpad.h>
 
 #include "app.h"
 #include "input.h"
 #include "storage.h"
+#include "quit.h"
 #include "ui/theme.h"
 #include "ui/draw.h"
 #include "ui/text.h"
@@ -32,6 +35,35 @@ void app_fail(app *a, const char *title, const char *body)
     a->error_body[sizeof(a->error_body) - 1] = '\0';
     a->screen = SCR_ERROR;
     error_enter(a);
+}
+
+static bool running_in_emulator(void)
+{
+    s32 fd = IOS_Open("/dev/dolphin", 0);
+    if (fd < 0) return false;
+    IOS_Close(fd);
+    return true;
+}
+
+void app_quit(app *a)
+{
+    bool emulator = running_in_emulator();
+    pl_close();
+    ASND_End();
+    WPAD_Shutdown();
+    st_release(&a->drive);
+    GRRLIB_Exit();
+    switch (quit_route_for(quit_stub_present((const unsigned char *)0x80001800), emulator)) {
+    case QUIT_POWER_OFF:
+        SYS_ResetSystem(SYS_POWEROFF, 0, 0);
+        break;
+    case QUIT_WII_MENU:
+        SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
+        break;
+    case QUIT_LOADER:
+        break;
+    }
+    exit(0);
 }
 
 static void append_issue_line(char *out, size_t out_size, const ctw_issue *iss)
@@ -114,7 +146,7 @@ int main(int argc, char **argv)
         in_poll();
         cur_update();
         g_app.now_ms += 16;
-        if (in_pressed(WPAD_BUTTON_HOME)) break;
+        if (in_pressed(WPAD_BUTTON_HOME)) app_quit(&g_app);
 
         switch (g_app.screen) {
         case SCR_ERROR:
@@ -135,7 +167,4 @@ int main(int argc, char **argv)
         cur_draw();
         GRRLIB_Render();
     }
-
-    GRRLIB_Exit();
-    exit(0);
 }

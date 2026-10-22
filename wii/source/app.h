@@ -28,5 +28,6 @@ typedef struct {
 
 void app_go(app *a, screen_id s);
 void app_fail(app *a, const char *title, const char *body);
+void app_quit(app *a) __attribute__((noreturn));
 
 #endif
