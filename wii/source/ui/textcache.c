@@ -16,21 +16,29 @@ static uint32_t hash_text(const char *s)
 static void release(tc_cache *c, tc_entry *e)
 {
     if (!e->used) return;
-    if (c->free_payload != NULL) c->free_payload(e->payload);
+    if (c->free_payload != NULL && e->payload != NULL) c->free_payload(e->payload);
     free(e->text);
     memset(e, 0, sizeof *e);
 }
 
 void tc_init(tc_cache *c, tc_free_fn free_payload)
 {
+    tc_init_capacity(c, free_payload, TC_CAPACITY);
+}
+
+void tc_init_capacity(tc_cache *c, tc_free_fn free_payload, size_t capacity)
+{
     memset(c, 0, sizeof *c);
     c->free_payload = free_payload;
+    if (capacity < 1) capacity = 1;
+    if (capacity > TC_CAPACITY) capacity = TC_CAPACITY;
+    c->capacity = capacity;
 }
 
 tc_entry *tc_find(tc_cache *c, int font, int px, uint32_t rgba, const char *text)
 {
     uint32_t h = hash_text(text);
-    for (size_t i = 0; i < TC_CAPACITY; i++) {
+    for (size_t i = 0; i < c->capacity; i++) {
         tc_entry *e = &c->entries[i];
         if (!e->used || e->hash != h || e->font != font || e->px != px || e->rgba != rgba) continue;
         if (strcmp(e->text, text) != 0) continue;
@@ -48,7 +56,7 @@ tc_entry *tc_insert(tc_cache *c, int font, int px, uint32_t rgba, const char *te
     memcpy(copy, text, len + 1);
 
     tc_entry *slot = NULL;
-    for (size_t i = 0; i < TC_CAPACITY; i++) {
+    for (size_t i = 0; i < c->capacity; i++) {
         tc_entry *e = &c->entries[i];
         if (!e->used) {
             slot = e;
@@ -71,6 +79,6 @@ tc_entry *tc_insert(tc_cache *c, int font, int px, uint32_t rgba, const char *te
 
 void tc_clear(tc_cache *c)
 {
-    for (size_t i = 0; i < TC_CAPACITY; i++) release(c, &c->entries[i]);
+    for (size_t i = 0; i < c->capacity; i++) release(c, &c->entries[i]);
     c->tick = 0;
 }

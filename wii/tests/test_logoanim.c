@@ -119,6 +119,17 @@ TEST logo_skip_jumps_to_end(void)
     PASS();
 }
 
+TEST logo_guide_panels_slide_in_1400_to_2000(void)
+{
+    ASSERT_IN_RANGE(0.0f, logo_frame_at(0, false, 256.0f, 64.0f).panels, EPS);
+    ASSERT_IN_RANGE(0.0f, logo_frame_at(1400, false, 256.0f, 64.0f).panels, EPS);
+    ASSERT_IN_RANGE(0.875f, logo_frame_at(1700, false, 256.0f, 64.0f).panels, EPS);
+    ASSERT_IN_RANGE(1.0f, logo_frame_at(2000, false, 256.0f, 64.0f).panels, EPS);
+    ASSERT_IN_RANGE(1.0f, logo_frame_at(100, true, 256.0f, 64.0f).panels, EPS);
+    ASSERT_IN_RANGE(40.0f, LOGO_PANEL_SLIDE_PX, EPS);
+    PASS();
+}
+
 SUITE(logoanim_suite)
 {
     RUN_TEST(logo_header_rect_fits_header);
@@ -130,4 +141,5 @@ SUITE(logoanim_suite)
     RUN_TEST(logo_hands_off_at_2000_in_header);
     RUN_TEST(logo_phase_boundaries);
     RUN_TEST(logo_skip_jumps_to_end);
+    RUN_TEST(logo_guide_panels_slide_in_1400_to_2000);
 }

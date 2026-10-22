@@ -3,12 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "theme.h"
 #include "text.h"
 #include "../aspect.h"
 
+#define MASK_SIDE 32
+
 static float pixel_x = 1.0f;
+static GRRLIB_texImg *corner_mask;
 
 void ui_set_widescreen(bool widescreen)
 {
@@ -32,6 +36,25 @@ void ui_stripes(void)
     }
 }
 
+void ui_stripes_rect(float x, float y, float w, float h, float alpha)
+{
+    if (alpha <= 0.0f) return;
+    if (alpha > 1.0f) alpha = 1.0f;
+    uint8_t a = (uint8_t)(alpha * 255.0f);
+    int y0 = (int)y;
+    int y1 = (int)(y + h + 0.999f);
+    if (y0 < 0) y0 = 0;
+    if (y1 > 480) y1 = 480;
+    int row = y0 - y0 % THEME_STRIPE_PX;
+    while (row < y1) {
+        uint32_t color = (row / THEME_STRIPE_PX) % 2 == 0 ? THEME_STRIPE_A : THEME_STRIPE_B;
+        int top = row < y0 ? y0 : row;
+        int bottom = row + THEME_STRIPE_PX > y1 ? y1 : row + THEME_STRIPE_PX;
+        GRRLIB_Rectangle(x, (float)top, w, (float)(bottom - top), (color & 0xFFFFFF00u) | a, 1);
+        row += THEME_STRIPE_PX;
+    }
+}
+
 static void rounded_rect(float x, float y, float w, float h, float radius, uint32_t color)
 {
     if (radius < 0.0f) radius = 0.0f;
@@ -49,6 +72,53 @@ static void rounded_rect(float x, float y, float w, float h, float radius, uint3
         GRRLIB_Ellipse(x + rx, y + h - ry, rx, ry, color, 1);
         GRRLIB_Ellipse(x + w - rx, y + h - ry, rx, ry, color, 1);
     }
+}
+
+void ui_rounded(float x, float y, float w, float h, float radius, uint32_t color)
+{
+    rounded_rect(x, y, w, h, radius, color);
+}
+
+static void ensure_corner_mask(void)
+{
+    if (corner_mask != NULL) return;
+    corner_mask = GRRLIB_CreateEmptyTexture(MASK_SIDE, MASK_SIDE);
+    if (corner_mask == NULL) return;
+    for (int py = 0; py < MASK_SIDE; py++) {
+        for (int px = 0; px < MASK_SIDE; px++) {
+            float dx = (float)MASK_SIDE - ((float)px + 0.5f);
+            float dy = (float)MASK_SIDE - ((float)py + 0.5f);
+            float edge = sqrtf(dx * dx + dy * dy) - (float)MASK_SIDE + 0.5f;
+            float cover = edge < 0.0f ? 0.0f : (edge > 1.0f ? 1.0f : edge);
+            GRRLIB_SetPixelTotexImg(px, py, corner_mask, 0xFFFFFF00u | (uint32_t)(cover * 255.0f));
+        }
+    }
+    GRRLIB_FlushTex(corner_mask);
+}
+
+void ui_corner_mask(float x, float y, float w, float h, float radius, uint32_t color)
+{
+    if (radius <= 0.0f) return;
+    ensure_corner_mask();
+    if (corner_mask == NULL) return;
+    float rx = radius * pixel_x, ry = radius;
+    if (rx > w / 2.0f) rx = w / 2.0f;
+    if (ry > h / 2.0f) ry = h / 2.0f;
+    float sx = rx / (float)MASK_SIDE, sy = ry / (float)MASK_SIDE;
+    GRRLIB_DrawImg(x, y, corner_mask, 0.0f, sx, sy, color);
+    GRRLIB_DrawImg(x + w, y, corner_mask, 0.0f, -sx, sy, color);
+    GRRLIB_DrawImg(x, y + h, corner_mask, 0.0f, sx, -sy, color);
+    GRRLIB_DrawImg(x + w, y + h, corner_mask, 0.0f, -sx, -sy, color);
+}
+
+void ui_bar(float x, float y, float w, float h, float fraction)
+{
+    if (w <= 0.0f) return;
+    if (fraction < 0.0f) fraction = 0.0f;
+    if (fraction > 1.0f) fraction = 1.0f;
+    rounded_rect(x, y, w, h, h / 2.0f, THEME_BAR_TRACK);
+    float fw = w * fraction;
+    if (fw >= h * pixel_x) rounded_rect(x, y, fw, h, h / 2.0f, THEME_ACCENT);
 }
 
 void ui_panel(float x, float y, float w, float h, float radius, uint32_t fill, uint32_t border)

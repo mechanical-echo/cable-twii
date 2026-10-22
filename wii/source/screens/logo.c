@@ -7,6 +7,7 @@
 #include "../input.h"
 #include "../logoanim.h"
 #include "../ui/draw.h"
+#include "guide.h"
 
 #define SHINE_SLOPE 0.5f
 #define SHINE_SLICE 2.0f
@@ -65,7 +66,7 @@ void logo_update(app *a)
 {
     if (in_pressed(WPAD_BUTTON_A)) skipped = true;
     frame = logo_frame_at(a->now_ms - start_ms, skipped, logo_w(), logo_h());
-    if (frame.done) app_go(a, a->after_logo);
+    if (frame.done) app_go(a, SCR_GUIDE);
 }
 
 static void shine_band(float center, float width, float alpha)
@@ -100,8 +101,8 @@ static void draw_shine(void)
 
 void logo_draw(app *a)
 {
-    (void)a;
     ui_stripes();
+    if (frame.panels > 0.0f) guide_draw_intro(a, frame.panels);
     ui_image(tex_logo, frame.x, frame.y, frame.w, frame.h, frame.alpha);
     draw_shine();
 }

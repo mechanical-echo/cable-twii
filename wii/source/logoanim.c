@@ -42,6 +42,7 @@ logo_frame logo_frame_at(uint32_t t_ms, bool skipped, float img_w, float img_h)
         f.scale = img_w > 0.0f ? hw / img_w : 0.0f;
         f.alpha = 1.0f;
         f.shine = 1.0f;
+        f.panels = 1.0f;
         f.done = true;
         return f;
     }
@@ -57,6 +58,7 @@ logo_frame logo_frame_at(uint32_t t_ms, bool skipped, float img_w, float img_h)
     f.scale = img_w > 0.0f ? f.w / img_w : 0.0f;
     f.alpha = intro;
     f.shine = phase(t_ms, LOGO_INTRO_END_MS, LOGO_SHINE_END_MS);
+    f.panels = move;
     f.done = false;
     return f;
 }

@@ -14,17 +14,21 @@
 #include "ui/text.h"
 #include "ui/cursor.h"
 #include "ui/sfx.h"
+#include "ui/icons.h"
 #include "media/player.h"
 #include "screens/error.h"
 #include "screens/full.h"
+#include "screens/guide.h"
 #include "screens/logo.h"
 
 static app g_app;
 
 void app_go(app *a, screen_id s)
 {
+    a->prev_screen = a->screen;
     a->screen = s;
     if (s == SCR_FULL) full_enter(a);
+    if (s == SCR_GUIDE) guide_enter(a);
     if (s == SCR_LOGO) logo_enter(a);
 }
 
@@ -111,20 +115,9 @@ static void boot(app *a)
 
     tn_init(&a->tuner, a->db);
 
-    if (ctw_db_channel_count(a->db) > 0) {
-        a->current_channel = ctw_db_channel_at(a->db, 0)->number;
-        a->after_logo = SCR_FULL;
-    } else {
-        a->after_logo = SCR_GUIDE;
-    }
+    if (ctw_db_channel_count(a->db) > 0) a->current_channel = ctw_db_channel_at(a->db, 0)->number;
+    guide_prepare(a);
     app_go(a, SCR_LOGO);
-}
-
-static void guide_placeholder_draw(app *a)
-{
-    (void)a;
-    ui_stripes();
-    logo_draw_header();
 }
 
 int main(int argc, char **argv)
@@ -137,6 +130,7 @@ int main(int argc, char **argv)
     ui_text_init();
     cur_init();
     sfx_init();
+    icons_init();
 
     memset(&g_app, 0, sizeof g_app);
     g_app.widescreen = CONF_GetAspectRatio() == CONF_ASPECT_16_9;
@@ -165,7 +159,8 @@ int main(int argc, char **argv)
             break;
         case SCR_GUIDE:
         default:
-            guide_placeholder_draw(&g_app);
+            guide_update(&g_app);
+            guide_draw(&g_app);
             break;
         }
 

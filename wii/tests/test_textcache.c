@@ -74,10 +74,45 @@ TEST cache_capacity_is_256(void)
     PASS();
 }
 
+TEST cache_capacity_bounds_icon_cache(void)
+{
+    reset_freed();
+    tc_init_capacity(&cache, record_free, 3);
+    tc_insert(&cache, 0, 0, 0, "a.png", (void *)(size_t)1);
+    tc_insert(&cache, 0, 0, 0, "b.png", NULL);
+    tc_insert(&cache, 0, 0, 0, "c.png", (void *)(size_t)3);
+    ASSERT(tc_find(&cache, 0, 0, 0, "a.png") != NULL);
+    tc_insert(&cache, 0, 0, 0, "d.png", (void *)(size_t)4);
+    ASSERT_EQ(0u, freed_count);
+    ASSERT(tc_find(&cache, 0, 0, 0, "b.png") == NULL);
+    tc_insert(&cache, 0, 0, 0, "e.png", (void *)(size_t)5);
+    ASSERT_EQ(1u, freed_count);
+    ASSERT_EQ(3, freed[0]);
+    ASSERT(tc_find(&cache, 0, 0, 0, "a.png") != NULL);
+    ASSERT(tc_find(&cache, 0, 0, 0, "d.png") != NULL);
+    ASSERT(tc_find(&cache, 0, 0, 0, "e.png") != NULL);
+    tc_clear(&cache);
+    ASSERT_EQ(4u, freed_count);
+    PASS();
+}
+
+TEST cache_capacity_is_clamped(void)
+{
+    tc_init_capacity(&cache, record_free, 0);
+    ASSERT_EQ(1u, cache.capacity);
+    tc_init_capacity(&cache, record_free, TC_CAPACITY + 10);
+    ASSERT_EQ((size_t)TC_CAPACITY, cache.capacity);
+    tc_init(&cache, record_free);
+    ASSERT_EQ((size_t)TC_CAPACITY, cache.capacity);
+    PASS();
+}
+
 SUITE(textcache_suite)
 {
     RUN_TEST(cache_miss_then_hit);
     RUN_TEST(cache_key_includes_font_size_colour);
     RUN_TEST(cache_evicts_least_recently_used);
     RUN_TEST(cache_capacity_is_256);
+    RUN_TEST(cache_capacity_bounds_icon_cache);
+    RUN_TEST(cache_capacity_is_clamped);
 }

@@ -47,10 +47,8 @@ Known gaps, recorded and not fixed yet:
 - The video fit uses the coded frame size, so Studio's 16-pixel padding (640×368 for a 640×360 picture) leaves a few black pixels at the edges of a 16:9 file on a 16:9 TV.
 
 Known, deliberate deviations from the plan text:
-- `full_update`'s B button does nothing yet — the guide screen doesn't exist (Task 7). Task 7 points it at `SCR_GUIDE`.
-- `boot()` in `main.c` loads everything, plays the logo, and at 2.0 s hands off to `app.after_logo`: `SCR_FULL` (tunes the first channel then) when channels exist, otherwise `SCR_GUIDE`, which is still a placeholder (stripes + logo in its header rect). Task 7 should make the logo always hand off to the guide.
-- Task 6's guide panels sliding in from the left/right by 40 px and fading in during 1.4–2.0 s are deferred to Task 7 (the guide doesn't exist yet); the logo's move to `logo_header_rect` is done.
 - Task 2's temporary demo (panel, hot pill, rumble, ellipsized string) was never added to `main.c`; the UI kit was only checked through the screens that use it.
+- Task 7: tuning and playback (`play_airing`, the per-frame re-tune, the early-end drive probe and the disconnect dialog) moved out of `full.c` into `source/live.c`, shared by the guide preview and fullscreen, so A expands the open stream and B returns to the guide without reopening it. `tune()` in `full.c` is `live_tune` plus the channel sound and chip. Channel and show icons load lazily into a 24-entry LRU texture cache (`ui/icons.c` on top of `tc_init_capacity`), at most two PNG loads per frame, with a grey rounded placeholder for missing ones. The preview debounce is `preview.c` (`pv_update`), the layout is `guide_layout.c`, the row and info strings are `guide_text.c`, all host-tested. `ui_image` now draws from the top-left corner: GRRLIB textures pivot on their top-left handle, so the old centred maths drew every scaled image (including the header logo) shifted up and left.
 
 **This environment is Windows, not macOS** — the plan (and roadmap Task 0) assume a Mac. What actually got installed/built here, for whoever picks this up next:
 - devkitPro via its Windows GUI installer (`devkitProUpdater`) — **requires a human to click through it (UAC + component picker)**, can't be scripted. Installed to `C:\devkitPro`.
@@ -394,7 +392,7 @@ git add wii && git commit -m "wip | wii logo animation"
 - Info panel: channel name (blue ExtraBold 18 px), show icon 48×48 + show name bold, episode `SxxEyy · Title`, description (up to 3 lines, ellipsized), times and progress.
 - Input: pointer hover highlights; D-pad up/down `gm_step` and `gm_scroll_to`; pointer within 24 px of the list's top/bottom edge scrolls 6 px per frame; A on a channel → `SFX_SELECT`, expand the preview rect to fullscreen over 350 ms with ease-out, then `app_go(a, SCR_FULL)` without reopening the stream; B in fullscreen returns here with the reverse animation.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST gm_groups_by_category(void) { /* channels 1 Kids, 2 Music, 3 Kids → rows: H Kids, C1, C3, H Music, C2 */ }
@@ -403,11 +401,11 @@ TEST gm_step_skips_headers(void) { /* from C3 (index 2) +1 → index 4 (C2); fro
 TEST gm_scroll_to_visible(void)  { /* view_h 200, row at y 250 h 64 → scroll 114 */ }
 ```
 
-- [ ] **Step 2: Run** `make -C wii/tests` → FAIL.
+- [x] **Step 2: Run** `make -C wii/tests` → FAIL.
 
-- [ ] **Step 3: Implement**; remove the temporary boot-to-fullscreen; boot flow becomes logo → guide.
+- [x] **Step 3: Implement**; remove the temporary boot-to-fullscreen; boot flow becomes logo → guide.
 
-- [ ] **Step 4: Verify** in Dolphin and on the Wii against the approved mockup: layout matches; hover sweeps don't thrash the preview; 60 fps with the preview playing (debug overlay); 3 channels + headers scroll correctly when the TV is 4:3.
+- [ ] **Step 4: Verify** in Dolphin and on the Wii against the approved mockup: layout matches; hover sweeps don't thrash the preview; 60 fps with the preview playing (debug overlay); 3 channels + headers scroll correctly when the TV is 4:3. (Dolphin only, with a throwaway build that embeds a 9-channel library and scripts the D-pad, A and B: the layout matches the mockup on a 16:9 Dolphin, the panels slide in under the moving logo, D-pad scrolling and the A expand / B return work. No video files, so the preview stayed black; pointer hover, the 60 fps check (no debug overlay yet) and 4:3 were not seen. Real Wii pending, Task 11.)
 
 - [ ] **Step 5: Commit**
 
