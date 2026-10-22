@@ -23,17 +23,16 @@ static bool have_last_cursor;
 
 static void play_airing(app *a, const ctw_airing *air, uint32_t offset_ms)
 {
-    (void)a;
     if (air == NULL || air->kind == CTW_AIR_UPNEXT) {
         pl_close();
-        current_start_ms = air != NULL ? air->start_ms : -1;
+        current_start_ms = air != NULL ? tn_airing_start(&a->tuner, a->current_channel, air) : -1;
         return;
     }
     char path[320];
     const char *rel = air->kind == CTW_AIR_AD ? air->ad->path : air->episode->path;
     snprintf(path, sizeof path, "%s/%s", a->root, rel);
     pl_open(path, offset_ms);
-    current_start_ms = air->start_ms;
+    current_start_ms = tn_airing_start(&a->tuner, a->current_channel, air);
 }
 
 void tune(app *a, int channel)
@@ -83,7 +82,7 @@ void full_update(app *a)
 
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, a->current_channel, a->today, a->ms_of_day, &offset);
-    if (air != NULL && air->start_ms != current_start_ms) {
+    if (air != NULL && tn_airing_start(&a->tuner, a->current_channel, air) != current_start_ms) {
         play_airing(a, air, offset);
     }
 }
@@ -95,14 +94,7 @@ void full_draw(app *a)
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, a->current_channel, a->today, a->ms_of_day, &offset);
     if (air != NULL && air->kind == CTW_AIR_UPNEXT) {
-        const ctw_lineup *lineup = NULL;
-        for (size_t i = 0; i < a->tuner.count; i++) {
-            if (a->tuner.entries[i].channel == a->current_channel) {
-                lineup = &a->tuner.entries[i].today;
-                break;
-            }
-        }
-        const ctw_airing *next = lineup != NULL ? ctw_lineup_next(lineup, air) : NULL;
+        const ctw_airing *next = tn_next(&a->tuner, a->current_channel, air);
         uint32_t remaining = tn_ms_remaining(air, offset);
         upnext_draw(a, air, next, remaining);
     }

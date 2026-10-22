@@ -77,3 +77,45 @@ uint32_t tn_ms_remaining(const ctw_airing *a, uint32_t offset_ms)
     if (a->duration_ms <= offset_ms) return 0;
     return a->duration_ms - offset_ms;
 }
+
+static int64_t days_from_civil(ctw_date d)
+{
+    int64_t y = d.year - (d.month <= 2 ? 1 : 0);
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int64_t yoe = y - era * 400;
+    int64_t mp = d.month > 2 ? d.month - 3 : d.month + 9;
+    int64_t doy = (153 * mp + 2) / 5 + d.day - 1;
+    int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+static bool in_lineup(const ctw_lineup *l, const ctw_airing *a)
+{
+    return l->items != NULL && a >= l->items && a < l->items + l->count;
+}
+
+const ctw_airing *tn_next(tuner *t, int channel, const ctw_airing *a)
+{
+    tuner_entry *e = find_entry(t, channel);
+    if (e == NULL || !e->valid || a == NULL) return NULL;
+    if (in_lineup(&e->today, a)) return ctw_lineup_next(&e->today, a);
+    if (!in_lineup(&e->yesterday, a)) return NULL;
+    const ctw_airing *n = ctw_lineup_next(&e->yesterday, a);
+    if (n != NULL) return n;
+    int64_t end = a->start_ms + (int64_t)a->duration_ms - (int64_t)CTW_DAY_MS;
+    if (end < 0 || end >= (int64_t)CTW_DAY_MS) return NULL;
+    return ctw_lineup_at(&e->today, &e->yesterday, (uint32_t)end, NULL);
+}
+
+int64_t tn_airing_start(const tuner *t, int channel, const ctw_airing *a)
+{
+    for (size_t i = 0; i < t->count; i++) {
+        const tuner_entry *e = &t->entries[i];
+        if (e->channel != channel || !e->valid || a == NULL) continue;
+        int64_t day = days_from_civil(e->day);
+        if (in_lineup(&e->yesterday, a)) day -= 1;
+        else if (!in_lineup(&e->today, a)) return -1;
+        return day * (int64_t)CTW_DAY_MS + a->start_ms;
+    }
+    return -1;
+}

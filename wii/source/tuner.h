@@ -22,6 +22,8 @@ typedef struct {
 void tn_init(tuner *t, const ctw_db *db);
 void tn_free(tuner *t);
 const ctw_airing *tn_current(tuner *t, int channel, ctw_date day, uint32_t ms_of_day, uint32_t *offset_ms);
+const ctw_airing *tn_next(tuner *t, int channel, const ctw_airing *a);
+int64_t tn_airing_start(const tuner *t, int channel, const ctw_airing *a);
 uint32_t tn_ms_remaining(const ctw_airing *a, uint32_t offset_ms);
 
 #endif
