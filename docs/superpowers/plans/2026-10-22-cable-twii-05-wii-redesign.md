@@ -238,4 +238,4 @@
 - [x] **Step 2: Build and run** the full host suite and `make -C wii`; Dolphin with an SD folder that has no `library.toml` → the dialog.
 - [x] **Step 3: Docs**: CHANGELOG entry under the next version ("Wii app redesigned at system detail: …"), STATUS line, checklist items.
 - [x] **Step 4: Commit** `wip | error dialog restyle, redesign notes and checklist items`.
-- [ ] **Step 5: Re-sync the Design System artifact** per the memory note (tokens from `theme.h`), republish changed files only.
+- [x] **Step 5: Re-sync the Design System artifact** per the memory note (tokens from `theme.h`), republish changed files only.

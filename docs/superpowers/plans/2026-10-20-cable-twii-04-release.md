@@ -14,8 +14,8 @@
 
 - Done: Task 1 Steps 1 and 3 (`make dist` and `CHANGELOG.md`), Task 2 Steps 1 and 3 (`docs/USER-GUIDE.md`, merged).
 - Waiting on the owner: Task 1 Step 2 (check the package on a real SD card and the Homebrew Channel) and Task 2 Step 2 (follow the guide from a fresh flash drive).
-- Blocked: Task 3 (forwarder research) needs the owner's approval of the research downloads.
-- Not started: Tasks 4-6 (forwarder build, safe install on the Wii, final acceptance and the v1.0.0 tag).
+- Done: Task 3 (forwarder research), recorded in `docs/decisions/0003-forwarder.md`: our own forwarder source after the EasyRPG design, IOS58, title ID `CTWA`, libWiiPy/WiiPy packing, our own banner builder.
+- Not started: Tasks 4-6 (forwarder build, safe install on the Wii, final acceptance and the v1.0.0 tag). Task 4 can start on the Mac; the forwarder prototype from Task 3 is at `.tooling/forwarder-proto/`.
 
 ## Global Constraints
 
@@ -80,15 +80,15 @@ git add docs/USER-GUIDE.md && git commit -m "wip | owner guide"
 **Files:**
 - Create: `docs/decisions/0003-forwarder.md`
 
-- [ ] **Step 1: Ask the owner to approve the research downloads** (forwarder source code and WAD tools, each named with source and size). Wait for a yes. (needs owner approval of downloads)
+- [x] **Step 1: Ask the owner to approve the research downloads** (forwarder source code and WAD tools, each named with source and size). Wait for a yes. (approved 2026-10-22)
 
-- [ ] **Step 2: Evaluate forwarder bases** against: open source and buildable with devkitPPC on macOS; loads a configurable path from SD then USB; works under the IOS the Homebrew Channel uses; returns to the Wii Menu with a message when the file is missing. Evaluate WAD packing on macOS: building a channel WAD from a DOL + `opening.bnr` + title ID, fakesigned, using maintained tooling (start with libWiiPy/WiiPy). (blocked on Task 3 Step 1)
+- [x] **Step 2: Evaluate forwarder bases** against: open source and buildable with devkitPPC on macOS; loads a configurable path from SD then USB; works under the IOS the Homebrew Channel uses; returns to the Wii Menu with a message when the file is missing. Evaluate WAD packing on macOS: building a channel WAD from a DOL + `opening.bnr` + title ID, fakesigned, using maintained tooling (start with libWiiPy/WiiPy). (done 2026-10-22)
 
-- [ ] **Step 3: Pick a title ID** (4 characters, e.g. `CTWA`), and check it against public title databases (e.g. WiiBrew's title list and GameTDB) so it collides with no known channel or game. Record the search results. (blocked on Task 3 Step 1)
+- [x] **Step 3: Pick a title ID** (4 characters, e.g. `CTWA`), and check it against public title databases (e.g. WiiBrew's title list and GameTDB) so it collides with no known channel or game. Record the search results. (done 2026-10-22)
 
-- [ ] **Step 4: Write 0003** with the chosen forwarder, tool versions, build commands, title ID, and the exact path the forwarder loads (`apps/cable-twii/boot.dol`). (blocked on Task 3 Step 1)
+- [x] **Step 4: Write 0003** with the chosen forwarder, tool versions, build commands, title ID, and the exact path the forwarder loads (`apps/cable-twii/boot.dol`). (done 2026-10-22)
 
-- [ ] **Step 5: Commit** (blocked on Task 3 Step 1)
+- [x] **Step 5: Commit** (done 2026-10-22)
 
 ```bash
 git add docs/decisions/0003-forwarder.md && git commit -m "wip | forwarder decision"
