@@ -16,7 +16,8 @@
 - Waiting on the owner: Task 1 Step 2 (check the package on a real SD card and the Homebrew Channel) and Task 2 Step 2 (follow the guide from a fresh flash drive).
 - Done: Task 3 (forwarder research), recorded in `docs/decisions/0003-forwarder.md`: our own forwarder source after the EasyRPG design, IOS58, title ID `CTWA`, libWiiPy/WiiPy packing, our own banner builder.
 - In progress: Task 4 (forwarder build), merged to master on 2026-10-22: `forwarder/` with host tests, banner assets, `tools/build_banner.py`, `tools/build_wad.py` and `tools/build-wad.sh` are done; Step 3 (Dolphin): the channel starts the app and shows the missing-file message (checked 2026-10-22); the banner, icon and sound check waits for a Wii Menu in Dolphin (the owner's NAND backup imported).
-- Not started: Tasks 5-6 (safe install on the Wii, final acceptance and the v1.0.0 tag).
+- Done: Task 5 Step 1 (`docs/INSTALL-CHANNEL.md`).
+- Not started: Task 5 Steps 2-5 and Task 6 (the owner's checks and install, final acceptance and the v1.0.0 tag).
 
 ## Global Constraints
 
@@ -128,12 +129,12 @@ git add forwarder tools/build-wad.sh && git commit -m "wip | forwarder channel b
 **Files:**
 - Create: `docs/INSTALL-CHANNEL.md`
 
-- [ ] **Step 1: Write the install document** with these checks, each with how to confirm it: (not started)
+- [x] **Step 1: Write the install document** with these checks, each with how to confirm it: (done 2026-10-22)
   1. BootMii NAND backup made, `nand.bin` and `keys.bin` copied to the Mac, `nand.bin` about 528 MB.
   2. Priiloader installed; holding Reset while turning the Wii on opens Priiloader.
   3. The WAD manager the owner already uses is ready on the SD card.
   4. The WAD's title ID matches 0003.
-  Then installing the WAD with the WAD manager, and how to uninstall it (WAD manager uninstall, or Data Management → Channels).
+  Then installing the WAD with the WAD manager, and how to uninstall it (WAD manager uninstall, or Data Management → Channels). (done 2026-10-22: `docs/INSTALL-CHANNEL.md`, with the IOS58 check, the Priiloader rescue path and the USB limit from 0003)
 
 - [ ] **Step 2: Owner completes checks 1–4** and confirms each in chat before installing. (not started)
 

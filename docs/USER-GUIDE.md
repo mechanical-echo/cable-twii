@@ -120,6 +120,8 @@ When you finish, go to the **Drive** page and click **Done — safe to eject**.
 
 If your shows are on the SD card itself, the same card can hold both `apps/cable-twii/` (the app) and `cable-twii/` (the shows, set up by Studio).
 
+To start cable-twii straight from the Wii Menu instead, there is an optional channel; see `docs/INSTALL-CHANNEL.md`. It has its own safety checks, so read that guide fully before installing anything.
+
 ## 11. Which drive and USB port
 
 This part is provisional. We have not yet tested two drives at once on a real Wii.
