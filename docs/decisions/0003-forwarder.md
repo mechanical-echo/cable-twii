@@ -1,6 +1,6 @@
 # 0003: Forwarder channel
 
-Status: **Accepted** for the build. The Dolphin check (release Task 4) and the real-Wii install (Task 5) can still send it back here.
+Status: **Accepted** and built (release Task 4, branch `forwarder`, 2026-10-22). The Dolphin check (Task 4 Step 3) and the real-Wii install (Task 5) can still send it back here.
 
 ## Context
 
@@ -43,7 +43,7 @@ Our own source in `forwarder/` (release Task 4), written for libogc 3.2.1 after 
 
 No arguments are passed. cable-twii's `main` ignores `argc` and `argv` and finds its data root by scanning the devices (decision 0002).
 
-Build: the Wii Makefile pattern from `wii/Makefile` (`include $(DEVKITPPC)/wii_rules`) with `LIBS := -lfat -logc -lm` and `LDFLAGS += -Wl,--section-start,.init=0x81230000`. A prototype of exactly this built on 2026-10-22: `forwarder.dol` is 310 KB, the entry point is 0x81230000, the bss ends at 0x812A7280 and `__Arena1Lo` follows it, so the forwarder's heap and stack sit in the free top of MEM1 and never touch the region the app is copied into. The prototype is kept at `.tooling/forwarder-proto/` (not committed); Task 4 moves it to `forwarder/` and adds host tests for the header check.
+Build: the Wii Makefile pattern from `wii/Makefile` (`include $(DEVKITPPC)/wii_rules`) with `LIBS := -lfat -logc -lm` and `LDFLAGS += -Wl,--section-start,.init=0x81230000`. A prototype of exactly this built on 2026-10-22: `forwarder.dol` is 310 KB, the entry point is 0x81230000, the bss ends at 0x812A7280 and `__Arena1Lo` follows it, so the forwarder's heap and stack sit in the free top of MEM1 and never touch the region the app is copied into. The source lives in `forwarder/` (`make -C forwarder`, `APP_PATH` overridable); the header parsing and range check are in `forwarder/source/dol.c` with host tests in `forwarder/tests` (`make -C forwarder/tests test`).
 
 ### IOS
 
@@ -69,7 +69,7 @@ The dry run on the Mac proved:
 - libWiiPy embeds no certificate chain, and `dump_wad()` writes a WAD with an empty certificate section without complaint; libWiiPy itself then refuses to load that WAD back ("Unknown certificate in chain!"), and an installer needs the chain to check the title. The build script fetches the retail chain (the public certificates Root-CA00000001, CP00000004 and XS00000003, present in every WAD) once with `libWiiPy.title.nus.download_cert_chain()` and caches it under `.tooling/`.
 - A fakesigned WAD installs only through a WAD manager running under an IOS with the signature bug, which the owner's existing manager does. Once installed, the Wii Menu launches it like any channel.
 
-Build (Task 4): `tools/build-wad.sh` runs `make -C forwarder`, builds `opening.bnr` from `forwarder/banner/`, and assembles `dist/cable-twii-forwarder.wad` with a Python step on libWiiPy (title ID, IOS, both contents, fakesign).
+Build: `tools/build-wad.sh` runs `make -C forwarder`, generates the jingle and `opening.bnr` into `dist/forwarder/`, and assembles `dist/cable-twii-forwarder.wad` with `tools/build_wad.py` on libWiiPy (title ID, IOS, both contents, fakesign). The script refuses to run until `.tooling/cert-chain.bin` exists and prints the one-line fetch command for it. `tools/build_wad.py` refuses an empty chain, because libWiiPy would otherwise write a placeholder certificate section.
 
 ### Banner
 
@@ -77,7 +77,7 @@ Build (Task 4): `tools/build-wad.sh` runs `make -C forwarder`, builds `opening.b
 
 No maintained command-line tool builds the whole file. libWiiPy packs U8 archives, writes IMD5 headers and compresses LZ77; devkitPro's `gxtexconv` writes TPL textures; ffmpeg is on the Mac for the WAV. The layout and animation files must be written by our tool. benzin converts XML to BRLYT and BRLAN but its current source location and licence are unverified; libWiiSharp (the engine behind CustomizeMii) is GPLv3 .NET, would need mono here, and its banner templates would end up inside our WAD.
 
-Decision: Task 4 writes `tools/build-banner.py` on libWiiPy with a minimal static layout (one picture pane with the 608 by 456 banner texture, the 128 by 96 icon the same way), a minimal animation file, TPL through `gxtexconv` and the sound through ffmpeg, and verifies it on Dolphin's Wii Menu (Task 4 Step 3). If the hand-written layout does not render, the fallback is to author the layout with benzin and keep its output in `forwarder/banner/`.
+Decision, as built in Task 4: `tools/build_banner.py` (standard library plus Pillow for reading the PNGs, no libWiiPy) writes every part itself: RGB565 TPL textures (608 by 456 banner, 128 by 96 icon, both from `forwarder/banner/*.png`), a minimal layout per file (one picture pane, one material with one texture map, a root pane and a root group), a single `banner.brlan` that fades the pane in over 30 frames and a single `icon.brlan` that holds it, IMD5 wrappers, uncompressed U8 archives (LZ77 is optional and skipped) and the IMET header with "cable-twii" in all ten languages. The sound is a 2.4 s original four-note jingle from `tools/make_jingle.py`, stored as 16-bit stereo 32 kHz WAV inside `sound.bin`. Unit tests check every structure (`tools/tests/test_build_banner.py`); rendering is verified on Dolphin's Wii Menu in Task 4 Step 3, which needs a Wii Menu in Dolphin (the owner's NAND backup). If the hand-written layout does not render, the fallback is to author the layout with benzin and keep its output in `forwarder/banner/`.
 
 ## Open question
 
