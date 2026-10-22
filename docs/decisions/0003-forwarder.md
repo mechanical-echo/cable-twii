@@ -1,6 +1,6 @@
 # 0003: Forwarder channel
 
-Status: **Accepted** and built (release Task 4, branch `forwarder`, 2026-10-22). Checked in Dolphin on 2026-10-22: the channel starts the app from the SD card and shows the missing-file message. The banner has not been seen yet (no Wii Menu in Dolphin), and the real-Wii install (Task 5) can still send it back here.
+Status: **Accepted** and built (release Task 4, merged to master on 2026-10-22). Checked in Dolphin on 2026-10-22: the channel starts the app from the SD card and shows the missing-file message. The banner has not been seen yet (no Wii Menu in Dolphin), and the real-Wii install (Task 5) can still send it back here.
 
 ## Context
 

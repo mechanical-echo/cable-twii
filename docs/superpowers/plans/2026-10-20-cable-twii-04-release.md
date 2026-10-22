@@ -15,7 +15,7 @@
 - Done: Task 1 Steps 1 and 3 (`make dist` and `CHANGELOG.md`), Task 2 Steps 1 and 3 (`docs/USER-GUIDE.md`, merged).
 - Waiting on the owner: Task 1 Step 2 (check the package on a real SD card and the Homebrew Channel) and Task 2 Step 2 (follow the guide from a fresh flash drive).
 - Done: Task 3 (forwarder research), recorded in `docs/decisions/0003-forwarder.md`: our own forwarder source after the EasyRPG design, IOS58, title ID `CTWA`, libWiiPy/WiiPy packing, our own banner builder.
-- In progress: Task 4 (forwarder build) on branch `forwarder`: `forwarder/` with host tests, banner assets, `tools/build_banner.py`, `tools/build_wad.py` and `tools/build-wad.sh` are done; Step 3 (Dolphin): the channel starts the app and shows the missing-file message (checked 2026-10-22); the banner, icon and sound check waits for a Wii Menu in Dolphin (the owner's NAND backup imported).
+- In progress: Task 4 (forwarder build), merged to master on 2026-10-22: `forwarder/` with host tests, banner assets, `tools/build_banner.py`, `tools/build_wad.py` and `tools/build-wad.sh` are done; Step 3 (Dolphin): the channel starts the app and shows the missing-file message (checked 2026-10-22); the banner, icon and sound check waits for a Wii Menu in Dolphin (the owner's NAND backup imported).
 - Not started: Tasks 5-6 (safe install on the Wii, final acceptance and the v1.0.0 tag).
 
 ## Global Constraints
