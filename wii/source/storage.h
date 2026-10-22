@@ -15,5 +15,6 @@ typedef struct {
 } st_volume;
 
 int st_find_root(char *out, size_t out_size, st_volume *vol);
+bool st_drive_present(const st_volume *vol);
 
 #endif

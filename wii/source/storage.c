@@ -320,3 +320,15 @@ int st_find_root(char *out, size_t out_size, st_volume *vol)
     vol->start_sector = parts[chosen].start;
     return 0;
 }
+
+bool st_drive_present(const st_volume *vol)
+{
+    if (!vol->found || vol->disk < 0 || vol->disk >= disk_count) return false;
+    disk *k = &disks[vol->disk];
+    if (!k->iface.isInserted()) return false;
+    u8 *buf = (u8 *)memalign(32, k->sector_size);
+    if (buf == NULL) return true;
+    bool ok = k->iface.readSectors(vol->start_sector, 1, buf);
+    free(buf);
+    return ok;
+}

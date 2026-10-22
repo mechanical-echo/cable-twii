@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <grrlib.h>
 #include <ogc/lwp.h>
 #include <ogc/mutex.h>
@@ -15,6 +16,7 @@
 
 #include "yuvgx.h"
 #include "audio.h"
+#include "playback.h"
 
 #define SLOT_FREE 0
 #define SLOT_READY 1
@@ -31,6 +33,8 @@ typedef struct {
 } slot_meta;
 
 static plm_t *plm;
+static FILE *fh;
+static char cur_path[320];
 static int has_audio_s;
 static int samplerate_s;
 static double duration_s;
@@ -102,12 +106,21 @@ static void flush_queue(void)
     LWP_MutexUnlock(q_lock);
 }
 
+static void on_stream_end(void)
+{
+    if (status == PL_ERROR) return;
+    struct stat st;
+    bool path_ok = stat(cur_path, &st) == 0;
+    if (pb_classify_end(ferror(fh) != 0, path_ok) == PB_END_ERROR) status = PL_ERROR;
+}
+
 static void prefill_audio(void)
 {
     while (has_audio_s && !audio_eof && au_ring_fill() < AUDIO_LEAD_SAMPLES) {
         plm_samples_t *s = plm_decode_audio(plm);
         if (s == NULL) {
             audio_eof = 1;
+            on_stream_end();
             break;
         }
         au_push(s->interleaved, s->count, s->time);
@@ -134,13 +147,18 @@ static void do_seek(void)
     } else {
         au_go();
     }
-    status = PL_PLAYING;
+    if (ferror(fh)) status = PL_ERROR;
+    if (status != PL_ERROR) status = PL_PLAYING;
 }
 
 static void *decode_thread(void *arg)
 {
     (void)arg;
     while (!dec_quit) {
+        if (status == PL_ERROR) {
+            usleep(10000);
+            continue;
+        }
         if (seek_req) {
             do_seek();
             continue;
@@ -152,6 +170,7 @@ static void *decode_thread(void *arg)
                 au_push(s->interleaved, s->count, s->time);
             } else {
                 audio_eof = 1;
+                on_stream_end();
             }
             did = 1;
         } else if (!video_eof && slots[q_w].state == SLOT_FREE) {
@@ -160,6 +179,7 @@ static void *decode_thread(void *arg)
                 push_frame(f);
             } else {
                 video_eof = 1;
+                on_stream_end();
             }
             did = 1;
         }
@@ -172,10 +192,23 @@ int pl_open(const char *path, uint32_t offset_ms)
 {
     pl_close();
 
-    plm = plm_create_with_filename(path);
-    if (plm == NULL || !plm_has_headers(plm)) {
-        if (plm != NULL) plm_destroy(plm);
+    snprintf(cur_path, sizeof cur_path, "%s", path);
+    fh = fopen(path, "rb");
+    if (fh == NULL) {
+        status = PL_ERROR;
+        return -1;
+    }
+    plm = plm_create_with_file(fh, 1);
+    if (plm == NULL) {
+        fclose(fh);
+        fh = NULL;
+        status = PL_ERROR;
+        return -1;
+    }
+    if (!plm_has_headers(plm)) {
+        plm_destroy(plm);
         plm = NULL;
+        fh = NULL;
         status = PL_ERROR;
         return -1;
     }
@@ -189,6 +222,7 @@ int pl_open(const char *path, uint32_t offset_ms)
     if (yg_init(vid_w, vid_h) != 0) {
         plm_destroy(plm);
         plm = NULL;
+        fh = NULL;
         status = PL_ERROR;
         return -1;
     }
@@ -220,12 +254,16 @@ int pl_open(const char *path, uint32_t offset_ms)
 
 void pl_close(void)
 {
-    if (plm == NULL) return;
+    if (plm == NULL) {
+        status = PL_IDLE;
+        return;
+    }
     dec_quit = 1;
     LWP_JoinThread(dec_thread, NULL);
     yg_free();
     plm_destroy(plm);
     plm = NULL;
+    fh = NULL;
     au_reset();
     status = PL_IDLE;
 }
@@ -255,7 +293,7 @@ int pl_video_size(int *w, int *h)
 
 void pl_draw(float x, float y, float w, float h, float alpha)
 {
-    if (plm == NULL || status == PL_IDLE || status == PL_ENDED) {
+    if (plm == NULL || status == PL_IDLE || status == PL_ENDED || status == PL_ERROR) {
         GRRLIB_Rectangle(x, y, w, h, RGBA(0, 0, 0, 0xFF), 1);
         return;
     }
@@ -303,7 +341,7 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         GRRLIB_Rectangle(dx, dy, qw, qh, RGBA(0, 0, 0, fade), 1);
     }
 
-    if (video_eof && has_audio_s == 0 && !wall_running) status = PL_ENDED;
-    if (video_eof && audio_eof) status = PL_ENDED;
+    if (status != PL_ERROR && video_eof && has_audio_s == 0 && !wall_running) status = PL_ENDED;
+    if (status != PL_ERROR && video_eof && audio_eof) status = PL_ENDED;
     (void)duration_s;
 }

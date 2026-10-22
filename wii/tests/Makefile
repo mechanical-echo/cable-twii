@@ -16,7 +16,7 @@ VENDOR_SRC = ../../engine/vendor/tomlc99/toml.c
 VENDOR_OBJ = $(BUILD)/toml.o
 VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -I../../engine/vendor
 
-SRC = ../source/ui/tween.c ../source/ui/textfit.c ../source/ui/utf8.c ../source/ui/textcache.c ../source/clock.c ../source/tuner.c ../source/nav.c ../source/osd.c ../source/volume.c $(ENGINE_SRC)
+SRC = ../source/ui/tween.c ../source/ui/textfit.c ../source/ui/utf8.c ../source/ui/textcache.c ../source/clock.c ../source/tuner.c ../source/nav.c ../source/osd.c ../source/volume.c ../source/playback.c $(ENGINE_SRC)
 TEST_SRC = $(wildcard *.c)
 
 .PHONY: test clean
@@ -28,7 +28,7 @@ $(VENDOR_OBJ): $(VENDOR_SRC)
 	@mkdir -p $(BUILD)
 	$(CC) $(VENDOR_CFLAGS) -c $(VENDOR_SRC) -o $@
 
-$(BUILD)/tests: $(SRC) $(VENDOR_OBJ) $(TEST_SRC) $(wildcard ../source/ui/*.h) $(wildcard ../source/*.h)
+$(BUILD)/tests: $(SRC) $(VENDOR_OBJ) $(TEST_SRC) $(wildcard ../source/ui/*.h) $(wildcard ../source/*.h) $(wildcard ../source/media/*.h)
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) $(SRC) $(VENDOR_OBJ) $(TEST_SRC) -o $@
 

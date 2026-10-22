@@ -7,6 +7,8 @@
 #include "../input.h"
 #include "../nav.h"
 #include "../osd.h"
+#include "../playback.h"
+#include "../storage.h"
 #include "../clock.h"
 #include "../media/player.h"
 #include "../ui/draw.h"
@@ -56,6 +58,13 @@ void full_enter(app *a)
 void full_update(app *a)
 {
     clk_now(&a->today, &a->ms_of_day);
+
+    pl_state st = pl_status();
+    if (st == PL_ERROR) pl_close();
+    if (pb_on_status(st, st == PL_ERROR && st_drive_present(&a->drive)) == PB_DISCONNECTED) {
+        app_fail(a, "The drive was disconnected", "Plug it back in and start cable-twii again.");
+        return;
+    }
 
     if (in_pressed(WPAD_BUTTON_UP) || in_pressed(WPAD_BUTTON_RIGHT)) {
         tune(a, nav_step(a->db, a->current_channel, 1));
