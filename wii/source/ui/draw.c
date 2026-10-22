@@ -93,8 +93,7 @@ void ui_image(GRRLIB_texImg *img, float x, float y, float w, float h, float alph
     uint8_t a = (uint8_t)(alpha < 0.0f ? 0 : (alpha > 1.0f ? 255 : alpha * 255.0f));
     float sx = img->w > 0 ? w / (float)img->w : 1.0f;
     float sy = img->h > 0 ? h / (float)img->h : 1.0f;
-    GRRLIB_DrawImg(x + (w - (float)img->w) / 2.0f, y + (h - (float)img->h) / 2.0f, img, 0.0f, sx, sy,
-                   RGBA(0xFF, 0xFF, 0xFF, a));
+    GRRLIB_DrawImg(x, y, img, 0.0f, sx, sy, RGBA(0xFF, 0xFF, 0xFF, a));
 }
 
 GRRLIB_texImg *ui_load_png_file(const char *path)
