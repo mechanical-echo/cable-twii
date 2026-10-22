@@ -7,19 +7,89 @@
 #include "../input.h"
 #include "../nav.h"
 #include "../osd.h"
+#include "../osd_layout.h"
 #include "../live.h"
 #include "../clock.h"
 #include "../media/player.h"
 #include "../ui/draw.h"
+#include "../ui/icons.h"
 #include "../ui/text.h"
 #include "../ui/cursor.h"
 #include "../ui/sfx.h"
 #include "../ui/theme.h"
+#include "panel.h"
 #include "upnext.h"
 
 static osd_state g_osd;
 static float last_cx, last_cy;
 static bool have_last_cursor;
+static osd_btn hot_btn;
+
+static void back_to_guide(app *a)
+{
+    sfx_play(SFX_BACK);
+    app_go(a, SCR_GUIDE);
+}
+
+static void flip(app *a, int dir)
+{
+    tune(a, nav_step(a->db, a->current_channel, dir));
+}
+
+static void change_volume(app *a, int dir)
+{
+    a->volume = osd_volume_step(a->volume, dir);
+    pl_set_volume(a->volume);
+    osd_volume_changed(&g_osd, a->now_ms);
+    osd_activity(&g_osd, a->now_ms);
+}
+
+static float slide_offset(const app *a)
+{
+    osd_layout rest = osd_layout_for(0.0f);
+    return (1.0f - osd_slide(&g_osd, a->now_ms)) * (480.0f - rest.panel.y);
+}
+
+static void panel_input(app *a)
+{
+    if (!osd_visible(&g_osd, a->now_ms) || !cur_visible()) {
+        hot_btn = OSD_BTN_NONE;
+        return;
+    }
+    osd_layout l = osd_layout_for(slide_offset(a));
+    osd_btn btn = osd_hit(&l, cur_x(), cur_y());
+    if (btn != OSD_BTN_NONE && btn != hot_btn) {
+        sfx_play(SFX_HOVER);
+        in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
+    }
+    hot_btn = btn;
+    if (btn == OSD_BTN_NONE || !in_pressed(WPAD_BUTTON_A)) return;
+
+    osd_activity(&g_osd, a->now_ms);
+    switch (btn) {
+    case OSD_BTN_PREV:
+        sfx_play(SFX_SELECT);
+        flip(a, -1);
+        break;
+    case OSD_BTN_NEXT:
+        sfx_play(SFX_SELECT);
+        flip(a, 1);
+        break;
+    case OSD_BTN_GUIDE:
+        back_to_guide(a);
+        break;
+    case OSD_BTN_VOL_DOWN:
+        sfx_play(SFX_SELECT);
+        change_volume(a, -1);
+        break;
+    case OSD_BTN_VOL_UP:
+        sfx_play(SFX_SELECT);
+        change_volume(a, 1);
+        break;
+    case OSD_BTN_NONE:
+        break;
+    }
+}
 
 void tune(app *a, int channel)
 {
@@ -31,6 +101,8 @@ void tune(app *a, int channel)
 void full_enter(app *a)
 {
     have_last_cursor = false;
+    memset(&g_osd, 0, sizeof g_osd);
+    hot_btn = OSD_BTN_NONE;
     osd_channel_changed(&g_osd, a->now_ms);
     if (!live_on(a->current_channel)) live_tune(a, a->current_channel);
 }
@@ -40,16 +112,18 @@ void full_update(app *a)
     clk_now(&a->today, &a->ms_of_day);
 
     if (in_pressed(WPAD_BUTTON_B)) {
-        sfx_play(SFX_BACK);
-        app_go(a, SCR_GUIDE);
+        back_to_guide(a);
         return;
     }
 
     if (in_pressed(WPAD_BUTTON_UP) || in_pressed(WPAD_BUTTON_RIGHT)) {
-        tune(a, nav_step(a->db, a->current_channel, 1));
+        flip(a, 1);
     } else if (in_pressed(WPAD_BUTTON_DOWN) || in_pressed(WPAD_BUTTON_LEFT)) {
-        tune(a, nav_step(a->db, a->current_channel, -1));
+        flip(a, -1);
     }
+
+    if (in_pressed(WPAD_BUTTON_PLUS)) change_volume(a, 1);
+    if (in_pressed(WPAD_BUTTON_MINUS)) change_volume(a, -1);
 
     bool moved = false;
     if (cur_visible()) {
@@ -63,11 +137,20 @@ void full_update(app *a)
     }
     osd_pointer(&g_osd, cur_visible(), moved, a->now_ms);
 
+    panel_input(a);
+    if (a->screen != SCR_FULL) return;
+
     live_update(a);
+}
+
+bool full_cursor_visible(const app *a)
+{
+    return osd_visible(&g_osd, a->now_ms);
 }
 
 void full_draw(app *a)
 {
+    icons_frame();
     pl_draw(0, 0, 640, 480, 1.0f);
 
     uint32_t offset = 0;
@@ -87,5 +170,13 @@ void full_draw(app *a)
         snprintf(num, sizeof num, "%d", a->current_channel);
         ui_text(FONT_BOLD, 24, x + chip_w / 2.0f, y + chip_h / 2.0f - 14.0f, num, THEME_ACCENT, ALIGN_CENTER);
         (void)ch;
+    }
+
+    if (osd_visible(&g_osd, a->now_ms)) {
+        osd_layout l = osd_layout_for(slide_offset(a));
+        panel_draw(a, &l, hot_btn);
+    } else if (osd_volume_alone(&g_osd, a->now_ms)) {
+        osd_layout l = osd_layout_for(0.0f);
+        panel_draw_volume(&l, a->volume);
     }
 }

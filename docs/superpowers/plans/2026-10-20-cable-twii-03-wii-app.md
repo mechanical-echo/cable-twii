@@ -424,9 +424,9 @@ git add wii && git commit -m "wip | wii guide screen"
 - Consumes: `osd_state` (Task 5).
 - Behaviour: when `osd_visible`, a white rounded panel slides up (200 ms) at the bottom: channel name (blue), show icon, `Show · SxxEyy Title`, `HH:MM – HH:MM`, progress bar, pill buttons `◀ CH`, `CH ▶`, `Guide`, and a volume control (`−` pill, 10-segment bar, `+` pill). Pills are pointer-clickable with hover sound/rumble. The cursor is drawn only while the OSD is visible. `+`/`−` buttons show the volume bar alone for 2 s even without the OSD.
 
-- [ ] **Step 1: Implement.**
+- [x] **Step 1: Implement.** (`osd_layout.c` pure layout and hit-testing, `screens/panel.c` drawing, volume step and timers in `osd.c`, per-screen cursor via `full_cursor_visible`)
 
-- [ ] **Step 2: Verify on the Wii:** pointing shows the panel; holding still for 3 s hides it; pointing away hides it at once; clicking `CH ▶` flips; volume persists across channel changes.
+- [ ] **Step 2: Verify on the Wii:** (Dolphin only with scripted IR, real Wii pending, Task 11) pointing shows the panel; holding still for 3 s hides it; pointing away hides it at once; clicking `CH ▶` flips; volume persists across channel changes.
 
 - [ ] **Step 3: Commit**
 

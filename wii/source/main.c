@@ -133,6 +133,7 @@ int main(int argc, char **argv)
     icons_init();
 
     memset(&g_app, 0, sizeof g_app);
+    g_app.volume = 100;
     g_app.widescreen = CONF_GetAspectRatio() == CONF_ASPECT_16_9;
     ui_set_widescreen(g_app.widescreen);
     pl_set_widescreen(g_app.widescreen);
@@ -164,7 +165,7 @@ int main(int argc, char **argv)
             break;
         }
 
-        cur_draw();
+        if (g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();
         GRRLIB_Render();
     }
 }

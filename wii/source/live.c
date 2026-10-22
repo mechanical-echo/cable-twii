@@ -21,12 +21,14 @@ static void play_airing(app *a, int channel, const ctw_airing *air, uint32_t off
     if (air == NULL || air->kind == CTW_AIR_UPNEXT) {
         pl_close();
         current_start_ms = air != NULL ? tn_airing_start(&a->tuner, channel, air) : -1;
+        pl_set_volume(a->volume);
         return;
     }
     char path[320];
     const char *rel = air->kind == CTW_AIR_AD ? air->ad->path : air->episode->path;
     snprintf(path, sizeof path, "%s/%s", a->root, rel);
     pl_open(path, offset_ms);
+    pl_set_volume(a->volume);
     current_start_ms = tn_airing_start(&a->tuner, channel, air);
 }
 
