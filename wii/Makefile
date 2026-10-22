@@ -27,6 +27,14 @@ LIBS	:=	-lgrrlib -lfreetype -lpngu -lpng -ljpeg -lbz2 -lbrotlidec -lbrotlicommon
 LIBDIRS	:=	$(PORTLIBS)
 
 #---------------------------------------------------------------------------------
+ifeq ($(DEBUG_OVERLAY),1)
+TARGET		:=	cable-twii-debug
+BUILD		:=	build-debug
+SOURCES		+=	source/debug
+CFLAGS		+=	-DCTW_DEBUG_OVERLAY
+endif
+
+#---------------------------------------------------------------------------------
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 #---------------------------------------------------------------------------------
 

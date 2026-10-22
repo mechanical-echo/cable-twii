@@ -58,6 +58,9 @@ static volatile pl_state status = PL_IDLE;
 static int inited;
 static double last_shown_time;
 static bool widescreen_s;
+#ifdef CTW_DEBUG_OVERLAY
+static volatile u32 frames_decoded, frames_shown, frames_dropped;
+#endif
 
 static double av_clock(void)
 {
@@ -84,6 +87,9 @@ static void push_frame(plm_frame_t *f)
     s->state = SLOT_READY;
     q_w = (q_w + 1) % YG_SLOTS;
     LWP_MutexUnlock(q_lock);
+#ifdef CTW_DEBUG_OVERLAY
+    frames_decoded++;
+#endif
 }
 
 static void on_video(plm_t *p, plm_frame_t *f, void *user)
@@ -123,6 +129,7 @@ static void end_stream(volatile int *flag)
 {
     on_stream_end();
     *flag = 1;
+    if (flag == &audio_eof) au_end();
     if (status != PL_ERROR && video_eof && (audio_eof || !has_audio_s)) status = PL_ENDED;
 }
 
@@ -321,6 +328,10 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         double frame_dur = samplerate_s > 0 ? 1.0 / 30.0 : 1.0 / 30.0;
         if (slots[idx].time > now + 0.001 && advanced) break;
         if (shown >= 0 && slots[shown].state == SLOT_SHOWN) slots[shown].state = SLOT_FREE;
+#ifdef CTW_DEBUG_OVERLAY
+        if (advanced) frames_dropped++;
+        else frames_shown++;
+#endif
         shown = idx;
         slots[idx].state = SLOT_SHOWN;
         q_r = (q_r + 1) % YG_SLOTS;
@@ -349,3 +360,12 @@ void pl_draw(float x, float y, float w, float h, float alpha)
 
     (void)duration_s;
 }
+
+#ifdef CTW_DEBUG_OVERLAY
+void pl_debug_counts(uint32_t *decoded, uint32_t *shown_frames, uint32_t *dropped)
+{
+    *decoded = frames_decoded;
+    *shown_frames = frames_shown;
+    *dropped = frames_dropped;
+}
+#endif

@@ -22,6 +22,9 @@
 #include "screens/guide.h"
 #include "screens/homemenu.h"
 #include "screens/logo.h"
+#ifdef CTW_DEBUG_OVERLAY
+#include "debug/overlay.h"
+#endif
 
 static app g_app;
 
@@ -173,6 +176,9 @@ int main(int argc, char **argv)
     cur_init();
     sfx_init();
     icons_init();
+#ifdef CTW_DEBUG_OVERLAY
+    overlay_init();
+#endif
 
     memset(&g_app, 0, sizeof g_app);
     g_app.volume = STATE_DEFAULT_VOLUME;
@@ -218,6 +224,9 @@ int main(int argc, char **argv)
         cur_block(false);
         save_state(&g_app, false);
         home_draw(&g_app);
+#ifdef CTW_DEBUG_OVERLAY
+        overlay_draw();
+#endif
 
         if (paused || g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();
         GRRLIB_Render();

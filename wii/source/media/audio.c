@@ -19,6 +19,9 @@ static volatile int running, need_base, eof;
 static volatile double base_time;
 static volatile u64 cb_tick;
 static int volume = 255;
+#ifdef CTW_DEBUG_OVERLAY
+static volatile u32 underruns_total;
+#endif
 
 static u32 ring_fill(void)
 {
@@ -42,7 +45,12 @@ static void fill_buf(u32 *buf)
         u32 n = ab_drain(buf, AUDIO_CHUNK, ring, AUDIO_RING, &r, w_pos);
         r_pos = r;
         consumed += n;
-        if (n < AUDIO_CHUNK && !eof) underruns++;
+        if (n < AUDIO_CHUNK && !eof) {
+            underruns++;
+#ifdef CTW_DEBUG_OVERLAY
+            underruns_total++;
+#endif
+        }
         cb_tick = gettime();
     } else {
         memset(buf, 0, AUDIO_CHUNK_BYTES);
@@ -97,6 +105,11 @@ void au_push(const float *interleaved, unsigned int count, double pts)
     w_pos = w + count;
 }
 
+void au_end(void)
+{
+    eof = 1;
+}
+
 void au_go(void)
 {
     u32 lvl = IRQ_Disable();
@@ -135,3 +148,10 @@ void au_set_volume(int volume_0_100)
     volume = v * 255 / 100;
     ASND_ChangeVolumeVoice(AUDIO_VOICE, volume, volume);
 }
+
+#ifdef CTW_DEBUG_OVERLAY
+unsigned int au_underrun_count(void)
+{
+    return underruns_total;
+}
+#endif
