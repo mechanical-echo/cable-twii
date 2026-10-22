@@ -10,7 +10,7 @@ TEST ntsc_and_eurgb60_480_are_left_alone(void)
     PASS();
 }
 
-TEST pal_576_scale_mode_is_already_480_efb(void)
+TEST already_480_efb_with_taller_xfb_is_left_alone(void)
 {
     vm_plan p = vm_plan_for(480, 576);
     ASSERT_EQ(480, p.efb_height);
@@ -19,7 +19,7 @@ TEST pal_576_scale_mode_is_already_480_efb(void)
     PASS();
 }
 
-TEST pal_528_gets_a_480_efb_scaled_to_528(void)
+TEST pal_50_528_mode_gets_a_480_efb_with_528_copy(void)
 {
     vm_plan p = vm_plan_for(528, 528);
     ASSERT_EQ(VM_LOGICAL_HEIGHT, p.efb_height);
@@ -40,7 +40,7 @@ TEST taller_efb_than_layout_is_rescaled(void)
 SUITE(vmode_suite)
 {
     RUN_TEST(ntsc_and_eurgb60_480_are_left_alone);
-    RUN_TEST(pal_576_scale_mode_is_already_480_efb);
-    RUN_TEST(pal_528_gets_a_480_efb_scaled_to_528);
+    RUN_TEST(already_480_efb_with_taller_xfb_is_left_alone);
+    RUN_TEST(pal_50_528_mode_gets_a_480_efb_with_528_copy);
     RUN_TEST(taller_efb_than_layout_is_rescaled);
 }

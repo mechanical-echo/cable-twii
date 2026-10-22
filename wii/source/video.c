@@ -9,7 +9,7 @@ void video_init(void)
 {
     GRRLIB_Init();
     vm_plan p = vm_plan_for(rmode->efbHeight, rmode->xfbHeight);
-    if (!p.rescale) return;
+    if (!p.rescale || rmode->aa) return;
 
     rmode->efbHeight = (u16)p.efb_height;
     f32 yscale = GX_GetYScaleFactor(rmode->efbHeight, rmode->xfbHeight);
