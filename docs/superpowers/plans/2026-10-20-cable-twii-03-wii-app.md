@@ -32,7 +32,14 @@
 - Channels with long names, show names or descriptions (60+ characters, accents) must ellipsize inside their panels rather than overflow (Task 2 test `text_fit_ellipsizes`).
 - A `.mpg` file that is shorter than `library.toml` claims shows black until the next airing, never loops or freezes (Task 5 manual check "short file").
 
-## Progress (2026-10-21/22)
+## Status (2026-10-22)
+
+- Done: Tasks 1-10 are implemented, host-tested (`make -C wii/tests`) and reviewed; Task 11 Step 1 (the 50-item checklist `docs/testing/wii-checklist.md`) is written.
+- Left: Task 11 Steps 2-4, running the checklist on a real Wii, fixing what fails and committing the results. Every "Verify on the real Wii" step in Tasks 2, 4, 5, 6, 7, 8 and 9 was done in Dolphin only.
+- Blocked on: the owner and real hardware (including 50 Hz and 16:9 TVs). Video playback, unplugging and 16:9 have not been seen in Dolphin either.
+- Known gaps are listed below; none is fixed yet.
+
+### Details
 
 Tasks 1–5 are mostly implemented, host-tested (`make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory). Steps that need a real-Wii run are unticked. The deliverables that were missing (`wii/icon.png`, the `CTW_DEBUG_OVERLAY` build, the chip and up-next channel icons) were added on branch `wii-hardening-prep`, together with the 50/60 Hz video mode fix-up and `docs/testing/wii-checklist.md`.
 
@@ -214,7 +221,7 @@ TEST text_fit_utf8_boundary(void) { char o[64]; tf_fit("Pokémon Indigo League",
 
 - [x] **Step 3: Implement** the UI kit.
 
-- [ ] **Step 4: Verify** — host tests PASS; temporary demo in `main.c` (removed in Task 7) draws a panel, a pill that turns hot under the cursor with `SFX_HOVER` and a 30 ms rumble pulse, and a long ellipsized string. Check in Dolphin and on the Wii via `wiiload`. (Dolphin only — real Wii pending, Task 11; the demo was never added to `main.c`)
+- [ ] **Step 4: Verify** — host tests PASS; temporary demo in `main.c` (removed in Task 7) draws a panel, a pill that turns hot under the cursor with `SFX_HOVER` and a 30 ms rumble pulse, and a long ellipsized string. Check in Dolphin and on the Wii via `wiiload`. (Dolphin only — real Wii pending, Task 11; the demo was never added to `main.c`) (host tests pass; the temporary demo was never added — UI kit checked through the screens that use it)
 
 - [x] **Step 5: Commit**
 
@@ -292,7 +299,7 @@ git add wii && git commit -m "wip | wii boot loading, clock and tuner"
 
 - [x] **Step 2: Temporary harness in `main.c`** (removed in Task 5): A opens `Cartoon Network/Gumball/Season 1/S01E01 - Test One.mpg` at offset 0; 1 reopens at offset 20 000; +/− volume.
 
-- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the overlay is built with `make -C wii DEBUG_OVERLAY=1` → `wii/cable-twii-debug.dol` and was seen in Dolphin (UI 59.9 fps, memory lines), but not yet with video playing; 16:9 handling and the "The drive was disconnected" screen are built and host-tested but not yet checked in Dolphin or on the Wii)
+- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the overlay is built with `make -C wii DEBUG_OVERLAY=1` → `wii/cable-twii-debug.dol` and was seen in Dolphin (UI 59.9 fps, memory lines), but not yet with video playing; 16:9 handling and the "The drive was disconnected" screen are built and host-tested but not yet checked in Dolphin or on the Wii) (owner, real Wii — pending, Task 11)
   - fps overlay (debug build flag `-DCTW_DEBUG_OVERLAY`) shows 30.0 average, 0 underruns over 10 minutes;
   - reopen at 20 000 ms shows burned-in timecode within 00:00:19.5–00:00:20.5, in under 1.5 s;
   - 4:3 Ben 10 file is pillarboxed on a 16:9 TV setting and fills the width on 4:3;
@@ -342,7 +349,7 @@ TEST osd_still_pointer_times_out(void) { osd_state s = {0}; osd_pointer(&s, true
 
 - [x] **Step 3: Implement**; temporarily boot straight into fullscreen on the last/first channel. (chip: 40×40 channel icon + 36 px number, laid out by `osd_chip_layout`; up-next card shows the channel icon and ellipsizes its titles; both seen in Dolphin with a real channel icon and with the placeholder)
 
-- [ ] **Step 4: Verify on the real Wii** with the sample library and a schedule from Studio: (Dolphin only — real Wii pending, Task 11)
+- [ ] **Step 4: Verify on the real Wii** with the sample library and a schedule from Studio: (Dolphin only — real Wii pending, Task 11) (Dolphin only — real Wii pending, Task 11)
   - tune-in lands mid-episode at the time Studio's Preview shows (compare burned-in timecode);
   - flipping away and back after 1 minute lands 1 minute further;
   - an episode ends and the next airing starts within one second of its scheduled time;
@@ -366,11 +373,11 @@ git add wii && git commit -m "wip | wii fullscreen viewing and channel flipping"
 - Produces: `void logo_enter(app *a); void logo_update(app *a); void logo_draw(app *a);` and `void logo_header_rect(float *x, float *y, float *w, float *h);` (the logo's final place in the guide header, used by both screens so the hand-off is seamless).
 - Sequence (2.5 s): 0–0.6 s logo scales 0.6→1.0 and fades in at screen centre on the stripes; 0.6–1.4 s a diagonal shine sweeps across it; 1.4–2.0 s it shrinks and moves to `logo_header_rect` while the guide panels slide in from the left/right by 40 px and fade in; at 2.0 s switch to the guide. Pressing A skips to the end. Loading runs before the logo starts, so the animation never stalls.
 
-- [ ] **Step 1: Implement**, logo artwork as an original PNG wordmark "cable-twii" in Wii blue + grey (owner may replace `data/logo.png`).
+- [x] **Step 1: Implement**, logo artwork as an original PNG wordmark "cable-twii" in Wii blue + grey (owner may replace `data/logo.png`).
 
-- [ ] **Step 2: Verify** in Dolphin and on the Wii: smooth at 60 fps, no jump when the guide takes over, A skips.
+- [ ] **Step 2: Verify** in Dolphin and on the Wii: smooth at 60 fps, no jump when the guide takes over, A skips. (Dolphin and real Wii — real Wii pending, Task 11)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add wii && git commit -m "wip | wii logo animation"
@@ -411,9 +418,9 @@ TEST gm_scroll_to_visible(void)  { /* view_h 200, row at y 250 h 64 → scroll 1
 
 - [x] **Step 3: Implement**; remove the temporary boot-to-fullscreen; boot flow becomes logo → guide.
 
-- [ ] **Step 4: Verify** in Dolphin and on the Wii against the approved mockup: layout matches; hover sweeps don't thrash the preview; 60 fps with the preview playing (debug overlay); 3 channels + headers scroll correctly when the TV is 4:3. (Dolphin only, with a throwaway build that embeds a 9-channel library and scripts the D-pad, A and B: the layout matches the mockup on a 16:9 Dolphin, the panels slide in under the moving logo, D-pad scrolling and the A expand / B return work. No video files, so the preview stayed black; pointer hover, the 60 fps check (the debug overlay exists now but has not been run with a playing preview) and 4:3 were not seen. Real Wii pending, Task 11.)
+- [ ] **Step 4: Verify** in Dolphin and on the Wii against the approved mockup: layout matches; hover sweeps don't thrash the preview; 60 fps with the preview playing (debug overlay); 3 channels + headers scroll correctly when the TV is 4:3. (Dolphin only, with a throwaway build that embeds a 9-channel library and scripts the D-pad, A and B: the layout matches the mockup on a 16:9 Dolphin, the panels slide in under the moving logo, D-pad scrolling and the A expand / B return work. No video files, so the preview stayed black; pointer hover, the 60 fps check (the debug overlay exists now but has not been run with a playing preview) and 4:3 were not seen. Real Wii pending, Task 11.) (Dolphin only — real Wii pending, Task 11)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add wii && git commit -m "wip | wii guide screen"
@@ -432,9 +439,9 @@ git add wii && git commit -m "wip | wii guide screen"
 
 - [x] **Step 1: Implement.** (`osd_layout.c` pure layout and hit-testing, `screens/panel.c` drawing, volume step and timers in `osd.c`, per-screen cursor via `full_cursor_visible`)
 
-- [ ] **Step 2: Verify on the Wii:** (Dolphin only with scripted IR, real Wii pending, Task 11) pointing shows the panel; holding still for 3 s hides it; pointing away hides it at once; clicking `CH ▶` flips; volume persists across channel changes.
+- [ ] **Step 2: Verify on the Wii:** (Dolphin only with scripted IR, real Wii pending, Task 11) pointing shows the panel; holding still for 3 s hides it; pointing away hides it at once; clicking `CH ▶` flips; volume persists across channel changes. (Dolphin only — real Wii pending, Task 11)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add wii && git commit -m "wip | wii fullscreen info panel"
@@ -454,7 +461,7 @@ git add wii && git commit -m "wip | wii fullscreen info panel"
 
 - [x] **Step 1: Implement.**
 
-- [ ] **Step 2: Verify on the Wii (Dolphin only — real Wii pending, Task 11):** each option works; Power turns the console off cleanly; Reset returns to HBC; HOME again closes the menu; leaving the remote untouched for 30 minutes while watching does not disconnect it.
+- [ ] **Step 2: Verify on the Wii (Dolphin only — real Wii pending, Task 11):** each option works; Power turns the console off cleanly; Reset returns to HBC; HOME again closes the menu; leaving the remote untouched for 30 minutes while watching does not disconnect it. (Dolphin only — real Wii pending, Task 11)
 
 - [x] **Step 3: Commit**
 
@@ -503,11 +510,11 @@ git add wii && git commit -m "wip | wii remembered channel and volume"
 
 - [x] **Step 1: Write the checklist** (`docs/testing/wii-checklist.md`, 50 items including the debug-overlay build and `wiiload` steps) from spec §10 plus this plan's Review Focus: tune-in mid-episode; D-pad flipping; preview→fullscreen and back; OSD show/hide; HOME menu options; remote disconnect/reconnect; no drive; bad config; drive unplugged while watching; short file; midnight rollover on a timed and a looping channel (set the Wii clock to 23:58); 4:3 and 16:9 TV settings; 50 Hz and 60 Hz; 4-hour soak with memory free shown in the debug overlay staying flat.
 
-- [ ] **Step 2: Run every item on the real Wii** with the owner's real library and both drives plugged in (per decision 0002). Record pass/fail with notes in the checklist.
+- [ ] **Step 2: Run every item on the real Wii** with the owner's real library and both drives plugged in (per decision 0002). Record pass/fail with notes in the checklist. (owner, real Wii — pending)
 
-- [ ] **Step 3: Fix failures** test-first where the cause is in host-tested code; commit each with `fix | …`.
+- [ ] **Step 3: Fix failures** test-first where the cause is in host-tested code; commit each with `fix | …`. (depends on Step 2 results)
 
-- [ ] **Step 4: Commit the completed checklist**
+- [ ] **Step 4: Commit the completed checklist** (depends on Step 2)
 
 ```bash
 git add docs/testing && git commit -m "test | wii hardware checklist results"

@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-20-cable-twii-design.md` (§5 file formats, §6 engine)
 
+## Status (2026-10-22)
+
+- Done: all ten tasks, merged to `master` (8f93c1b). Engine tests, CLI tests and the Wii big-endian cross-check pass on the host (`make -C engine test`, `make -C engine cli-test`, `make -C engine wii-check`).
+- Left: nothing in this plan. Studio and the Wii app consume the engine as-is.
+
 ## Global Constraints
 
 - C11, compiles warning-free with `-std=c11 -Wall -Wextra -Werror` on clang and with devkitPPC `powerpc-eabi-gcc`.
@@ -190,7 +195,7 @@ typedef struct { ctw_airing *items; size_t count; size_t cap; ctw_issues warning
   - `uint32_t ctw_date_key(ctw_date d);` (YYYYMMDD), `ctw_date ctw_date_prev(ctw_date d);`, `ctw_date ctw_date_next(ctw_date d);`, `int ctw_date_parse(const char *s, ctw_date *out);` (`YYYY-MM-DD`)
 - Lineup RNG stream constant: `#define CTW_RNG_STREAM 0x63747721ULL`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST pcg32_reference_sequence(void) {
@@ -246,21 +251,21 @@ TEST date_arithmetic(void) {
 
 (The bracketed bodies above are the assertions to write, not comments to keep.)
 
-- [ ] **Step 2: Write `engine/Makefile`** with targets `test` (builds `build/tests` from `src/*.c tests/*.c vendor/tomlc99/toml.c`, `-Iinclude -Ivendor`, runs it), `cli` (builds `build/cable-twii-sched`), `clean`.
+- [x] **Step 2: Write `engine/Makefile`** with targets `test` (builds `build/tests` from `src/*.c tests/*.c vendor/tomlc99/toml.c`, `-Iinclude -Ivendor`, runs it), `cli` (builds `build/cable-twii-sched`), `clean`.
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `make -C engine test`
 Expected: link errors for `ctw_rng_seed`, `ctw_fnv1a`, `ctw_parse_hhmm`.
 
-- [ ] **Step 4: Implement `rng.c`, `hash.c`, `timeutil.c`** with the signatures above.
+- [x] **Step 4: Implement `rng.c`, `hash.c`, `timeutil.c`** with the signatures above.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `make -C engine test`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine rng, hashing and time utilities"
@@ -284,7 +289,7 @@ git add engine && git commit -m "wip | engine rng, hashing and time utilities"
   - `void ctw_issues_add(ctw_issues *l, ctw_level lv, ctw_code c, int channel, int slot, int item, int line, const char *file, const char *fmt, ...);`, `bool ctw_issues_has_errors(const ctw_issues *l);`, `void ctw_issues_free(ctw_issues *l);`
 - `lib_basic.toml` contents (also used by later tasks): channel folder `Cartoon Network` with shows `Gumball` (S1E1–S1E4, S2E1–S2E2, 600000 ms each), `Adventure Time` (S5E1–S5E5, 660000 ms each), `Ben 10` (S1E5, 1320000 ms); channel folder `mtv-00s` with show `Music Videos` (season 0, episodes 1–6, 200000 ms each); shared ads `ads/ad-a.mpg` 30000, `ads/ad-b.mpg` 15000, `ads/ad-c.mpg` 60000. Paths follow spec §4 naming.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST library_basic_counts(void)       { ASSERT_EQ(4, ctw_db_show_count(db)); ASSERT_EQ(3, ctw_db_ad_count(db)); PASS(); }
@@ -300,19 +305,19 @@ TEST library_wrong_version(void)      { /* version = 2 → -1, CTW_E_VERSION */ 
 TEST library_syntax_error_line(void)  { /* broken TOML on line 7 → CTW_E_PARSE, line == 7 */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `make -C engine test`
 Expected: FAIL / link errors for `ctw_library_parse`.
 
-- [ ] **Step 3: Implement** the arena (all db strings and arrays live in it; `ctw_db_free` releases everything), issue list, and `ctw_library_parse` with tomlc99 (`toml_parse` on a copy of the text; take the line number from its error string `"line N: …"`). Episodes sorted by `(season, episode)` with a stable sort. For field-level errors tomlc99 has no line numbers, so report `line = 0` and put the show/episode in the message.
+- [x] **Step 3: Implement** the arena (all db strings and arrays live in it; `ctw_db_free` releases everything), issue list, and `ctw_library_parse` with tomlc99 (`toml_parse` on a copy of the text; take the line number from its error string `"line N: …"`). Episodes sorted by `(season, episode)` with a stable sort. For field-level errors tomlc99 has no line numbers, so report `line = 0` and put the show/episode in the message.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `make -C engine test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine library parsing"
@@ -334,7 +339,7 @@ git add engine && git commit -m "wip | engine library parsing"
   - `const ctw_channel *ctw_db_channel(const ctw_db *db, int number);`
 - Rules (spec §5.1, §6.5): `folder` defaults to `name`; `icon` defaults to `<folder>/channel.png`, otherwise is relative to `<folder>/`; slots sorted by `at`; `from` names another channel folder; `count` defaults to 1; `ads_between` defaults to 0; `season` defaults to 0.
 
-- [ ] **Step 1: Write the failing tests** (each parses `lib_basic.toml` then an inline config string)
+- [x] **Step 1: Write the failing tests** (each parses `lib_basic.toml` then an inline config string)
 
 ```c
 TEST config_defaults(void)            { /* channel without folder/icon: folder == name, icon == "Cartoon Network/channel.png" */ }
@@ -358,19 +363,19 @@ TEST config_crlf_and_bom(void)        { /* same config with "\xEF\xBB\xBF" prefi
 TEST config_unicode_show_name(void)   { /* library show folder "Pokémon" referenced from config → resolves */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `make -C engine test`
 Expected: FAIL / link errors for `ctw_config_parse`.
 
-- [ ] **Step 3: Implement `config.c`.** Strip a leading UTF-8 BOM before `toml_parse`. Collect every error (do not stop at the first) so Studio can show them all; return -1 if any error was added.
+- [x] **Step 3: Implement `config.c`.** Strip a leading UTF-8 BOM before `toml_parse`. Collect every error (do not stop at the first) so Studio can show them all; return -1 if any error was added.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `make -C engine test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine config parsing and validation"
@@ -397,7 +402,7 @@ git add engine && git commit -m "wip | engine config parsing and validation"
   - Bag: on first draw, `order = 0..n-1`, `ctw_shuffle`. `ctw_bag_draw_fitting` scans `order[pos..n-1]` for the first episode with `duration_ms <= max_ms`, swaps it into `order[pos]`, increments `pos`, returns it. If `pos == n` or nothing fits in the remainder: when `pos == n`, reshuffle (`pos = 0`, `ctw_shuffle`) and scan once more; when items remain but none fit, return NULL without reshuffling. `max_ms = UINT32_MAX` means no limit.
   - Ads: candidates are ads whose `channel_folder` equals `ch->folder`; if there are none, ads with `channel_folder` `""`. Filter by `duration_ms <= max_ms`. If more than one candidate fits, exclude `last_ad`. Pick `candidates[ctw_rng_below(r, k)]` in library order. Update `last_ad`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST bag_no_repeat_until_empty(void)   { /* Gumball all seasons: 6 draws with max UINT32_MAX → 6 distinct episodes */ }
@@ -410,19 +415,19 @@ TEST ads_fit_limit(void)               { /* max 20000 → only ad-b (15000) */ }
 TEST ads_none_fit(void)                { /* max 10000 → NULL */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `make -C engine test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `pool.c`.**
+- [x] **Step 3: Implement `pool.c`.**
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `make -C engine test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine shuffle bags and ad picking"
@@ -453,7 +458,7 @@ git add engine && git commit -m "wip | engine shuffle bags and ad picking"
   - Leftover: on an ads channel, add fitting ads until NULL; then if `cursor < end`, add one `CTW_AIR_UPNEXT` airing for `end - cursor`.
   - Lineup covers `[at_0, at_0 + 86400000)` and is contiguous.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Helper `assert_contiguous(const ctw_lineup *l, int64_t from, int64_t to)`: first start == from, each start == previous start + duration, last end == to.
 
@@ -474,19 +479,19 @@ TEST timed_seed_changes(void)         { /* seed 1 vs seed 2 → different hash *
 TEST timed_day_changes(void)          { /* 2026-10-20 vs 2026-10-21 → different hash */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `make -C engine test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `lineup.c` and `lineup_timed.c`.** Warnings go into `out->warnings` with channel number, slot and item indexes.
+- [x] **Step 3: Implement `lineup.c` and `lineup_timed.c`.** Warnings go into `out->warnings` with channel number, slot and item indexes.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `make -C engine test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine timed lineups"
@@ -503,7 +508,7 @@ git add engine && git commit -m "wip | engine timed lineups"
 - Consumes: Task 5 `ctw_lineup_build` dispatch.
 - Looping algorithm (spec §6.4): `cursor = 0`, `end = 86400000`; walk `loop` items in order, repeating the list, with `max_ms = UINT32_MAX` for draws; `ADS` skipped when `ads = false`; the airing that would cross `end` is cut at `end` (no warning). If a full pass over the list adds no airing, add `CTW_W_LOOP_EMPTY` and one `UPNEXT` covering `[cursor, end)`. `slot_index = -1` for all looping airings; `item_index` is the loop item index.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST loop_covers_day(void)          { /* MTV loop [random Music Videos count 10] → assert_contiguous(l, 0, 86400000) */ }
@@ -514,19 +519,19 @@ TEST loop_ads_on(void)              { /* ads=true, loop [random count 1, ads cou
 TEST loop_deterministic(void)       { /* same hash twice */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `make -C engine test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `lineup_loop.c`.**
+- [x] **Step 3: Implement `lineup_loop.c`.**
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `make -C engine test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine looping lineups"
@@ -546,7 +551,7 @@ git add engine && git commit -m "wip | engine looping lineups"
     Looks up `ms_of_day` in `today`; if it is before today's first airing, looks up `ms_of_day + 86400000` in `yesterday` (may be NULL for looping channels). Binary search. Returns NULL only if not covered.
   - `const ctw_airing *ctw_lineup_next(const ctw_lineup *l, const ctw_airing *a);` (NULL at the end)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST at_offset_inside(void)        { /* timed 07:00: ms 25205000 → items[0], offset 5000 */ }
@@ -556,19 +561,19 @@ TEST at_looping_midnight(void)     { /* looping ms 0 → today's items[0], offse
 TEST at_next(void)                 { /* ctw_lineup_next(l, &l->items[0]) == &l->items[1]; last → NULL */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `make -C engine test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `make -C engine test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine now lookup"
@@ -589,16 +594,16 @@ git add engine && git commit -m "wip | engine now lookup"
   - `int ctw_db_check_files(const ctw_db *db, const char *root, ctw_issues *issues);` uses `fopen(path, "rb")` on every episode and ad path; missing → `CTW_E_MISSING_FILE`. Used by the CLI, not at Wii boot.
 - `root_basic/config.toml`: channel 1 "Cartoon Network" timed with slots `07:00` and `19:00` using every item type; channel 2 "MTV" folder `mtv-00s` looping, `ads = false`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST load_root_basic(void)       { /* ctw_db_load("tests/fixtures/root_basic") == 0, 2 channels */ }
 TEST load_missing_config(void)   { /* root without config.toml → -1, message contains "config.toml not found" */ }
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** with `make -C engine test`.
+- [x] **Step 2–4: Fail, implement, pass** with `make -C engine test`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | engine load from drive folder"
@@ -636,21 +641,21 @@ cable-twii-sched hash <root> --channel N --date YYYY-MM-DD
 
 Codes are the `ctw_code` names lowercased without the `CTW_E_`/`CTW_W_` prefix. `path`, `show`, `season`, `episode`, `title` are `null` for up-next airings; `slot`/`item` are `-1` for filler. JSON strings escaped per RFC 8259.
 
-- [ ] **Step 1: Write `cli_test.sh`** that builds the CLI, runs each command on `tests/fixtures/root_basic`, and checks with `node -e` that: `validate` exits 0 and `ok` is true; `lineup` airings are contiguous and cover 86400000 ms; `now --at "2026-10-20 07:00:05"` gives `offset_ms` 5000; `hash` equals `lineup`'s `hash`; a config with an unknown show exits 1 with code `unknown_show`.
+- [x] **Step 1: Write `cli_test.sh`** that builds the CLI, runs each command on `tests/fixtures/root_basic`, and checks with `node -e` that: `validate` exits 0 and `ok` is true; `lineup` airings are contiguous and cover 86400000 ms; `now --at "2026-10-20 07:00:05"` gives `offset_ms` 5000; `hash` equals `lineup`'s `hash`; a config with an unknown show exits 1 with code `unknown_show`.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bash engine/tests/cli_test.sh`
 Expected: FAIL (binary missing).
 
-- [ ] **Step 3: Implement the CLI** and a minimal JSON writer (`json_str`, `json_int`, object/array helpers).
+- [x] **Step 3: Implement the CLI** and a minimal JSON writer (`json_str`, `json_int`, object/array helpers).
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 Run: `make -C engine cli test && bash engine/tests/cli_test.sh`
 Expected: all checks print `ok`, exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add engine && git commit -m "wip | cable-twii-sched cli"
@@ -667,17 +672,17 @@ git add engine && git commit -m "wip | cable-twii-sched cli"
 **Interfaces:**
 - Consumes: engine sources compiled by devkitPPC.
 
-- [ ] **Step 1: Build a Wii program** that mounts `sd:`, loads `sd:/cable-twii/` with `ctw_db_load`, and prints `ctw_lineup_hash` for every channel for dates `2026-10-20`, `2026-10-21`, `2026-12-31`, `2027-01-01`.
+- [x] **Step 1: Build a Wii program** that mounts `sd:`, loads `sd:/cable-twii/` with `ctw_db_load`, and prints `ctw_lineup_hash` for every channel for dates `2026-10-20`, `2026-10-21`, `2026-12-31`, `2027-01-01`.
 
-- [ ] **Step 2: Produce the expected hashes on the Mac**
+- [x] **Step 2: Produce the expected hashes on the Mac**
 
 Run: `for d in 2026-10-20 2026-10-21 2026-12-31 2027-01-01; do for c in 1 2; do engine/build/cable-twii-sched hash engine/tests/fixtures/root_basic --channel $c --date $d; done; done`
 Expected: 8 hex lines.
 
-- [ ] **Step 3: Run the Wii program in Dolphin** with the virtual SD card containing `cable-twii/` = `root_basic`.
+- [x] **Step 3: Run the Wii program in Dolphin** with the virtual SD card containing `cable-twii/` = `root_basic`.
 Expected: the same 8 hashes in the same order. Any difference is a determinism bug: fix in the engine with a host test that reproduces it.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add engine && git commit -m "test | wii big-endian lineup cross-check"

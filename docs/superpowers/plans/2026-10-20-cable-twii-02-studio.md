@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-20-cable-twii-design.md` (§4, §5, §8)
 
+## Status (2026-10-22)
+
+- Done: Tasks 1-11, each reviewed, followed by a final whole-branch review, a fix wave and follow-ups. Studio was also ported to Windows (drive detection, folder pickers, ffmpeg concurrency) and those fixes are merged.
+- Left: Task 12, the end-to-end check on a real flash drive. The owner formats the drive and runs it.
+- Deferred minor review findings are logged in the git-ignored progress ledger and still need triage.
+
 ## Global Constraints
 
 - Server binds to `127.0.0.1` only. Port `4747`.
@@ -112,9 +118,9 @@ export interface Job { id: string; source: string; target: string; aspect: "16:9
   - `isVideoFile(name: string): boolean` (`.mp4 .mkv .avi .mov .m4v .mpg .mpeg .ts .webm .wmv .flv`, case-insensitive, rejects names starting with `._`)
 - npm scripts: `start` (build web + run server), `dev` (Vite + tsx watch), `test` (`vitest run`), `typecheck` (`tsc --noEmit`).
 
-- [ ] **Step 1: Ask the owner to approve `npm install`** of the dependencies in the Tech Stack line. Wait for a yes, then install.
+- [x] **Step 1: Ask the owner to approve `npm install`** of the dependencies in the Tech Stack line. Wait for a yes, then install.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 ```ts
 test("guess SxxEyy with title", () => expect(guessEpisode("Gumball S01E02 The Responsible.mkv")).toEqual({ season: 1, episode: 2, title: "The Responsible" }));
@@ -135,19 +141,19 @@ test("isVideoFile", () => { expect(isVideoFile("a.MKV")).toBe(true); expect(isVi
 
 `fatSafe` rule: `/ \ : |` → `-`; `* ? " < >` removed; control characters removed; runs of spaces collapsed; leading/trailing spaces and trailing dots trimmed; result capped at 120 characters.
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 Run: `cd studio && npm test -- names`
 Expected: FAIL (module not found).
 
-- [ ] **Step 4: Implement `names.ts`.** Title clean-up: dots/underscores → spaces, collapse spaces, strip a leading `- `, title-case words only if the whole title was lowercase.
+- [x] **Step 4: Implement `names.ts`.** Title clean-up: dots/underscores → spaces, collapse spaces, strip a leading `- `, title-case words only if the whole title was lowercase.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd studio && npm test -- names`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio skeleton and naming rules"
@@ -167,7 +173,7 @@ git add studio && git commit -m "wip | studio skeleton and naming rules"
   - `conversionArgs(src: string, dst: string, aspect: "16:9" | "4:3"): string[]`
   - `convert(src: string, dst: string, aspect: "16:9" | "4:3", onProgress: (ratio: number) => void, signal?: AbortSignal): Promise<void>` (writes `dst + ".part"`, renames on exit code 0, deletes `.part` and rejects otherwise; progress from `-progress pipe:1` `out_time_ms` / probed duration)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test("args 16:9", () => {
@@ -183,13 +189,13 @@ test("convert and probe a 1 s file", async () => { /* ffmpeg testsrc 1 s → con
 test("convert_leaves_part_on_failure", async () => { /* src missing → rejects, neither dst nor dst.part exists */ });
 ```
 
-- [ ] **Step 2: Run to verify failure** — `cd studio && npm test -- ffmpeg` → FAIL.
+- [x] **Step 2: Run to verify failure** — `cd studio && npm test -- ffmpeg` → FAIL.
 
-- [ ] **Step 3: Implement `ffmpeg.ts`** with `child_process.spawn`, values from the Global Constraints.
+- [x] **Step 3: Implement `ffmpeg.ts`** with `child_process.spawn`, values from the Global Constraints.
 
-- [ ] **Step 4: Run tests** — PASS.
+- [x] **Step 4: Run tests** — PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio ffmpeg wrapper"
@@ -210,7 +216,7 @@ git add studio && git commit -m "wip | studio ffmpeg wrapper"
   - `scanSource(dir: string): Promise<{ source: string; guess: EpisodeGuess; durationMs: number; aspect: "16:9" | "4:3" }[]>` (recursive, `isVideoFile` only, sorted by guess then name)
   - `pickFolder(prompt: string): Promise<string | null>` and `pickFiles(prompt: string): Promise<string[]>` via `osascript -e 'POSIX path of (choose folder with prompt "…")'` (null/[] on cancel).
 
-- [ ] **Step 1: Write the failing tests** (temp dirs; `diskutil` is mocked via an injectable `runDiskutil`)
+- [x] **Step 1: Write the failing tests** (temp dirs; `diskutil` is mocked via an injectable `runDiskutil`)
 
 ```ts
 test("refuses volume with wbfs folder", async () => { /* temp volume-root flagged, wbfs/ present → usable false, reason contains "games drive" */ });
@@ -222,9 +228,9 @@ test("initRoot refuses unusable", async () => { /* rejects */ });
 test("scan_ignores_non_video", async () => { /* dir with a.mkv, a.srt, a.nfo, cover.jpg, ._a.mkv → 1 result */ });
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- drive`.
+- [x] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- drive`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio drive inspection and source scan"
@@ -243,7 +249,7 @@ git add studio && git commit -m "wip | studio drive inspection and source scan"
   - `needsConversion(rec: SourceRecord | undefined, stat: { size: number; mtimeMs: number }, targetExists: boolean): boolean`
   - `class ConversionQueue extends EventEmitter` — `constructor(root: string, opts?: { concurrency?: number; convertFn?: typeof convert; probeFn?: typeof probe })`, `enqueue(source: string, target: string, aspect: "16:9" | "4:3"): Job`, `list(): Job[]`, `start(): void`, `stop(): Promise<void>`; emits `"change"` with `Job`. Persists queued/running jobs to `.studio/queue.toml`; on construction reloads them as `queued`. Default concurrency `Math.max(1, Math.floor(os.cpus().length / 2))`. On success records the `SourceRecord` (with probed `durationMs`) and emits `"converted"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test("needsConversion", () => {
@@ -259,9 +265,9 @@ test("queue_resume_after_restart", async () => { /* enqueue 2, stop before runni
 test("queue records source on success", async () => { /* readSources contains the target with durationMs from probeFn */ });
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- sources queue`.
+- [x] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- sources queue`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio conversion queue"
@@ -280,7 +286,7 @@ git add studio && git commit -m "wip | studio conversion queue"
   - `buildLibrary(root: string, sources: SourceRecord[], probeFn?: typeof probe): Promise<Library>` — walks `root`: `ads/*.mpg` (shared), every other top-level folder except `.studio` is a channel folder; inside it `ads/*.mpg` (channel ads) and show folders; inside a show either `Season N/` folders or `.mpg` files directly (season 0, episode = 1-based index in filename order). Episode numbers from `SxxEyy` in the filename. Titles from the filename after ` - `. Durations from `sources` by target path, else `probeFn`. Icons: `show.png` if present. Skips `._*`, `.DS_Store`, `*.part`.
   - `writeLibrary(root: string, lib: Library): Promise<void>` (atomic) and `serializeLibrary(lib: Library): string`
 
-- [ ] **Step 1: Write the failing tests** against a temp tree mirroring plan 00 Task 1's sample layout, using tiny files and a fake `probeFn` returning fixed durations
+- [x] **Step 1: Write the failing tests** against a temp tree mirroring plan 00 Task 1's sample layout, using tiny files and a fake `probeFn` returning fixed durations
 
 ```ts
 test("indexes shows, seasons, ads", async () => { /* 4 shows, Gumball 6 episodes sorted, 3 shared ads */ });
@@ -292,9 +298,9 @@ test("durations prefer sources", async () => { /* probeFn not called for files p
 test("library round trip through engine", async () => { /* writeLibrary + a minimal config, then `cable-twii-sched validate` exits 0 */ });
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- library`.
+- [x] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- library`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio library index"
@@ -344,7 +350,7 @@ git add studio && git commit -m "wip | studio library index"
 
   Every mutating route rebuilds `library.toml` when files change (`"converted"` events trigger a debounced 2 s rebuild).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test("config round trip", () => { /* parseConfig(serializeConfig(sample)) deep-equals sample, sample uses every item type */ });
@@ -359,9 +365,9 @@ test("icon resized", async () => { /* 500x300 png → 128x128 png */ });
 test("drive refuses games disk via API", async () => { /* POST /api/drive with wbfs folder → DriveInfo.usable false; POST /api/drive/init → 400 */ });
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** — `cd studio && npm test`.
+- [x] **Step 2–4: Fail, implement, pass** — `cd studio && npm test`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio config store and api"
@@ -379,14 +385,14 @@ git add studio && git commit -m "wip | studio config store and api"
 - Produces: `api.ts` exports one typed function per API route (`getDrive`, `setDrive`, `pickDrive`, `initDrive`, `driveDone`, `pickSource`, `importShow`, `importAds`, `getJobs`, `subscribeJobs(cb): () => void`, `getLibrary`, `rebuildLibrary`, `getConfig`, `putConfig`, `reshuffle`, `validate`, `getPreview`, `uploadIcon`, `putShowMeta`).
 - UI: left tab bar `Drive · Library · Channels · Schedule · Preview`, light Wii-like styling (white rounded cards, `#34BEED` accents). Drive page shows `DriveInfo` with a red banner and the `reason` when unusable, an "Set up cable-twii on this drive" button when `!hasRoot`, and "Done — safe to eject" running `driveDone`. Library page: tree channel → show → season → episode (title, duration `m:ss`), "Add show…" (pick source → editable table of guesses: season, episode, title, description; channel and show name fields; show icon picker) → Import; "Add ads…"; Jobs panel with progress bars and failed-job errors; "Edit info" opens `ShowMetaDialog`.
 
-- [ ] **Step 1: Implement the pages.**
+- [x] **Step 1: Implement the pages.**
 
-- [ ] **Step 2: Manual check with the sample library**
+- [x] **Step 2: Manual check with the sample library**
 
 Run: `tools/make-samples.sh /tmp/ctw-src --short`, then `cd studio && npm start`. In the browser: choose a plain test folder as the drive, set it up, import `Gumball` from the sample source folder into channel `Cartoon Network`, import 3 ads.
 Expected: jobs reach `done`; library tree lists Gumball with 6 episodes and durations ~0:30; `cable-twii/library.toml` exists; no `.part` files remain.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio drive and library pages"
@@ -403,12 +409,12 @@ git add studio && git commit -m "wip | studio drive and library pages"
 - Consumes: `getConfig`, `putConfig`, `uploadIcon`, `getLibrary`.
 - UI: list of channels sorted by number with icon, name, category, ads on/off, mode; add/edit/delete; edit form fields: number (1–999, unique), name, category, folder (dropdown of channel folders on the drive, default = name), icon (upload → `makeIcon` → `<folder>/channel.png`), ads toggle, mode (switching mode keeps the other list in memory until save but saves only the active one). Save calls `putConfig`; 422 issues listed under the form; 409 shows "config.toml changed on disk — Reload".
 
-- [ ] **Step 1: Implement.**
+- [x] **Step 1: Implement.**
 
-- [ ] **Step 2: Manual check:** create channels 1 Cartoon Network (Kids, ads on, timed) and 2 MTV (Music, folder `mtv-00s`, ads off, looping), upload icons.
+- [x] **Step 2: Manual check:** create channels 1 Cartoon Network (Kids, ads on, timed) and 2 MTV (Music, folder `mtv-00s`, ads off, looping), upload icons.
 Expected: `config.toml` contains both, icons are 128×128 PNG on the drive, duplicate number shows an error and nothing is written.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio channels page"
@@ -429,7 +435,7 @@ git add studio && git commit -m "wip | studio channels page"
   - `layoutLoop(channel: Channel, lib: Library): { blocks: TimelineBlock[]; loopMs: number; exact: boolean }`
   - `msToPx(ms: number, pxPerHour: number): number`
 
-- [ ] **Step 1: Write the failing tests** (library fixture equal to engine `lib_basic.toml`, as `Library` JSON)
+- [x] **Step 1: Write the failing tests** (library fixture equal to engine `lib_basic.toml`, as `Library` JSON)
 
 ```ts
 test("fixed episode exact", () => expect(estimateItemMs({ type: "episode", show: "Ben 10", season: 1, episode: 5 }, cn, lib)).toEqual({ ms: 1320000, exact: true }));
@@ -444,9 +450,9 @@ test("loop length", () => { /* MTV loop random count 10 → loopMs 2000000, exac
 test("msToPx", () => expect(msToPx(1800000, 120)).toBe(60));
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- layout`.
+- [x] **Step 2–4: Fail, implement, pass** — `cd studio && npm test -- layout`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio timeline layout"
@@ -470,14 +476,14 @@ git add studio && git commit -m "wip | studio timeline layout"
   - **ItemEditor** (side panel for the selected block): `count` (1–50), season (all/N), pick type switch between random/random-run, `ads_between` for fill (0–5), read-only exact duration or estimate.
   - Toolbar: Undo/Redo (in-memory history of the channel's items, 50 steps), Reshuffle, Save. Unsaved changes marked; leaving with unsaved changes asks for confirmation. Save → `putConfig`; errors listed and blocks with errors outlined.
 
-- [ ] **Step 1: Implement.**
+- [x] **Step 1: Implement.**
 
-- [ ] **Step 2: Manual check with the sample library**
+- [x] **Step 2: Manual check with the sample library**
   1. Build the Cartoon Network schedule from the owner's example: slot 07:00 → random-run Gumball ×3, 1 random ad, random Adventure Time S5 ×5, 2 random ads, Ben 10 S01E05, random Gumball ×2; slot 19:00 → fill Adventure Time with 2 ads between.
   2. Shrink the 07:00 slot by adding a 07:30 slot.
   Expected: block heights proportional to length; the 07:00 slot shows red overlap once the 07:30 slot exists; Save writes `config.toml`; `cable-twii-sched validate` on the drive exits 0 with warnings.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio schedule timeline"
@@ -494,12 +500,12 @@ git add studio && git commit -m "wip | studio schedule timeline"
 - Consumes: `getPreview`, `getLibrary`, `getConfig`.
 - UI: channel picker, date picker (default today), "Now" marker at the current time when the date is today. TV-guide list of airings: start–end `HH:MM`, kind badge, show icon, show name, `SxxEyy`, title; consecutive ads collapsed into "Ad break (N ads, m:ss)"; up-next rows grey; engine warnings listed at the top with slot/item.
 
-- [ ] **Step 1: Implement.**
+- [x] **Step 1: Implement.**
 
-- [ ] **Step 2: Manual check:** preview channel 1 today and tomorrow.
+- [x] **Step 2: Manual check:** preview channel 1 today and tomorrow.
 Expected: lists differ between days; reloading the same day shows the identical list; the hash shown in the footer equals `cable-twii-sched hash` for that day.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add studio && git commit -m "wip | studio lineup preview"
@@ -509,9 +515,9 @@ git add studio && git commit -m "wip | studio lineup preview"
 
 ### Task 12: End-to-end check on the real flash drive
 
-- [ ] **Step 1:** Owner formats the flash drive as MS-DOS (FAT), Master Boot Record, in Disk Utility (owner does this step themselves).
+- [ ] **Step 1:** Owner formats the flash drive as MS-DOS (FAT), Master Boot Record, in Disk Utility (owner does this step themselves). (owner — pending)
 
-- [ ] **Step 2:** In Studio choose the drive, set it up, import one real show (at least one season) and a few ads, build a 2-slot schedule, Save, press Done.
+- [ ] **Step 2:** In Studio choose the drive, set it up, import one real show (at least one season) and a few ads, build a 2-slot schedule, Save, press Done. (owner, real flash drive — pending)
 Expected: `diskutil info` still reports FAT32; `/cable-twii/` contains `config.toml`, `library.toml`, `.studio/`, converted `.mpg` files; no `._*` files remain (`find /Volumes/<drive> -name "._*"` prints nothing); `cable-twii-sched validate /Volumes/<drive>/cable-twii --check-files` exits 0.
 
-- [ ] **Step 3: Commit any fixes** with `fix | …` messages.
+- [ ] **Step 3: Commit any fixes** with `fix | …` messages. (only if Steps 1-2 find problems)

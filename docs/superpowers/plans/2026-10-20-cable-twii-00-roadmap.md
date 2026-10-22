@@ -22,6 +22,14 @@
 
 Plans 02 and 03 are independent of each other once 01 is done and may run in parallel.
 
+## Status (2026-10-22)
+
+- Done: Task 0 (repo and toolchain; also set up on Windows) and Task 1 (sample library generator). Task 4 Step 3 (`docs/formats.md`) is done and reviewed.
+- Task 2 video spike is built and works in Dolphin; the owner's real-Wii run (Steps 2, 4, 5) is pending.
+- Task 3 USB spike is built but PAUSED by the owner; its safety review is not done and it must not be run until it is.
+- Task 4: `0002-drive-setup.md` exists as a provisional record (SD card as data location); `0001-video-format.md` is open until the Task 2 numbers exist.
+- The final roadmap review is deferred until the hardware tasks finish.
+
 ## Global Constraints
 
 - App name: `cable-twii`; Mac tool: `cable-twii Studio`; CLI: `cable-twii-sched`; C symbol prefix `ctw_`.
@@ -51,9 +59,9 @@ Plans 02 and 03 are independent of each other once 01 is done and may run in par
 **Files:**
 - Create: `README.md`, `.gitignore`, `docs/setup.md`
 
-- [ ] **Step 1: Ask the owner to approve the installs in Step 2** (Homebrew packages, devkitPro installer, Dolphin, GRRLIB clone). Wait for a yes.
+- [x] **Step 1: Ask the owner to approve the installs in Step 2** (Homebrew packages, devkitPro installer, Dolphin, GRRLIB clone). Wait for a yes.
 
-- [ ] **Step 2: Install tools**
+- [x] **Step 2: Install tools**
 
 ```bash
 brew install ffmpeg node@22
@@ -71,7 +79,7 @@ sudo dkp-pacman -S wii-dev ppc-libpng ppc-freetype ppc-libjpeg-turbo ppc-zlib
 
 Add to `~/.zprofile`: `export DEVKITPRO=/opt/devkitpro`, `export DEVKITPPC=$DEVKITPRO/devkitPPC`, `export PATH=$DEVKITPRO/tools/bin:$PATH`.
 
-- [ ] **Step 3: Install GRRLIB from source**
+- [x] **Step 3: Install GRRLIB from source**
 
 ```bash
 git clone https://github.com/GRRLIB/GRRLIB.git ~/src/GRRLIB && make -C ~/src/GRRLIB/GRRLIB clean all install
@@ -79,16 +87,16 @@ git clone https://github.com/GRRLIB/GRRLIB.git ~/src/GRRLIB && make -C ~/src/GRR
 
 Expected: `libgrrlib.a` installed under `$DEVKITPRO/portlibs/wii/lib`.
 
-- [ ] **Step 4: Verify toolchain**
+- [x] **Step 4: Verify toolchain**
 
 Run: `powerpc-eabi-gcc --version | head -1; wiiload 2>&1 | head -1; ffmpeg -version | head -1; node --version`
 Expected: four version lines, node `v22.x`.
 
-- [ ] **Step 5: Create repo skeleton**
+- [x] **Step 5: Create repo skeleton**
 
 `git init` in this folder; create `engine/ studio/ wii/ spikes/ tools/ samples/ docs/decisions/`. `.gitignore`: `node_modules/`, `dist/`, `build/`, `*.dol`, `*.elf`, `.superpowers/`, `.DS_Store`, `._*`, `samples/out/`. `docs/setup.md` records Steps 2–4 plus the Wii prerequisites: Homebrew Channel installed, Wii on Wi-Fi, its IP noted, `export WIILOAD=tcp:<wii-ip>`. `README.md`: one paragraph on what cable-twii is, links to the spec and plans.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "wip | repo skeleton and setup notes"
@@ -110,14 +118,14 @@ git add -A && git commit -m "wip | repo skeleton and setup notes"
   - `mtv-00s/Music Videos/Artist 1 - Song 1.mpg` … `Artist 6 - Song 6.mpg`: 200 s each.
   - `channel.png` in both channel folders and `show.png` in Gumball: 128×128 solid-colour PNGs.
 
-- [ ] **Step 1: Write `tools/make-samples.sh <out-dir> [--short]`.** Video source `testsrc2` (shows) / `smptebars` (ads) with `drawtext` burning in show, `SxxEyy` and `%{pts\:hms}` timecode; audio `sine`. Encode with the Global Constraints settings. `--short` divides every duration by 20. The burned-in timecode is how later manual tests check seek accuracy.
+- [x] **Step 1: Write `tools/make-samples.sh <out-dir> [--short]`.** Video source `testsrc2` (shows) / `smptebars` (ads) with `drawtext` burning in show, `SxxEyy` and `%{pts\:hms}` timecode; audio `sine`. Encode with the Global Constraints settings. `--short` divides every duration by 20. The burned-in timecode is how later manual tests check seek accuracy.
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `tools/make-samples.sh samples/out --short && ffprobe -v error -show_entries format=duration -of csv=p=0 "samples/out/cable-twii/Cartoon Network/Gumball/Season 1/S01E01 - Test One.mpg"`
 Expected: a value between `29.9` and `30.1`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tools/make-samples.sh samples/README.md && git commit -m "wip | sample library generator"
@@ -132,16 +140,16 @@ git add tools/make-samples.sh samples/README.md && git commit -m "wip | sample l
 
 Throwaway: no tests, no review, never imported by product code.
 
-- [ ] **Step 1: Build a bare app** that mounts `sd:` and `usb:`, opens `/cable-twii-spike/test.mpg` with `plm_create_with_filename`, uploads the Y/U/V planes as three `GX_TF_I8` textures, combines them into RGB in TEV stages, draws fullscreen at the correct aspect, plays MP2 audio through ASND at 48 kHz, and shows fps, decode ms per frame and audio underruns on screen. Button 1 seeks to 300 s with `plm_seek` and logs how long the seek took.
+- [x] **Step 1: Build a bare app** that mounts `sd:` and `usb:`, opens `/cable-twii-spike/test.mpg` with `plm_create_with_filename`, uploads the Y/U/V planes as three `GX_TF_I8` textures, combines them into RGB in TEV stages, draws fullscreen at the correct aspect, plays MP2 audio through ASND at 48 kHz, and shows fps, decode ms per frame and audio underruns on screen. Button 1 seeks to 300 s with `plm_seek` and logs how long the seek took.
 
-- [ ] **Step 2: Encode test files** at 640×360/1500k, 480×360/1500k, 512×288/1200k and 384×216/900k from one real episode the owner provides (at least 6 minutes long, with a timecode burned in via `drawtext`).
+- [ ] **Step 2: Encode test files** at 640×360/1500k, 480×360/1500k, 512×288/1200k and 384×216/900k from one real episode the owner provides (at least 6 minutes long, with a timecode burned in via `drawtext`).  (needs the owner's real episode — pending)
 
-- [ ] **Step 3: Run in Dolphin** with its virtual SD card pointing at the files. This only proves the program works; ignore its fps.
+- [x] **Step 3: Run in Dolphin** with its virtual SD card pointing at the files. This only proves the program works; ignore its fps.
 
-- [ ] **Step 4: Run on the real Wii** with `wiiload spikes/video/boot.dol`, each file for 2 minutes, with the Wii set to 60 Hz and then 50 Hz.
+- [ ] **Step 4: Run on the real Wii** with `wiiload spikes/video/boot.dol`, each file for 2 minutes, with the Wii set to 60 Hz and then 50 Hz.  (owner, real Wii — pending)
 Expected record per file: average fps (target 30.0), worst decode ms, underruns (target 0), seek time to 300 s (target under 1.5 s), timecode error after seek (target under 0.5 s).
 
-- [ ] **Step 5: If 640×360 misses 30 fps,** compare the TEV path with a CPU YUV→RGB path once, then pick the largest resolution that holds 30 fps with zero underruns. If nothing above 384×216 does, record "evaluate libavcodec MPEG-1 decoder" as a follow-up in Task 4.
+- [ ] **Step 5: If 640×360 misses 30 fps,** compare the TEV path with a CPU YUV→RGB path once, then pick the largest resolution that holds 30 fps with zero underruns. If nothing above 384×216 does, record "evaluate libavcodec MPEG-1 decoder" as a follow-up in Task 4.  (depends on Step 4 — pending)
 
 ---
 
@@ -150,12 +158,12 @@ Expected record per file: average fps (target 30.0), worst decode ms, underruns 
 **Files:**
 - Create: `spikes/usb/Makefile`, `spikes/usb/source/main.c`
 
-- [ ] **Step 1: Build an app that only reads.** Initialise USB storage under IOS58, enumerate every device and partition libogc/libfat can see, print each with its type (FAT/other) and whether `/cable-twii/` exists on it, then read 50 MB from `/cable-twii/` on the flash drive and print MB/s. Nothing is opened for writing.
+- [x] **Step 1: Build an app that only reads.** Initialise USB storage under IOS58, enumerate every device and partition libogc/libfat can see, print each with its type (FAT/other) and whether `/cable-twii/` exists on it, then read 50 MB from `/cable-twii/` on the flash drive and print MB/s. Nothing is opened for writing.
 
-- [ ] **Step 2: Run on the real Wii** in four setups: flash drive alone in port 0; flash alone in port 1; games drive port 0 + flash port 1; flash port 0 + games port 1.
+- [ ] **Step 2: Run on the real Wii** in four setups: flash drive alone in port 0; flash alone in port 1; games drive port 0 + flash port 1; flash port 0 + games port 1.  (owner, real Wii — PAUSED by owner, do not run)
 Expected record per setup: devices listed, `/cable-twii/` found or not, read speed (needs at least 1 MB/s; video is about 0.2 MB/s).
 
-- [ ] **Step 3: Confirm the games drive still works** in the owner's USB loader afterwards.
+- [ ] **Step 3: Confirm the games drive still works** in the owner's USB loader afterwards.  (owner — paused; safety review of the no-write guarantee not done)
 
 ---
 
@@ -165,13 +173,13 @@ Expected record per setup: devices listed, `/cable-twii/` found or not, read spe
 - Create: `docs/decisions/0001-video-format.md`, `docs/decisions/0002-drive-setup.md`, `docs/formats.md`
 - Modify: `docs/superpowers/specs/2026-10-20-cable-twii-design.md` (§2 Storage, §4 Video format, §8.3)
 
-- [ ] **Step 1: Write 0001** with the Task 2 results table and the chosen resolutions, bitrate and YUV path (TEV or CPU). Update spec §4 and §8.3 to match.
+- [ ] **Step 1: Write 0001** with the Task 2 results table and the chosen resolutions, bitrate and YUV path (TEV or CPU). Update spec §4 and §8.3 to match.  (open — waits on the Task 2 hardware results)
 
-- [ ] **Step 2: Write 0002** with the Task 3 results table and the decision: two drives (with which port), SD card, or swapping. Update spec §2.
+- [ ] **Step 2: Write 0002** with the Task 3 results table and the decision: two drives (with which port), SD card, or swapping. Update spec §2.  (provisional 0002 written (SD card as data location); final waits on Task 3)
 
-- [ ] **Step 3: Write `docs/formats.md`**: the frozen schemas of `config.toml`, `library.toml`, `show.toml`, `state.toml`, `.studio/sources.toml` and the CLI JSON outputs, taken from spec §5, §6.7, §8.1a and plan 01 Task 9, all at `version = 1`. Any later change bumps `version` and updates engine and Studio in the same commit.
+- [x] **Step 3: Write `docs/formats.md`**: the frozen schemas of `config.toml`, `library.toml`, `show.toml`, `state.toml`, `.studio/sources.toml` and the CLI JSON outputs, taken from spec §5, §6.7, §8.1a and plan 01 Task 9, all at `version = 1`. Any later change bumps `version` and updates engine and Studio in the same commit.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Commit**  (pending — only Step 3 and provisional Step 2 are committed)
 
 ```bash
 git add docs/ && git commit -m "wip | spike decisions and frozen formats"

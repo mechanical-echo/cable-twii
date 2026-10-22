@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-20-cable-twii-design.md` (§9 steps 10–11, §11 risks)
 
+## Status (2026-10-22)
+
+- Done: Task 1 Steps 1 and 3 (`make dist` and `CHANGELOG.md`), Task 2 Steps 1 and 3 (`docs/USER-GUIDE.md`, merged).
+- Waiting on the owner: Task 1 Step 2 (check the package on a real SD card and the Homebrew Channel) and Task 2 Step 2 (follow the guide from a fresh flash drive).
+- Blocked: Task 3 (forwarder research) needs the owner's approval of the research downloads.
+- Not started: Tasks 4-6 (forwarder build, safe install on the Wii, final acceptance and the v1.0.0 tag).
+
 ## Global Constraints
 
 - The forwarder is installed **only** after: a BootMii NAND backup exists and is copied to the Mac (`nand.bin` + `keys.bin`, size checked), and Priiloader is installed and confirmed to open on boot by holding Reset.
@@ -36,14 +43,14 @@
 - Modify: `wii/Makefile` (add `dist` target)
 - Create: `wii/meta.xml` final values, `CHANGELOG.md`
 
-- [ ] **Step 1: Add `make dist`** producing `dist/apps/cable-twii/boot.dol` (release build, no `CTW_DEBUG_OVERLAY`), `meta.xml` (version from `CHANGELOG.md`'s top entry, release date `YYYYMMDDHHMMSS`), `icon.png` (128×48).
+- [x] **Step 1: Add `make dist`** producing `dist/apps/cable-twii/boot.dol` (release build, no `CTW_DEBUG_OVERLAY`), `meta.xml` (version from `CHANGELOG.md`'s top entry, release date `YYYYMMDDHHMMSS`), `icon.png` (128×48).
 
-- [ ] **Step 2: Verify**
+- [ ] **Step 2: Verify** (owner, real Wii — pending)
 
 Run: `make -C wii dist && ls dist/apps/cable-twii`
 Expected: `boot.dol  icon.png  meta.xml`. Copy to the SD card; the Homebrew Channel lists "cable-twii" with the icon and description, and launching it reaches the guide.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add wii CHANGELOG.md && git commit -m "wip | homebrew channel package"
@@ -56,11 +63,11 @@ git add wii CHANGELOG.md && git commit -m "wip | homebrew channel package"
 **Files:**
 - Create: `docs/USER-GUIDE.md`
 
-- [ ] **Step 1: Write the guide**, in plain language, covering in this order: what you need (Wii with Homebrew Channel, flash drive or SD card, Mac); formatting **only the flash drive** in Disk Utility (MS-DOS (FAT), Master Boot Record), with a bold warning to double-check the drive name so the games drive is never selected; starting Studio (`cd studio && npm start`); adding shows and ads; setting up channels; building schedules (looping vs timed, random blocks, what red overlap means); Preview; Done & eject; copying `apps/cable-twii/` to the SD card; which USB port to use (from decision 0002); setting the Wii clock; controls on the Wii; troubleshooting for every error message in plan 03 Task 3 and Task 4 copy.
+- [x] **Step 1: Write the guide**, in plain language, covering in this order: what you need (Wii with Homebrew Channel, flash drive or SD card, Mac); formatting **only the flash drive** in Disk Utility (MS-DOS (FAT), Master Boot Record), with a bold warning to double-check the drive name so the games drive is never selected; starting Studio (`cd studio && npm start`); adding shows and ads; setting up channels; building schedules (looping vs timed, random blocks, what red overlap means); Preview; Done & eject; copying `apps/cable-twii/` to the SD card; which USB port to use (from decision 0002); setting the Wii clock; controls on the Wii; troubleshooting for every error message in plan 03 Task 3 and Task 4 copy.
 
-- [ ] **Step 2: Owner reads it** and follows it once from a fresh flash drive; every place they got stuck is fixed in the guide.
+- [ ] **Step 2: Owner reads it** and follows it once from a fresh flash drive; every place they got stuck is fixed in the guide. (owner reads and follows it — pending)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/USER-GUIDE.md && git commit -m "wip | owner guide"
@@ -73,15 +80,15 @@ git add docs/USER-GUIDE.md && git commit -m "wip | owner guide"
 **Files:**
 - Create: `docs/decisions/0003-forwarder.md`
 
-- [ ] **Step 1: Ask the owner to approve the research downloads** (forwarder source code and WAD tools, each named with source and size). Wait for a yes.
+- [ ] **Step 1: Ask the owner to approve the research downloads** (forwarder source code and WAD tools, each named with source and size). Wait for a yes. (needs owner approval of downloads)
 
-- [ ] **Step 2: Evaluate forwarder bases** against: open source and buildable with devkitPPC on macOS; loads a configurable path from SD then USB; works under the IOS the Homebrew Channel uses; returns to the Wii Menu with a message when the file is missing. Evaluate WAD packing on macOS: building a channel WAD from a DOL + `opening.bnr` + title ID, fakesigned, using maintained tooling (start with libWiiPy/WiiPy).
+- [ ] **Step 2: Evaluate forwarder bases** against: open source and buildable with devkitPPC on macOS; loads a configurable path from SD then USB; works under the IOS the Homebrew Channel uses; returns to the Wii Menu with a message when the file is missing. Evaluate WAD packing on macOS: building a channel WAD from a DOL + `opening.bnr` + title ID, fakesigned, using maintained tooling (start with libWiiPy/WiiPy). (blocked on Task 3 Step 1)
 
-- [ ] **Step 3: Pick a title ID** (4 characters, e.g. `CTWA`), and check it against public title databases (e.g. WiiBrew's title list and GameTDB) so it collides with no known channel or game. Record the search results.
+- [ ] **Step 3: Pick a title ID** (4 characters, e.g. `CTWA`), and check it against public title databases (e.g. WiiBrew's title list and GameTDB) so it collides with no known channel or game. Record the search results. (blocked on Task 3 Step 1)
 
-- [ ] **Step 4: Write 0003** with the chosen forwarder, tool versions, build commands, title ID, and the exact path the forwarder loads (`apps/cable-twii/boot.dol`).
+- [ ] **Step 4: Write 0003** with the chosen forwarder, tool versions, build commands, title ID, and the exact path the forwarder loads (`apps/cable-twii/boot.dol`). (blocked on Task 3 Step 1)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (blocked on Task 3 Step 1)
 
 ```bash
 git add docs/decisions/0003-forwarder.md && git commit -m "wip | forwarder decision"
@@ -97,17 +104,17 @@ git add docs/decisions/0003-forwarder.md && git commit -m "wip | forwarder decis
 **Interfaces:**
 - Produces: `dist/cable-twii-forwarder.wad`.
 
-- [ ] **Step 1: Make the banner assets**: banner 608×456 and icon 128×96 in the guide's Wii style (stripes, cable-twii logo); a short original jingle (under 5 s) for the banner sound.
+- [ ] **Step 1: Make the banner assets**: banner 608×456 and icon 128×96 in the guide's Wii style (stripes, cable-twii logo); a short original jingle (under 5 s) for the banner sound. (not started)
 
-- [ ] **Step 2: Write `tools/build-wad.sh`** following 0003: build the forwarder DOL with the `apps/cable-twii/boot.dol` path, build `opening.bnr` from the assets, pack the WAD with the chosen title ID.
+- [ ] **Step 2: Write `tools/build-wad.sh`** following 0003: build the forwarder DOL with the `apps/cable-twii/boot.dol` path, build `opening.bnr` from the assets, pack the WAD with the chosen title ID. (not started)
 
-- [ ] **Step 3: Test in Dolphin** (Tools → Install WAD into Dolphin's own emulated NAND, never the real console):
+- [ ] **Step 3: Test in Dolphin** (Tools → Install WAD into Dolphin's own emulated NAND, never the real console): (not started)
   - the channel shows on Dolphin's Wii Menu with the banner, icon and sound;
   - starting it launches cable-twii from the virtual SD card;
   - with no `boot.dol` on the SD card it returns to the Wii Menu with the message;
   - USB-only launch cannot be tested in Dolphin and is checked in Task 5.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Commit** (not started)
 
 ```bash
 git add forwarder tools/build-wad.sh && git commit -m "wip | forwarder channel build"
@@ -120,20 +127,20 @@ git add forwarder tools/build-wad.sh && git commit -m "wip | forwarder channel b
 **Files:**
 - Create: `docs/INSTALL-CHANNEL.md`
 
-- [ ] **Step 1: Write the install document** with these checks, each with how to confirm it:
+- [ ] **Step 1: Write the install document** with these checks, each with how to confirm it: (not started)
   1. BootMii NAND backup made, `nand.bin` and `keys.bin` copied to the Mac, `nand.bin` about 528 MB.
   2. Priiloader installed; holding Reset while turning the Wii on opens Priiloader.
   3. The WAD manager the owner already uses is ready on the SD card.
   4. The WAD's title ID matches 0003.
   Then installing the WAD with the WAD manager, and how to uninstall it (WAD manager uninstall, or Data Management → Channels).
 
-- [ ] **Step 2: Owner completes checks 1–4** and confirms each in chat before installing.
+- [ ] **Step 2: Owner completes checks 1–4** and confirms each in chat before installing. (not started)
 
-- [ ] **Step 3: Owner installs the WAD.** Verify: channel appears on the Wii Menu; launches cable-twii with `boot.dol` on SD; launches it with `boot.dol` only on USB and no SD card; the games drive still works in the USB loader.
+- [ ] **Step 3: Owner installs the WAD.** Verify: channel appears on the Wii Menu; launches cable-twii with `boot.dol` on SD; launches it with `boot.dol` only on USB and no SD card; the games drive still works in the USB loader. (not started)
 
-- [ ] **Step 4: Owner tests the uninstall once and reinstalls**: after uninstalling, the Wii Menu looks as before and the console boots normally.
+- [ ] **Step 4: Owner tests the uninstall once and reinstalls**: after uninstalling, the Wii Menu looks as before and the console boots normally. (not started)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (not started)
 
 ```bash
 git add docs/INSTALL-CHANNEL.md && git commit -m "wip | channel install guide"
@@ -143,9 +150,9 @@ git add docs/INSTALL-CHANNEL.md && git commit -m "wip | channel install guide"
 
 ### Task 6: Final acceptance run
 
-- [ ] **Step 1: Full run with the owner's real library**, both drives plugged in: Studio import → schedules → Preview; Wii from the Wii Menu channel: logo → guide → preview → fullscreen → flip → OSD → HOME → back to the Wii Menu. Compare 5 random times of day with Studio's Preview for the same date: all match.
+- [ ] **Step 1: Full run with the owner's real library**, both drives plugged in: Studio import → schedules → Preview; Wii from the Wii Menu channel: logo → guide → preview → fullscreen → flip → OSD → HOME → back to the Wii Menu. Compare 5 random times of day with Studio's Preview for the same date: all match. (not started)
 
-- [ ] **Step 2: Tag the release**
+- [ ] **Step 2: Tag the release** (not started)
 
 ```bash
 git tag v1.0.0
