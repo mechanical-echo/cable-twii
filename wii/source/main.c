@@ -17,6 +17,7 @@
 #include "ui/cursor.h"
 #include "ui/sfx.h"
 #include "ui/icons.h"
+#include "ui/glyphs.h"
 #include "media/player.h"
 #include "screens/error.h"
 #include "screens/full.h"
@@ -177,6 +178,7 @@ int main(int argc, char **argv)
     cur_init();
     sfx_init();
     icons_init();
+    glyphs_init();
 #ifdef CTW_DEBUG_OVERLAY
     overlay_init();
 #endif
