@@ -54,14 +54,22 @@ static bool mount_usb(void)
 
 static FILE *open_app(void)
 {
+    printf("   Looking for " APP_PATH " on the SD card...\n");
     if (__io_wiisd.startup() && __io_wiisd.isInserted() && fatMountSimple("sd", &__io_wiisd)) {
         FILE *f = fopen("sd:/" APP_PATH, "rb");
-        if (f) return f;
+        if (f) {
+            printf("   Found on the SD card.\n");
+            return f;
+        }
         fatUnmount("sd:");
     }
+    printf("   Not on the SD card. Looking on USB (up to %d s)...\n", USB_WAIT_S);
     if (mount_usb()) {
         FILE *f = fopen("usb:/" APP_PATH, "rb");
-        if (f) return f;
+        if (f) {
+            printf("   Found on USB.\n");
+            return f;
+        }
         fatUnmount("usb:");
     }
     return NULL;
@@ -91,6 +99,7 @@ static void place(const dol_header *h, const u8 *image)
 int main(void)
 {
     screen_init();
+    printf("\n\n\n   cable-twii\n\n");
     FILE *f = open_app();
     if (!f) leave(APP_PATH " was not found on the SD card or a USB drive.");
     fseek(f, 0, SEEK_END);
@@ -113,6 +122,7 @@ int main(void)
     if (!dol_parse(LOAD_ADDR, (size_t)size, &h) || !dol_fits(&h, (size_t)size, LOWEST_ADDR, FORWARDER_BASE)) {
         leave("boot.dol is not a Wii program this channel can start.");
     }
+    printf("   Starting cable-twii...\n");
     memset(STUB_MAGIC, 0, STUB_MAGIC_LEN);
     DCFlushRange(STUB_MAGIC, STUB_MAGIC_LEN);
     VIDEO_SetBlack(TRUE);

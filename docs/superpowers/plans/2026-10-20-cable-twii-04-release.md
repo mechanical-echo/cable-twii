@@ -15,7 +15,7 @@
 - Done: Task 1 Steps 1 and 3 (`make dist` and `CHANGELOG.md`), Task 2 Steps 1 and 3 (`docs/USER-GUIDE.md`, merged).
 - Waiting on the owner: Task 1 Step 2 (check the package on a real SD card and the Homebrew Channel) and Task 2 Step 2 (follow the guide from a fresh flash drive).
 - Done: Task 3 (forwarder research), recorded in `docs/decisions/0003-forwarder.md`: our own forwarder source after the EasyRPG design, IOS58, title ID `CTWA`, libWiiPy/WiiPy packing, our own banner builder.
-- In progress: Task 4 (forwarder build) on branch `forwarder`: `forwarder/` with host tests, banner assets, `tools/build_banner.py`, `tools/build_wad.py` and `tools/build-wad.sh` are done; Step 3 (Dolphin) waits for the retail certificate chain download and a Wii Menu in Dolphin.
+- In progress: Task 4 (forwarder build) on branch `forwarder`: `forwarder/` with host tests, banner assets, `tools/build_banner.py`, `tools/build_wad.py` and `tools/build-wad.sh` are done; Step 3 (Dolphin): the channel starts the app and shows the missing-file message (checked 2026-10-22); the banner, icon and sound check waits for a Wii Menu in Dolphin (the owner's NAND backup imported).
 - Not started: Tasks 5-6 (safe install on the Wii, final acceptance and the v1.0.0 tag).
 
 ## Global Constraints
@@ -109,10 +109,10 @@ git add docs/decisions/0003-forwarder.md && git commit -m "wip | forwarder decis
 
 - [x] **Step 2: Write `tools/build-wad.sh`** following 0003: build the forwarder DOL with the `apps/cable-twii/boot.dol` path, build `opening.bnr` from the assets, pack the WAD with the chosen title ID. (done 2026-10-22: `make -C forwarder`, `tools/build_banner.py`, `tools/build_wad.py`; the script stops with instructions until `.tooling/cert-chain.bin` has been fetched)
 
-- [ ] **Step 3: Test in Dolphin** (Tools → Install WAD into Dolphin's own emulated NAND, never the real console): (blocked: the WAD needs the retail certificate chain, and the banner check needs a Wii Menu in Dolphin, which this Mac does not have without the owner's NAND backup)
-  - the channel shows on Dolphin's Wii Menu with the banner, icon and sound;
-  - starting it launches cable-twii from the virtual SD card;
-  - with no `boot.dol` on the SD card it returns to the Wii Menu with the message;
+- [ ] **Step 3: Test in Dolphin** (Tools → Install WAD into Dolphin's own emulated NAND, never the real console): (partly done 2026-10-22 by booting `dist/cable-twii-forwarder.wad` directly, which installs it into Dolphin's NAND; a first build showed only a black screen until the real-mode boot stub at 0x3400 was added, see 0003)
+  - the channel shows on Dolphin's Wii Menu with the banner, icon and sound; (open: needs a Wii Menu in Dolphin, which this Mac gets only from the owner's NAND backup)
+  - starting it launches cable-twii from the virtual SD card; (done 2026-10-22: intro at 3 s, guide at 5 s)
+  - with no `boot.dol` on the SD card it returns to the Wii Menu with the message; (done 2026-10-22: status lines, a 10 s USB wait, the message for 5 s, then the return, which ends emulation because Dolphin has no Wii Menu)
   - USB-only launch cannot be tested in Dolphin and is checked in Task 5.
 
 - [x] **Step 4: Commit** (done 2026-10-22 on branch `forwarder`; Step 3 stays open)

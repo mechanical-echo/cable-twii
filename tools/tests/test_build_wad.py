@@ -12,8 +12,20 @@ from libWiiPy.title.ticket import Ticket
 from libWiiPy.title.title import Title
 from libWiiPy.title.tmd import TMD
 
-DOL = bytes(range(256)) * 2
 BANNER = b"B" * 100
+
+
+def dol_with(sections):
+    header = bytearray(0x100)
+    for i, (address, size) in enumerate(sections):
+        struct.pack_into(">I", header, 0x00 + 4 * i, 0x100 + 0x20 * i)
+        struct.pack_into(">I", header, 0x48 + 4 * i, address)
+        struct.pack_into(">I", header, 0x90 + 4 * i, size)
+    struct.pack_into(">I", header, 0xE0, 0x81230000)
+    return bytes(header) + bytes(range(256)) * 2
+
+
+DOL = dol_with([(0x00003400, 0x20), (0x81230000, 0x20)])
 
 
 class MakeTmd(unittest.TestCase):
@@ -101,6 +113,15 @@ class BuildWad(unittest.TestCase):
         self.assertEqual(DOL, title.get_content_by_index(1))
         self.assertEqual(BANNER, title.get_content_by_index(0))
         self.assertTrue(title.get_is_fakesigned())
+
+    def test_rejects_a_dol_without_the_nand_boot_stub(self):
+        plain = dol_with([(0x81230000, 0x20)])
+        with self.assertRaises(ValueError):
+            bw.build_wad(plain, BANNER, "CTWA", 58, CHAIN)
+
+    def test_accepts_the_stub_at_the_virtual_address_too(self):
+        wad = bw.build_wad(dol_with([(0x80003400, 0x20), (0x80003F00, 0x20)]), BANNER, "CTWA", 58, CHAIN, title_key=b"\x22" * 16)
+        self.assertEqual(b"Is", wad[4:6])
 
     def test_rejects_an_empty_cert_chain(self):
         with self.assertRaises(ValueError):

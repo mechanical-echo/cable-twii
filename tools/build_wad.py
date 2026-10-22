@@ -19,6 +19,7 @@ BANNER_INDEX = 0
 DOL_INDEX = 1
 TITLE_LIMITS = 8
 RETAIL_COMMON_KEY = 0
+NAND_STUB_ADDRESS = 0x3400
 
 
 def title_id_for(code):
@@ -66,7 +67,20 @@ def make_ticket(title_id, title_key):
     return ticket
 
 
+def has_nand_stub(dol):
+    if len(dol) < 0x100:
+        return False
+    for i in range(7):
+        address = int.from_bytes(dol[0x48 + 4 * i:0x4C + 4 * i], "big")
+        size = int.from_bytes(dol[0x90 + 4 * i:0x94 + 4 * i], "big")
+        if size and (address & 0x7FFFFFFF) == NAND_STUB_ADDRESS:
+            return True
+    return False
+
+
 def build_wad(dol, banner, code, ios, cert_chain, title_version=1, title_key=None):
+    if not has_nand_stub(dol):
+        raise ValueError("the DOL has no boot stub at 0x3400, so IOS could not start it as a channel")
     title_key = title_key or secrets.token_bytes(16)
     title = Title()
     title.tmd = make_tmd(code, ios, title_version)

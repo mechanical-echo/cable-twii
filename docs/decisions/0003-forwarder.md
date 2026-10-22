@@ -1,6 +1,6 @@
 # 0003: Forwarder channel
 
-Status: **Accepted** and built (release Task 4, branch `forwarder`, 2026-10-22). The Dolphin check (Task 4 Step 3) and the real-Wii install (Task 5) can still send it back here.
+Status: **Accepted** and built (release Task 4, branch `forwarder`, 2026-10-22). Checked in Dolphin on 2026-10-22: the channel starts the app from the SD card and shows the missing-file message. The banner has not been seen yet (no Wii Menu in Dolphin), and the real-Wii install (Task 5) can still send it back here.
 
 ## Context
 
@@ -32,7 +32,7 @@ What the evaluation showed:
 
 Our own source in `forwarder/` (release Task 4), written for libogc 3.2.1 after the EasyRPG design. No code is copied from that repository, which has no licence. The program is about 150 lines of C:
 
-1. Start video with a text console. The screen stays black unless something goes wrong.
+1. Start video with a text console and print what it is doing (looking on the SD card, on USB, starting), so a stuck boot is readable.
 2. Mount `sd` (`__io_wiisd`) and look for `sd:/apps/cable-twii/boot.dol`. If it is not there, mount `usb` (`__io_usbstorage`, retrying for up to 10 s because drives take time to answer) and look for `usb:/apps/cable-twii/boot.dol`. The path is a build-time macro.
 3. Read the file to 0x92000000 in MEM2. The limit is 0x933E0000, so a DOL may be up to about 19 MB.
 4. Check the DOL header: every text, data and bss range must lie inside 0x80003400 to 0x81230000 and inside the file. Otherwise show a message.
@@ -42,6 +42,8 @@ Our own source in `forwarder/` (release Task 4), written for libogc 3.2.1 after 
 8. On any failure: print "cable-twii", the reason ("apps/cable-twii/boot.dol was not found on the SD card or a USB drive.") and "Returning to the Wii Menu.", wait 5 s, then `SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0)`.
 
 No arguments are passed. cable-twii's `main` ignores `argc` and `argv` and finds its data root by scanning the devices (decision 0002).
+
+A channel is not started the way the Homebrew Channel starts an app. IOS loads the DOL's sections and starts the CPU in real mode at physical address 0x3400, and Dolphin's bootstrap does the same. devkitPPC's linker script reserves the `.stub` section there, and nothing in libogc 3.2.1 fills it, so `forwarder/source/stub.S` provides the stub: it clears the BAT registers, maps MEM1 and MEM2 (cached at 0x80000000 and 0x90000000, uncached at 0xC0000000 and 0xD0000000), turns address translation on and jumps to `__app_start`. It becomes text section 0 of the DOL at 0x00003400. Without it the channel shows a black screen, which is what the first Dolphin boot did; `tools/build_wad.py` refuses a DOL whose text sections do not include 0x3400.
 
 Build: the Wii Makefile pattern from `wii/Makefile` (`include $(DEVKITPPC)/wii_rules`) with `LIBS := -lfat -logc -lm` and `LDFLAGS += -Wl,--section-start,.init=0x81230000`. A prototype of exactly this built on 2026-10-22: `forwarder.dol` is 310 KB, the entry point is 0x81230000, the bss ends at 0x812A7280 and `__Arena1Lo` follows it, so the forwarder's heap and stack sit in the free top of MEM1 and never touch the region the app is copied into. The source lives in `forwarder/` (`make -C forwarder`, `APP_PATH` overridable); the header parsing and range check are in `forwarder/source/dol.c` with host tests in `forwarder/tests` (`make -C forwarder/tests test`).
 
