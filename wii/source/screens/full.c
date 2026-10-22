@@ -22,9 +22,11 @@ static osd_state g_osd;
 static int64_t current_start_ms = -1;
 static float last_cx, last_cy;
 static bool have_last_cursor;
+static bool end_probed;
 
 static void play_airing(app *a, const ctw_airing *air, uint32_t offset_ms)
 {
+    end_probed = false;
     if (air == NULL || air->kind == CTW_AIR_UPNEXT) {
         pl_close();
         current_start_ms = air != NULL ? tn_airing_start(&a->tuner, a->current_channel, air) : -1;
@@ -55,16 +57,22 @@ void full_enter(app *a)
     tune(a, a->current_channel);
 }
 
+static bool drive_lost(app *a, const ctw_airing *air, uint32_t offset)
+{
+    pl_state st = pl_status();
+    uint32_t remaining = air != NULL ? tn_ms_remaining(air, offset) : 0;
+    if (!pb_needs_probe(st, remaining)) return false;
+    if (st == PL_ENDED && end_probed) return false;
+    end_probed = true;
+    if (st == PL_ERROR) pl_close();
+    if (pb_on_status(st, remaining, st_drive_present(&a->drive)) != PB_DISCONNECTED) return false;
+    app_fail(a, "The drive was disconnected", "Plug it back in and start cable-twii again.");
+    return true;
+}
+
 void full_update(app *a)
 {
     clk_now(&a->today, &a->ms_of_day);
-
-    pl_state st = pl_status();
-    if (st == PL_ERROR) pl_close();
-    if (pb_on_status(st, st == PL_ERROR && st_drive_present(&a->drive)) == PB_DISCONNECTED) {
-        app_fail(a, "The drive was disconnected", "Plug it back in and start cable-twii again.");
-        return;
-    }
 
     if (in_pressed(WPAD_BUTTON_UP) || in_pressed(WPAD_BUTTON_RIGHT)) {
         tune(a, nav_step(a->db, a->current_channel, 1));
@@ -93,7 +101,9 @@ void full_update(app *a)
     const ctw_airing *air = tn_current(&a->tuner, a->current_channel, a->today, a->ms_of_day, &offset);
     if (air != NULL && tn_airing_start(&a->tuner, a->current_channel, air) != current_start_ms) {
         play_airing(a, air, offset);
+        return;
     }
+    if (drive_lost(a, air, offset)) return;
 }
 
 void full_draw(app *a)

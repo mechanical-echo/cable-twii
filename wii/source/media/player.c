@@ -119,13 +119,19 @@ static void on_stream_end(void)
     if (pb_classify_end(ferror(fh) != 0, path_ok) == PB_END_ERROR) status = PL_ERROR;
 }
 
+static void end_stream(volatile int *flag)
+{
+    on_stream_end();
+    *flag = 1;
+    if (status != PL_ERROR && video_eof && (audio_eof || !has_audio_s)) status = PL_ENDED;
+}
+
 static void prefill_audio(void)
 {
     while (has_audio_s && !audio_eof && au_ring_fill() < AUDIO_LEAD_SAMPLES) {
         plm_samples_t *s = plm_decode_audio(plm);
         if (s == NULL) {
-            audio_eof = 1;
-            on_stream_end();
+            end_stream(&audio_eof);
             break;
         }
         au_push(s->interleaved, s->count, s->time);
@@ -174,8 +180,7 @@ static void *decode_thread(void *arg)
             if (s != NULL) {
                 au_push(s->interleaved, s->count, s->time);
             } else {
-                audio_eof = 1;
-                on_stream_end();
+                end_stream(&audio_eof);
             }
             did = 1;
         } else if (!video_eof && slots[q_w].state == SLOT_FREE) {
@@ -183,8 +188,7 @@ static void *decode_thread(void *arg)
             if (f != NULL) {
                 push_frame(f);
             } else {
-                video_eof = 1;
-                on_stream_end();
+                end_stream(&video_eof);
             }
             did = 1;
         }
@@ -343,7 +347,5 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         GRRLIB_Rectangle(dx, dy, qw, qh, RGBA(0, 0, 0, fade), 1);
     }
 
-    if (status != PL_ERROR && video_eof && has_audio_s == 0 && !wall_running) status = PL_ENDED;
-    if (status != PL_ERROR && video_eof && audio_eof) status = PL_ENDED;
     (void)duration_s;
 }
