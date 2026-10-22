@@ -16,6 +16,12 @@
 #define SEGMENT_GAP 3.0f
 #define VOL_PANEL_W 260.0f
 #define VOL_PANEL_H 44.0f
+#define CHIP_MARGIN 16.0f
+#define CHIP_H 56.0f
+#define CHIP_PAD_LEFT 8.0f
+#define CHIP_GAP 10.0f
+#define CHIP_PAD_RIGHT 18.0f
+#define CHIP_NUMBER_INK_MID 23.0f
 
 static asp_rect rect(float x, float y, float w, float h)
 {
@@ -54,6 +60,20 @@ osd_layout osd_layout_for(float offset_y)
     l.vol_panel = rect(vx, vpy, VOL_PANEL_W, VOL_PANEL_H);
     l.vol_panel_bar = rect(vx + 100.0f, vpy + 16.0f, 144.0f, 12.0f);
     return l;
+}
+
+osd_chip osd_chip_layout(float number_w)
+{
+    osd_chip c;
+    float nw = number_w < 0.0f ? 0.0f : number_w;
+    if (nw > OSD_CHIP_NUMBER_MAX_W) nw = OSD_CHIP_NUMBER_MAX_W;
+    float w = CHIP_PAD_LEFT + OSD_CHIP_ICON_PX + CHIP_GAP + nw + CHIP_PAD_RIGHT;
+    float x = SCREEN_W - CHIP_MARGIN - w;
+    float y = CHIP_MARGIN;
+    c.chip = rect(x, y, w, CHIP_H);
+    c.icon = rect(x + CHIP_PAD_LEFT, y + (CHIP_H - OSD_CHIP_ICON_PX) / 2.0f, OSD_CHIP_ICON_PX, OSD_CHIP_ICON_PX);
+    c.number = rect(c.icon.x + OSD_CHIP_ICON_PX + CHIP_GAP, y + CHIP_H / 2.0f - CHIP_NUMBER_INK_MID, nw, (float)OSD_CHIP_NUMBER_PX);
+    return c;
 }
 
 static bool inside(asp_rect r, float x, float y)

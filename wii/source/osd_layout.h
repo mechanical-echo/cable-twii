@@ -4,6 +4,9 @@
 #include "aspect.h"
 
 #define OSD_VOLUME_SEGMENTS 10
+#define OSD_CHIP_ICON_PX 40.0f
+#define OSD_CHIP_NUMBER_PX 36
+#define OSD_CHIP_NUMBER_MAX_W 200.0f
 
 typedef enum {
     OSD_BTN_NONE,
@@ -31,7 +34,14 @@ typedef struct {
     asp_rect vol_panel_bar;
 } osd_layout;
 
+typedef struct {
+    asp_rect chip;
+    asp_rect icon;
+    asp_rect number;
+} osd_chip;
+
 osd_layout osd_layout_for(float offset_y);
+osd_chip osd_chip_layout(float number_w);
 osd_btn osd_hit(const osd_layout *l, float x, float y);
 asp_rect osd_segment(asp_rect bar, int index);
 int osd_segments_lit(int volume);

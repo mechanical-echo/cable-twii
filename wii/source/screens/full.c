@@ -10,6 +10,7 @@
 #include "../osd_layout.h"
 #include "../live.h"
 #include "../clock.h"
+#include "../guide_text.h"
 #include "../media/player.h"
 #include "../ui/draw.h"
 #include "../ui/icons.h"
@@ -24,6 +25,10 @@ static osd_state g_osd;
 static float last_cx, last_cy;
 static bool have_last_cursor;
 static osd_btn hot_btn;
+static bool chip_valid;
+static int chip_channel;
+static char chip_number[16];
+static float chip_number_w;
 
 static void back_to_guide(app *a)
 {
@@ -148,6 +153,25 @@ bool full_cursor_visible(const app *a)
     return osd_visible(&g_osd, a->now_ms);
 }
 
+static void chip_draw(app *a)
+{
+    if (!chip_valid || chip_channel != a->current_channel) {
+        char num[16];
+        snprintf(num, sizeof num, "%d", a->current_channel);
+        ui_text_fit(FONT_BOLD, OSD_CHIP_NUMBER_PX, num, OSD_CHIP_NUMBER_MAX_W, chip_number, sizeof chip_number);
+        chip_number_w = ui_text_width(FONT_BOLD, OSD_CHIP_NUMBER_PX, chip_number);
+        chip_channel = a->current_channel;
+        chip_valid = true;
+    }
+    osd_chip c = osd_chip_layout(chip_number_w);
+    ui_panel(c.chip.x, c.chip.y, c.chip.w, c.chip.h, c.chip.h / 2.0f, THEME_PILL_FILL_TOP, THEME_PILL_BORDER);
+    const ctw_channel *ch = ctw_db_channel(a->db, a->current_channel);
+    char path[320] = "";
+    if (ch != NULL) gt_icon_path(a->root, ch, NULL, path, sizeof path);
+    icons_draw(path, c.icon.x, c.icon.y, c.icon.w);
+    ui_text(FONT_BOLD, OSD_CHIP_NUMBER_PX, c.number.x, c.number.y, chip_number, THEME_ACCENT, ALIGN_LEFT);
+}
+
 void full_draw(app *a)
 {
     icons_frame();
@@ -161,16 +185,7 @@ void full_draw(app *a)
         upnext_draw(a, air, next, remaining);
     }
 
-    if (osd_chip_visible(&g_osd, a->now_ms)) {
-        const ctw_channel *ch = ctw_db_channel(a->db, a->current_channel);
-        float chip_w = 120.0f, chip_h = 48.0f;
-        float x = 640.0f - chip_w - 16.0f, y = 16.0f;
-        ui_panel(x, y, chip_w, chip_h, chip_h / 2.0f, THEME_PILL_FILL_TOP, THEME_PILL_BORDER);
-        char num[16];
-        snprintf(num, sizeof num, "%d", a->current_channel);
-        ui_text(FONT_BOLD, 24, x + chip_w / 2.0f, y + chip_h / 2.0f - 14.0f, num, THEME_ACCENT, ALIGN_CENTER);
-        (void)ch;
-    }
+    if (osd_chip_visible(&g_osd, a->now_ms)) chip_draw(a);
 
     if (osd_visible(&g_osd, a->now_ms)) {
         osd_layout l = osd_layout_for(slide_offset(a));

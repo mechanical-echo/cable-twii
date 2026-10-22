@@ -137,6 +137,52 @@ TEST standalone_volume_is_centred_above_the_bottom(void)
     PASS();
 }
 
+TEST chip_sits_in_the_top_right_corner(void)
+{
+    osd_chip c = osd_chip_layout(40.0f);
+    ASSERT_IN_RANGE(640.0f - 16.0f, c.chip.x + c.chip.w, EPS);
+    ASSERT_IN_RANGE(16.0f, c.chip.y, EPS);
+    ASSERT_IN_RANGE(56.0f, c.chip.h, EPS);
+    PASS();
+}
+
+TEST chip_icon_is_40px_and_centred(void)
+{
+    osd_chip c = osd_chip_layout(40.0f);
+    ASSERT_IN_RANGE(40.0f, c.icon.w, EPS);
+    ASSERT_IN_RANGE(40.0f, c.icon.h, EPS);
+    ASSERT_IN_RANGE(c.chip.y + (c.chip.h - 40.0f) / 2.0f, c.icon.y, EPS);
+    ASSERT(c.icon.x > c.chip.x);
+    PASS();
+}
+
+TEST chip_number_follows_the_icon(void)
+{
+    osd_chip c = osd_chip_layout(40.0f);
+    ASSERT(c.number.x >= c.icon.x + c.icon.w);
+    ASSERT_IN_RANGE(40.0f, c.number.w, EPS);
+    ASSERT(c.number.x + c.number.w <= c.chip.x + c.chip.w);
+    ASSERT(c.number.y >= c.chip.y && c.number.y + c.number.h <= c.chip.y + c.chip.h);
+    PASS();
+}
+
+TEST chip_grows_with_the_number(void)
+{
+    osd_chip narrow = osd_chip_layout(20.0f);
+    osd_chip wide = osd_chip_layout(80.0f);
+    ASSERT_IN_RANGE(narrow.chip.w + 60.0f, wide.chip.w, EPS);
+    ASSERT_IN_RANGE(narrow.chip.x + narrow.chip.w, wide.chip.x + wide.chip.w, EPS);
+    PASS();
+}
+
+TEST chip_caps_long_numbers(void)
+{
+    osd_chip c = osd_chip_layout(1000.0f);
+    ASSERT_IN_RANGE(OSD_CHIP_NUMBER_MAX_W, c.number.w, EPS);
+    ASSERT(c.chip.x >= 320.0f);
+    PASS();
+}
+
 SUITE(osd_layout_suite)
 {
     RUN_TEST(layout_panel_sits_at_the_bottom);
@@ -149,4 +195,9 @@ SUITE(osd_layout_suite)
     RUN_TEST(segments_tile_the_volume_bar);
     RUN_TEST(segments_lit_counts_tens);
     RUN_TEST(standalone_volume_is_centred_above_the_bottom);
+    RUN_TEST(chip_sits_in_the_top_right_corner);
+    RUN_TEST(chip_icon_is_40px_and_centred);
+    RUN_TEST(chip_number_follows_the_icon);
+    RUN_TEST(chip_grows_with_the_number);
+    RUN_TEST(chip_caps_long_numbers);
 }
