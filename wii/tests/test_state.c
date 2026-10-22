@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include "greatest/greatest.h"
@@ -158,6 +159,16 @@ TEST state_save_into_missing_folder_does_nothing(void)
     PASS();
 }
 
+TEST state_replaces_only_when_target_exists(void)
+{
+    ASSERT(state_replace_after_rename_error(EEXIST));
+    ASSERT(!state_replace_after_rename_error(EIO));
+    ASSERT(!state_replace_after_rename_error(ENOENT));
+    ASSERT(!state_replace_after_rename_error(EROFS));
+    ASSERT(!state_replace_after_rename_error(0));
+    PASS();
+}
+
 TEST state_changed_compares_both_fields(void)
 {
     ctw_state a = { 1, 80 };
@@ -206,6 +217,7 @@ SUITE(state_suite)
     RUN_TEST(state_load_missing_or_broken_gives_defaults);
     RUN_TEST(state_load_falls_back_to_tmp);
     RUN_TEST(state_save_into_missing_folder_does_nothing);
+    RUN_TEST(state_replaces_only_when_target_exists);
     RUN_TEST(state_changed_compares_both_fields);
     RUN_TEST(state_save_throttled_to_ten_seconds);
     RUN_TEST(state_start_channel_uses_last_if_known);

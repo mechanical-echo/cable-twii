@@ -1,5 +1,6 @@
 #include "volume.h"
 
+#include <errno.h>
 #include <string.h>
 
 static uint32_t le32(const uint8_t *p)
@@ -100,18 +101,28 @@ bool vol_write_in_range(uint32_t start, uint32_t span, uint64_t sector, uint64_t
     return count <= (uint64_t)span - offset;
 }
 
-bool vol_is_wbfs_name(const char *name)
+static bool name_is(const char *name, const char *want)
 {
-    static const char want[] = "wbfs";
-    for (size_t i = 0; i < sizeof want - 1; i++) {
+    size_t i = 0;
+    for (; want[i] != '\0'; i++) {
         char c = name[i];
         if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
         if (c != want[i]) return false;
     }
-    return name[sizeof want - 1] == '\0';
+    return name[i] == '\0';
 }
 
-bool vol_write_allowed(bool has_root, bool has_wbfs)
+bool vol_is_games_name(const char *name)
 {
-    return has_root && !has_wbfs;
+    return name_is(name, "wbfs") || name_is(name, "games");
+}
+
+bool vol_scan_failed(int err)
+{
+    return err != 0 && err != ENOENT;
+}
+
+bool vol_write_allowed(bool has_root, bool has_games, bool scan_error)
+{
+    return has_root && !has_games && !scan_error;
 }

@@ -1,5 +1,6 @@
 #include "state.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,9 +107,15 @@ void state_save(const char *root, const ctw_state *s)
         remove(tmp);
         return;
     }
+    errno = 0;
     if (rename(tmp, dst) == 0) return;
-    if (remove(dst) != 0) return;
+    if (!state_replace_after_rename_error(errno) || remove(dst) != 0) return;
     rename(tmp, dst);
+}
+
+bool state_replace_after_rename_error(int err)
+{
+    return err == EEXIST;
 }
 
 bool state_changed(const ctw_state *a, const ctw_state *b)

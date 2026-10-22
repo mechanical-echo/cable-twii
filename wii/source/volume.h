@@ -28,7 +28,8 @@ bool vol_ebr_parse(const uint8_t *ebr, uint32_t ext_start, uint32_t ebr_lba, vol
 uint32_t vol_boot_sectors(const uint8_t *sector);
 uint32_t vol_write_span(uint32_t entry_sectors, uint32_t boot_sectors);
 bool vol_write_in_range(uint32_t start, uint32_t span, uint64_t sector, uint64_t count);
-bool vol_is_wbfs_name(const char *name);
-bool vol_write_allowed(bool has_root, bool has_wbfs);
+bool vol_is_games_name(const char *name);
+bool vol_scan_failed(int err);
+bool vol_write_allowed(bool has_root, bool has_games, bool scan_error);
 
 #endif

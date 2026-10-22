@@ -1,5 +1,6 @@
 #include "storage.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -311,24 +312,38 @@ static void release_unchosen(int chosen)
     }
 }
 
-static bool has_wbfs(const char *name)
+static bool root_scan(const char *name, bool *has_games)
 {
     char path[32];
     snprintf(path, sizeof path, "%s:/", name);
+    *has_games = false;
     DIR *dir = opendir(path);
-    if (dir == NULL) return true;
-    bool found = false;
-    struct dirent *e;
-    while (!found && (e = readdir(dir)) != NULL) found = vol_is_wbfs_name(e->d_name);
+    if (dir == NULL) return false;
+    int err = 0;
+    for (;;) {
+        errno = 0;
+        struct dirent *e = readdir(dir);
+        if (e == NULL) {
+            err = errno;
+            break;
+        }
+        if (vol_is_games_name(e->d_name)) {
+            *has_games = true;
+            break;
+        }
+    }
     closedir(dir);
-    return found;
+    return !vol_scan_failed(err);
 }
 
 static bool enable_writes(int chosen)
 {
     part *p = &parts[chosen];
     disk *k = &disks[p->disk];
-    if (p->span == 0 || !vol_write_allowed(p->has_root, has_wbfs(p->name))) return false;
+    if (p->span == 0) return false;
+    bool has_games = false;
+    bool scanned = root_scan(p->name, &has_games);
+    if (!vol_write_allowed(p->has_root, has_games, !scanned)) return false;
 
     write_iface = k->iface;
     write_iface.features |= FEATURE_MEDIUM_CANWRITE;

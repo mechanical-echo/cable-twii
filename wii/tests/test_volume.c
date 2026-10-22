@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <string.h>
 #include "greatest/greatest.h"
 #include "volume.h"
@@ -254,24 +255,65 @@ TEST write_empty_or_zero_span_refused(void)
     PASS();
 }
 
-TEST wbfs_name_case_insensitive(void)
+TEST games_names_case_insensitive(void)
 {
-    ASSERT(vol_is_wbfs_name("wbfs"));
-    ASSERT(vol_is_wbfs_name("WBFS"));
-    ASSERT(vol_is_wbfs_name("WbFs"));
-    ASSERT(!vol_is_wbfs_name("wbfs2"));
-    ASSERT(!vol_is_wbfs_name("wbf"));
-    ASSERT(!vol_is_wbfs_name(""));
-    ASSERT(!vol_is_wbfs_name("games"));
+    ASSERT(vol_is_games_name("wbfs"));
+    ASSERT(vol_is_games_name("WBFS"));
+    ASSERT(vol_is_games_name("WbFs"));
+    ASSERT(vol_is_games_name("games"));
+    ASSERT(vol_is_games_name("GAMES"));
+    ASSERT(vol_is_games_name("Games"));
+    ASSERT(!vol_is_games_name("wbfs2"));
+    ASSERT(!vol_is_games_name("wbf"));
+    ASSERT(!vol_is_games_name("game"));
+    ASSERT(!vol_is_games_name("games_old"));
+    ASSERT(!vol_is_games_name(""));
+    ASSERT(!vol_is_games_name("cable-twii"));
     PASS();
 }
 
-TEST writes_only_on_root_without_wbfs(void)
+static bool listing_writable(const char *const *names, size_t n)
 {
-    ASSERT(vol_write_allowed(true, false));
-    ASSERT(!vol_write_allowed(true, true));
-    ASSERT(!vol_write_allowed(false, false));
-    ASSERT(!vol_write_allowed(false, true));
+    bool has_root = false, has_games = false;
+    for (size_t i = 0; i < n; i++) {
+        if (strcmp(names[i], "cable-twii") == 0) has_root = true;
+        if (vol_is_games_name(names[i])) has_games = true;
+    }
+    return vol_write_allowed(has_root, has_games, false);
+}
+
+TEST games_folder_next_to_root_blocks_writes(void)
+{
+    const char *games[] = { "apps", "cable-twii", "games" };
+    const char *upper[] = { "GAMES", "cable-twii" };
+    const char *wbfs[] = { "cable-twii", "wbfs" };
+    const char *plain[] = { "apps", "cable-twii", "private", "game", "wbfs.bak", "my games" };
+    ASSERT(!listing_writable(games, 3));
+    ASSERT(!listing_writable(upper, 2));
+    ASSERT(!listing_writable(wbfs, 2));
+    ASSERT(listing_writable(plain, 6));
+    PASS();
+}
+
+TEST scan_end_versus_error(void)
+{
+    ASSERT(!vol_scan_failed(0));
+    ASSERT(!vol_scan_failed(ENOENT));
+    ASSERT(vol_scan_failed(EIO));
+    ASSERT(vol_scan_failed(EOVERFLOW));
+    ASSERT(vol_scan_failed(ENODEV));
+    PASS();
+}
+
+TEST writes_only_on_clean_root_without_games(void)
+{
+    ASSERT(vol_write_allowed(true, false, false));
+    ASSERT(!vol_write_allowed(true, true, false));
+    ASSERT(!vol_write_allowed(true, false, true));
+    ASSERT(!vol_write_allowed(true, true, true));
+    ASSERT(!vol_write_allowed(false, false, false));
+    ASSERT(!vol_write_allowed(false, true, false));
+    ASSERT(!vol_write_allowed(false, false, true));
     PASS();
 }
 
@@ -295,6 +337,8 @@ SUITE(volume_suite)
     RUN_TEST(write_past_partition_end_refused);
     RUN_TEST(write_straddling_end_refused);
     RUN_TEST(write_empty_or_zero_span_refused);
-    RUN_TEST(wbfs_name_case_insensitive);
-    RUN_TEST(writes_only_on_root_without_wbfs);
+    RUN_TEST(games_names_case_insensitive);
+    RUN_TEST(games_folder_next_to_root_blocks_writes);
+    RUN_TEST(scan_end_versus_error);
+    RUN_TEST(writes_only_on_clean_root_without_games);
 }
