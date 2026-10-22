@@ -36,8 +36,6 @@ function defaultConcurrency(): number {
   const override = Number(process.env.CTW_CONVERT_CONCURRENCY);
   if (Number.isInteger(override) && override > 0) return override;
   const half = Math.max(1, Math.floor(os.cpus().length / 2));
-  // Spawning many ffmpeg/ffprobe processes at once can hit a DLL-init race on Windows
-  // (STATUS_DLL_INIT_FAILED), so keep default parallelism modest there.
   return process.platform === "win32" ? Math.min(half, 4) : half;
 }
 
