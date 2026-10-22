@@ -57,7 +57,7 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 | 2 | Flip away and back | On a channel, note the timecode. Flip to another channel, wait 1 minute, flip back. | It lands 1 minute further into the same airing, not back at the start. | | |
 | 3 | Episode boundary | Watch a channel through the end of an airing. | The next airing starts within 1 s of its scheduled time. | | |
 | 4 | Channel change time | Flip channels with the D-pad 10 times. | Each change shows the new picture in under 1.5 s. | | |
-| 5 | Steady playback (debug build) | Watch one channel for 10 minutes. | Overlay shows `video` about 30.0 fps and `UI` about 60 fps (50 on a 50 Hz TV); `audio underruns` stays 0; `dropped` does not rise while watching. | | |
+| 5 | Steady playback (debug build) | Watch one channel for 10 minutes. Look closely at motion (pans, scrolling credits) and at the first second after each channel change. | Overlay shows `video` about 30.0 fps and `UI` about 60 fps (50 on a 50 Hz TV); `audio underruns` stays 0; `dropped` does not rise while watching. Motion is smooth with no judder, and frames are not shown early (picture ahead of the sound). Suspected: `pl_draw` may take a queued frame whose time is still in the future; note any judder or picture running ahead. | | |
 | 6 | Lip sync | Watch a scene with speech or the sample beep-and-flash file. | Sound and picture line up by eye. | | |
 | 7 | Short file | Use an episode whose `.mpg` is shorter than `library.toml` says (cut a copy short). Watch it end. | Black screen until the next airing starts on time. It never loops, freezes on the last frame, or shows an error. | | |
 | 8 | Up-next card | Open a timed channel during a gap. | Stripes background, white card with the channel icon, `Up next`, the show and episode title (ellipsized if long), `at HH:MM`, and a countdown that ticks down. | | |
@@ -78,7 +78,7 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 | 18 | OSD show and hide | In fullscreen, point at the screen and move; then hold still; then point away. | Moving shows the info panel sliding up; holding still for 3 s hides it; pointing away hides it at once. The cursor only shows with the panel. | | |
 | 19 | OSD buttons | With the panel open, click `◀ CH`, `CH ▶`, `Guide`, `−` and `+`. | Each works, with hover sound and rumble. | | |
 | 20 | Volume | Press `+` and `−` in fullscreen without pointing; then change channel. | The volume bar shows alone for 2 s; the volume moves in steps of 10 and stays the same after a channel change and after restarting the app. | | |
-| 21 | Remote not pointed at the screen | Watch fullscreen for an hour with the remote lying on the table, IR not seeing the sensor bar. | No OSD, no cursor, no rumble ever appears, and the remote stays connected. | | |
+| 21 | Remote not pointed at the screen | Watch fullscreen for 55 minutes with the remote lying on the table, IR not seeing the sensor bar, no buttons pressed. | No OSD, no cursor, no rumble ever appears, and the remote stays connected. The idle timeout is exactly 60 minutes (`WPAD_SetIdleTimeout(3600)`), so a disconnect after more than 60 untouched minutes is by design. | | |
 | 22 | Long text | Use a channel, show and episode with 60+ character names and accents. | Every name ellipsizes with `…` inside its panel, row, chip and up-next card; nothing overflows. | | |
 | 23 | Text after expand | Expand a channel to fullscreen and return to the guide a dozen times, then scroll the whole list. | No text goes missing or blank anywhere (text cache). | | |
 | 24 | Shine edges | Watch the logo shine and any highlighted row closely. | No hard edges, stray lines or one-pixel gaps at the shine's or the rounded corners' edges. | | |
@@ -101,7 +101,7 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 
 | # | Item | Steps | Expected | Result | Notes |
 |---|---|---|---|---|---|
-| 34 | No drive | Unplug all USB drives and remove the SD card's `cable-twii` folder, then start the app. | Dialog `No cable-twii drive found` with the copy from the plan, and `Back to Homebrew Channel` works. | | |
+| 34 | No drive | Unplug all USB drives and remove the SD card's `cable-twii` folder, then start the app. | Dialog `No cable-twii drive found` with the body "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.", and `Back to Homebrew Channel` works. | | |
 | 35 | Bad config | Put a typo in `config.toml` (for example a channel number of 1000), then start the app. | Dialog `There's a problem with the schedule` naming the problem (with the line number when known), ending with `Open cable-twii Studio to fix it.` | | |
 | 36 | USB 2.0 drive and IOS | Start from the Homebrew Channel with the flash drive in each USB port. | The drive is found in both ports. If it is not found, note the drive and port; this tells us whether the app must reload IOS58 for USB 2.0. | | |
 | 37 | USB pulled before detection | Start the app and pull the drive out while the screen is still black or the logo is showing. | The app does not stall or freeze the picture; it shows the no-drive dialog (or the SD card's folder if there is one). | | |
@@ -126,7 +126,7 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 | 46 | 16:9 TV setting | Set the Wii to 16:9. Watch a 4:3 and a 16:9 file. | 4:3 is pillarboxed; 16:9 fills the screen (a few black pixels at the edges are a known gap). Corners and cursor are not stretched. | | |
 | 47 | 16:9 text stretch | On 16:9, look at guide text and the chip number. | Known: text is stretched horizontally with the layout. Note whether it looks acceptable. | | |
 | 48 | 60 Hz | Set the Wii to 60 Hz (EURGB60 on a PAL Wii, or any NTSC Wii). | The picture fills the screen top to bottom; debug overlay shows `UI` about 60 fps. | | |
-| 49 | 50 Hz | On a PAL Wii, set 50 Hz. | The whole picture fills the screen top to bottom (nothing cut off, no empty band at the bottom); debug overlay shows `UI` about 50 fps; video still plays smoothly with 0 underruns. | | |
+| 49 | 50 Hz | On a PAL Wii, set 50 Hz. | The picture is centred with thin, even bands at the top and bottom (about 24 lines each on a 576-line TV), nothing is cut off, and the picture is only slightly squashed vertically: rounded corners and the cursor still look round. Debug overlay shows `UI` about 50 fps; video still plays smoothly with 0 underruns. If the bands bother you, note it (a full-height mode is a possible follow-up). | | |
 
 ### Soak
 
