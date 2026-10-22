@@ -11,6 +11,7 @@
 #include "storage.h"
 #include "quit.h"
 #include "state.h"
+#include "video.h"
 #include "ui/draw.h"
 #include "ui/text.h"
 #include "ui/cursor.h"
@@ -170,7 +171,7 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    GRRLIB_Init();
+    video_init();
     in_init();
     ui_text_init();
     cur_init();
