@@ -6,25 +6,26 @@
 #include "../clock.h"
 #include "../guide_layout.h"
 #include "../guide_model.h"
-#include "../guide_text.h"
 #include "../input.h"
 #include "../live.h"
 #include "../logoanim.h"
 #include "../preview.h"
+#include "../sysbar_layout.h"
 #include "../ui/cursor.h"
 #include "../ui/draw.h"
 #include "../ui/icons.h"
+#include "../ui/press.h"
 #include "../ui/sfx.h"
-#include "../ui/text.h"
 #include "../ui/theme.h"
 #include "../ui/tween.h"
+#include "empty.h"
 #include "guide_info.h"
 #include "guide_list.h"
-#include "logo.h"
+#include "header.h"
+#include "homemenu.h"
+#include "sysbar.h"
 
 #define SCROLL_MS 200u
-#define CLOCK_PX 20
-#define FADE_MARGIN 8.0f
 
 typedef enum { G_IDLE, G_EXPAND, G_RETURN } g_mode;
 
@@ -32,6 +33,7 @@ static gm_row *rows;
 static size_t row_count;
 static bool built;
 static guide_layout layout;
+static sysbar_layout sysbar;
 static int highlight = -1;
 static int last_hit = -1;
 static float scroll;
@@ -40,12 +42,15 @@ static bool scrolling;
 static pv_state pv;
 static g_mode mode;
 static uint32_t anim_start;
+static ps_state press;
+static ps_state empty_press;
 
 static void ensure_model(app *a)
 {
     if (built) return;
     built = true;
     layout = guide_layout_for(ui_pixel_x());
+    sysbar = sysbar_layout_for(ui_pixel_x());
     size_t count = a->db != NULL ? ctw_db_channel_count(a->db) : 0;
     rows = count > 0 ? (gm_row *)malloc(2 * count * sizeof *rows) : NULL;
     row_count = rows != NULL ? gm_build(a->db, rows, 2 * count) : 0;
@@ -149,6 +154,18 @@ static void select_row(app *a, int index)
     anim_start = a->now_ms;
 }
 
+static bool handle_sysbar(app *a, bool channels)
+{
+    sysbar_btn fired = sysbar_update(a, &sysbar, channels, &press);
+    if (fired == SYSBAR_BTN_HOME) {
+        home_open(a);
+        return true;
+    }
+    if (fired == SYSBAR_BTN_PREV) move_highlight(a, -1);
+    if (fired == SYSBAR_BTN_NEXT) move_highlight(a, 1);
+    return false;
+}
+
 static void handle_input(app *a)
 {
     if (scrolling) {
@@ -157,6 +174,7 @@ static void handle_input(app *a)
     }
     if (in_pressed(WPAD_BUTTON_DOWN)) move_highlight(a, 1);
     else if (in_pressed(WPAD_BUTTON_UP)) move_highlight(a, -1);
+    if (handle_sysbar(a, true)) return;
 
     int hit = -1;
     if (cur_visible()) {
@@ -186,6 +204,11 @@ static void handle_input(app *a)
 void guide_update(app *a)
 {
     if (!live_update(a)) return;
+    if (row_count == 0) {
+        empty_update(a, &empty_press);
+        handle_sysbar(a, false);
+        return;
+    }
     uint32_t elapsed = a->now_ms - anim_start;
     if (mode == G_EXPAND) {
         if (elapsed >= THEME_PREVIEW_EXPAND_MS) app_go(a, SCR_FULL);
@@ -212,21 +235,20 @@ static void draw_body(app *a, float progress)
     float slide = LOGO_PANEL_SLIDE_PX * (1.0f - progress);
     float fade = 1.0f - progress;
 
+    header_bloom();
+    header_draw(a, progress >= 1.0f);
+
     asp_rect list = shifted(layout.list, -slide);
-    glist_draw(a, rows, row_count, highlight, scroll, list);
-    ui_stripes_rect(0.0f, list.y - FADE_MARGIN, list.x + list.w + FADE_MARGIN, list.h + 2.0f * FADE_MARGIN, fade);
+    int tuned = live_on(a->current_channel) ? a->current_channel : 0;
+    glist_draw(a, rows, row_count, highlight, scroll, list, tuned);
 
     asp_rect preview = shifted(layout.preview, slide);
     asp_rect info = shifted(layout.info, slide);
     if (mode == G_IDLE) ginfo_draw_preview(a, preview, 0.0f);
     ginfo_draw_info(a, highlight >= 0 && (size_t)highlight < row_count ? rows[highlight].channel : NULL, info);
 
-    char clock[8];
-    gt_hhmm(a->ms_of_day, clock, sizeof clock);
-    float right = layout.info.x + layout.info.w + slide;
-    ui_text(FONT_BOLD, CLOCK_PX, right, (GL_HEADER_H - (float)CLOCK_PX) / 2.0f - 2.0f, clock, THEME_TEXT_PRIMARY, ALIGN_RIGHT);
-    float fx = info.x - FADE_MARGIN;
-    ui_stripes_rect(fx, 0.0f, 640.0f - fx, 480.0f, fade);
+    sysbar_draw(a, &sysbar, row_count > 0, &press);
+    if (fade > 0.0f) ui_stripes_rect(0.0f, 0.0f, 640.0f, 480.0f, fade);
 }
 
 static asp_rect lerp_rect(asp_rect from, asp_rect to, float k)
@@ -249,11 +271,22 @@ static void draw_transition(app *a)
     ginfo_draw_preview(a, lerp_rect(layout.preview, full, k), k);
 }
 
+static void draw_empty(app *a)
+{
+    header_bloom();
+    header_draw(a, true);
+    empty_draw(a, &empty_press);
+    sysbar_draw(a, &sysbar, false, &press);
+}
+
 void guide_draw(app *a)
 {
     icons_frame();
     ui_stripes();
-    logo_draw_header();
+    if (row_count == 0) {
+        draw_empty(a);
+        return;
+    }
     draw_body(a, 1.0f);
     if (mode != G_IDLE) draw_transition(a);
 }
@@ -262,5 +295,9 @@ void guide_draw_intro(app *a, float progress)
 {
     ensure_model(a);
     icons_frame();
+    if (row_count == 0) {
+        draw_empty(a);
+        return;
+    }
     draw_body(a, progress);
 }

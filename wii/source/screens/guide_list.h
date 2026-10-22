@@ -10,6 +10,6 @@
 
 int glist_init(size_t row_count);
 void glist_view(asp_rect panel, float *top, float *height);
-void glist_draw(app *a, const gm_row *rows, size_t n, int highlight, float scroll, asp_rect panel);
+void glist_draw(app *a, const gm_row *rows, size_t n, int highlight, float scroll, asp_rect panel, int tuned_channel);
 
 #endif

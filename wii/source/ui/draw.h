@@ -25,6 +25,9 @@ void ui_ring(float x, float y, float w, float h, float radius, uint32_t color, f
 void ui_rounded(float x, float y, float w, float h, float radius, uint32_t color);
 void ui_outline(float x, float y, float w, float h, float radius, float thickness, uint32_t color);
 void ui_gradient_rect(float x, float y, float w, float h, uint32_t top, uint32_t bottom);
+uint32_t ui_grad_at(const ui_stop *stops, int n, float t);
+void ui_quad(const float *xs, const float *ys, const uint32_t *colors);
+void ui_polyline(const float *xs, const float *ys, int n, float thickness, uint32_t color);
 void ui_rounded_gradient(float x, float y, float w, float h, float radius, const ui_stop *stops, int n);
 void ui_shadow(float x, float y, float w, float h, float radius, uint32_t color, float dy, float blur);
 void ui_drop_shadow(float x, float y, float w, float h, float radius, ui_shadow_kind kind, float alpha_scale);

@@ -110,6 +110,38 @@ void ui_gradient_rect(float x, float y, float w, float h, uint32_t top, uint32_t
     quad(x, y, x + w, y + h, top, bottom);
 }
 
+uint32_t ui_grad_at(const ui_stop *stops, int n, float t)
+{
+    return grad_at(stops, n, t);
+}
+
+void ui_quad(const float *xs, const float *ys, const uint32_t *colors)
+{
+    guVector v[4];
+    u32 c[4];
+    for (int i = 0; i < 4; i++) {
+        v[i].x = xs[i];
+        v[i].y = ys[i];
+        v[i].z = 0.0f;
+        c[i] = colors[i];
+    }
+    GRRLIB_GXEngine(v, c, 4, GX_QUADS);
+}
+
+void ui_polyline(const float *xs, const float *ys, int n, float thickness, uint32_t color)
+{
+    for (int i = 0; i + 1 < n; i++) {
+        float dx = xs[i + 1] - xs[i], dy = ys[i + 1] - ys[i];
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len <= 0.0f) continue;
+        float nx = -dy / len * thickness / 2.0f, ny = dx / len * thickness / 2.0f;
+        guVector v[4] = { { xs[i] + nx, ys[i] + ny, 0.0f }, { xs[i + 1] + nx, ys[i + 1] + ny, 0.0f },
+                          { xs[i + 1] - nx, ys[i + 1] - ny, 0.0f }, { xs[i] - nx, ys[i] - ny, 0.0f } };
+        u32 c[4] = { color, color, color, color };
+        GRRLIB_GXEngine(v, c, 4, GX_QUADS);
+    }
+}
+
 static void corner(float cx, float cy, float rx, float ry, int q, uint32_t color)
 {
     ensure_corners();
@@ -502,7 +534,8 @@ void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, u
     }
     if (label != NULL) {
         char fitted[64];
-        ui_text_fit(FONT_BOLD, px, label, w - PILL_LABEL_INSET, fitted, sizeof fitted);
+        float inset = w / 4.0f < PILL_LABEL_INSET ? w / 4.0f : PILL_LABEL_INSET;
+        ui_text_fit(FONT_BOLD, px, label, w - inset, fitted, sizeof fitted);
         ui_text(FONT_BOLD, px, x + w / 2.0f, y + h / 2.0f - (float)px / 2.0f, fitted, THEME_TEXT_PRIMARY, ALIGN_CENTER);
     }
 }
