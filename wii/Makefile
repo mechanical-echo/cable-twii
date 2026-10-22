@@ -34,6 +34,13 @@ SOURCES		+=	source/debug
 CFLAGS		+=	-DCTW_DEBUG_OVERLAY
 endif
 
+ifeq ($(DEBUG_SCRIPT),1)
+TARGET		:=	cable-twii-script
+BUILD		:=	build-script
+SOURCES		+=	source/script
+CFLAGS		+=	-DCTW_DEBUG_SCRIPT
+endif
+
 #---------------------------------------------------------------------------------
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 #---------------------------------------------------------------------------------

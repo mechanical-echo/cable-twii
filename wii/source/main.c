@@ -27,6 +27,9 @@
 #ifdef CTW_DEBUG_OVERLAY
 #include "debug/overlay.h"
 #endif
+#ifdef CTW_DEBUG_SCRIPT
+#include "script/script.h"
+#endif
 
 static app g_app;
 
@@ -134,6 +137,9 @@ static void boot(app *a)
         return;
     }
 
+#ifdef CTW_DEBUG_SCRIPT
+    dbg_script_load(a->root);
+#endif
     ctw_issues issues;
     memset(&issues, 0, sizeof issues);
     int rc = ctw_db_load(a->root, &a->db, &issues);

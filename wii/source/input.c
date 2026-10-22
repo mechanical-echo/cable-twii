@@ -3,6 +3,9 @@
 #include <ogc/lwp_watchdog.h>
 #include <ogc/system.h>
 #include <wiiuse/wpad.h>
+#ifdef CTW_DEBUG_SCRIPT
+#include "script/script.h"
+#endif
 
 static uint32_t rumble_until_ms = 0;
 static bool blocked;
@@ -46,6 +49,9 @@ void in_init(void)
 void in_poll(void)
 {
     WPAD_ScanPads();
+#ifdef CTW_DEBUG_SCRIPT
+    dbg_script_poll();
+#endif
     if (rumble_until_ms != 0 && in_now_ms() >= rumble_until_ms) {
         WPAD_Rumble(WPAD_CHAN_0, 0);
         rumble_until_ms = 0;
@@ -72,26 +78,59 @@ uint8_t in_battery_level(void)
     return WPAD_BatteryLevel(WPAD_CHAN_0);
 }
 
+static uint32_t scripted_down(void)
+{
+#ifdef CTW_DEBUG_SCRIPT
+    return dbg_script_down();
+#else
+    return 0;
+#endif
+}
+
+static uint32_t scripted_held(void)
+{
+#ifdef CTW_DEBUG_SCRIPT
+    return dbg_script_held();
+#else
+    return 0;
+#endif
+}
+
+static uint32_t scripted_up(void)
+{
+#ifdef CTW_DEBUG_SCRIPT
+    return dbg_script_up();
+#else
+    return 0;
+#endif
+}
+
 bool in_pressed(uint32_t wpad_button)
 {
     if (blocked) return false;
-    return (WPAD_ButtonsDown(WPAD_CHAN_0) & wpad_button) != 0;
+    return ((WPAD_ButtonsDown(WPAD_CHAN_0) | scripted_down()) & wpad_button) != 0;
 }
 
 bool in_held(uint32_t wpad_button)
 {
     if (blocked) return false;
-    return (WPAD_ButtonsHeld(WPAD_CHAN_0) & wpad_button) != 0;
+    return ((WPAD_ButtonsHeld(WPAD_CHAN_0) | scripted_held()) & wpad_button) != 0;
 }
 
 bool in_released(uint32_t wpad_button)
 {
     if (blocked) return false;
-    return (WPAD_ButtonsUp(WPAD_CHAN_0) & wpad_button) != 0;
+    return ((WPAD_ButtonsUp(WPAD_CHAN_0) | scripted_up()) & wpad_button) != 0;
 }
 
 bool in_ir(float *x, float *y, float *angle)
 {
+#ifdef CTW_DEBUG_SCRIPT
+    if (dbg_script_active()) {
+        *angle = 0.0f;
+        return dbg_script_ir(x, y);
+    }
+#endif
     ir_t ir;
     WPAD_IR(WPAD_CHAN_0, &ir);
     if (!ir.valid) return false;
