@@ -194,7 +194,7 @@
 - `void upnext_draw(app *a, const ctw_airing *gap, uint32_t gap_offset_ms, const ctw_airing *next, const ctw_airing *next_episode, int64_t ms_until_episode);` draws the dark stripes, bloom, card, and the faded pill when `next != NULL && next->kind == CTW_AIR_AD`.
 
 - [x] **Step 1: Implement** per the spec's "Up-next screen" (bar fraction = `(gap_offset) / (gap_offset + ms_until_episode)`, clamped).
-- [ ] **Step 2: Build**, then Dolphin with the test root at a gap (channel 1 after 09:10 in the sample schedule or a root whose slot ends early): `shot:upnext` matches slide 6.
+- [x] **Step 2: Build**, then Dolphin with the test root at a gap (channel 1 after 09:10 in the sample schedule or a root whose slot ends early): `shot:upnext` matches slide 6.
 - [x] **Step 3: Commit** `wip | up next card with countdown, bloom and break pill`.
 
 ---
@@ -209,7 +209,7 @@
 
 - [x] **Step 1: Update `test_home_layout.c`**: keep the hit and battery tests; change `layout_resume_and_battery_sit_in_the_bottom_bar` → `layout_resume_sits_above_the_bottom_bar` (`resume.y + resume.h ≤ bottom.y`) and `layout_battery_and_volume_sit_in_the_bottom_bar`; add `home_4_3_title_clears_badge` (`pixel_x` 1.0 → `title.x ≥ badge.x + badge.w`; 0.75 → `title.x` ≈ 62 ± 1); add `layout_segments_fit_the_volume_bar`.
 - [x] **Step 2: Run** → FAIL. **Step 3: Implement** layout and `homemenu.c` (bars, badge, title, now-playing text through `ctw_db_channel`/`tn_current`, pills with hot and pressed states through `ps_update` and `in_released`, segments, battery). **Step 4: Run** → PASS; build.
-- [ ] **Step 5: Dolphin**: `key:36`, `shot:home` matches slide 7; pointer on "Wii Menu" shows the strong ring; `key:36` closes.
+- [x] **Step 5: Dolphin**: `key:36`, `shot:home` matches slide 7; pointer on "Wii Menu" shows the strong ring; `key:36` closes.
 - [x] **Step 6: Commit** `wip | home menu redesign`.
 
 ---
@@ -224,7 +224,7 @@
 
 - [x] **Step 1: Update `test_logoanim.c`**: `logo_starts_small_and_clear` (w = 285.3×0.6 = 171.2 for a 356×64 image: use `img 356, 64` in the tests; h = 171.2×64/356 = 30.8; panel 200×74.6 centred at 320,231.1; `panel_alpha` 0), `logo_is_full_size_at_600` (w 285.3, h 51.3, x 177.3, y 205.5; panel 153.3,168.9 333.3×124.4; `panel_alpha` 1), `logo_moves_to_header_1400_to_2000` (at 1700: `panel_alpha` 0.125, x lerped 87.5% toward 19.3), `logo_hands_off_at_2000_in_header` (x 19.3, y 11.5, w 139.1, h 25; `panel_alpha` 0), `logo_dots_cycle_every_300ms` (dot 0 at 0, 1 at 300, 2 at 600, 0 at 900).
 - [x] **Step 2: Run** → FAIL. **Step 3: Implement** `logoanim.c`; in `logo.c`: bloom (alpha = `panel_alpha`), panel through `ui_card` with ring and the 16% shadow, wordmark, shine as two gradient quads (`GRRLIB_GXEngine`) tilted 22° clipped by `GRRLIB_ClipDrawing` to the panel, dots; `guide_draw_intro` draws the header and system bar with `alpha = panels`. **Step 4: Run** → PASS; build.
-- [ ] **Step 5: Dolphin**: `wait:4 shot:intro` (during the shine, at ~1 s after boot… capture at `wait:3`) resembles slide 8; the handoff lands the logo in the header without a jump.
+- [x] **Step 5: Dolphin**: `wait:4 shot:intro` (during the shine, at ~1 s after boot… capture at `wait:3`) resembles slide 8; the handoff lands the logo in the header without a jump.
 - [x] **Step 6: Commit** `wip | intro panel, shine and loading dots`.
 
 ---
@@ -235,7 +235,7 @@
 - Modify: `wii/source/screens/error.c`, `CHANGELOG.md`, `docs/STATUS.md`, `docs/superpowers/plans/2026-10-20-cable-twii-03-wii-app.md` (status note), `docs/testing/wii-checklist.md` (new items: system bar buttons, pressed pills, empty state, intro panel)
 
 - [x] **Step 1: Restyle `error.c`** with `ui_card` (info gradient, panel shadow) and `ui_pill_ex` through `ps_update`.
-- [ ] **Step 2: Build and run** the full host suite and `make -C wii`; Dolphin with an SD folder that has no `library.toml` → the dialog.
+- [x] **Step 2: Build and run** the full host suite and `make -C wii`; Dolphin with an SD folder that has no `library.toml` → the dialog.
 - [x] **Step 3: Docs**: CHANGELOG entry under the next version ("Wii app redesigned at system detail: …"), STATUS line, checklist items.
 - [x] **Step 4: Commit** `wip | error dialog restyle, redesign notes and checklist items`.
 - [ ] **Step 5: Re-sync the Design System artifact** per the memory note (tokens from `theme.h`), republish changed files only.

@@ -26,6 +26,14 @@ make -C wii DEVKITPRO=/opt/devkitpro DEVKITPPC=/opt/devkitpro/devkitPPC DEBUG_OV
 
 This writes `wii/cable-twii-debug.dol` and builds in `wii/build-debug/`, so it never mixes with the release objects. The release build has none of the overlay code in it.
 
+Scripted-input build (for emulator screenshots without a remote):
+
+```bash
+make -C wii DEVKITPRO=/opt/devkitpro DEVKITPPC=/opt/devkitpro/devkitPPC DEBUG_SCRIPT=1
+```
+
+This writes `wii/cable-twii-script.dol`, which replays `debug-script.txt` from the data root (next to `config.toml`) on top of the real remote. Each line is `<ms since boot> <command>`: `ir X Y` points at Wii pixel (X, Y), `ir off` hides the pointer, `press BTN` taps a button, `down BTN` and `up BTN` hold and release one; buttons are `A B UP DOWN LEFT RIGHT PLUS MINUS HOME ONE TWO`. Never install this build on the Wii.
+
 To send a build over the network, open the Homebrew Channel on the Wii, note the IP address shown at the bottom right, then on the computer:
 
 ```bash
