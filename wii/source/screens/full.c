@@ -79,11 +79,6 @@ void full_update(app *a)
     } else if (in_pressed(WPAD_BUTTON_DOWN) || in_pressed(WPAD_BUTTON_LEFT)) {
         tune(a, nav_step(a->db, a->current_channel, -1));
     }
-    if (in_pressed(WPAD_BUTTON_B)) {
-        pl_close();
-        app_go(a, SCR_LOGO);
-        return;
-    }
 
     bool moved = false;
     if (cur_visible()) {

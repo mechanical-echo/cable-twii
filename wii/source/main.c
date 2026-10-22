@@ -10,7 +10,6 @@
 #include "input.h"
 #include "storage.h"
 #include "quit.h"
-#include "ui/theme.h"
 #include "ui/draw.h"
 #include "ui/text.h"
 #include "ui/cursor.h"
@@ -18,6 +17,7 @@
 #include "media/player.h"
 #include "screens/error.h"
 #include "screens/full.h"
+#include "screens/logo.h"
 
 static app g_app;
 
@@ -25,6 +25,7 @@ void app_go(app *a, screen_id s)
 {
     a->screen = s;
     if (s == SCR_FULL) full_enter(a);
+    if (s == SCR_LOGO) logo_enter(a);
 }
 
 void app_fail(app *a, const char *title, const char *body)
@@ -112,17 +113,18 @@ static void boot(app *a)
 
     if (ctw_db_channel_count(a->db) > 0) {
         a->current_channel = ctw_db_channel_at(a->db, 0)->number;
-        app_go(a, SCR_FULL);
+        a->after_logo = SCR_FULL;
     } else {
-        app_go(a, SCR_LOGO);
+        a->after_logo = SCR_GUIDE;
     }
+    app_go(a, SCR_LOGO);
 }
 
-static void logo_placeholder_draw(app *a)
+static void guide_placeholder_draw(app *a)
 {
     (void)a;
     ui_stripes();
-    ui_text(FONT_BOLD, 28, 320, 220, "cable-twii", THEME_ACCENT, ALIGN_CENTER);
+    logo_draw_header();
 }
 
 int main(int argc, char **argv)
@@ -157,10 +159,13 @@ int main(int argc, char **argv)
             full_update(&g_app);
             full_draw(&g_app);
             break;
-        case SCR_GUIDE:
         case SCR_LOGO:
+            logo_update(&g_app);
+            logo_draw(&g_app);
+            break;
+        case SCR_GUIDE:
         default:
-            logo_placeholder_draw(&g_app);
+            guide_placeholder_draw(&g_app);
             break;
         }
 

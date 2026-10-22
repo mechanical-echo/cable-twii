@@ -15,6 +15,7 @@ typedef struct {
     ctw_db *db;
     tuner tuner;
     screen_id screen;
+    screen_id after_logo;
     bool home_open;
     int current_channel;
     int volume;

@@ -47,8 +47,9 @@ Known gaps, recorded and not fixed yet:
 - The video fit uses the coded frame size, so Studio's 16-pixel padding (640×368 for a 640×360 picture) leaves a few black pixels at the edges of a 16:9 file on a 16:9 TV.
 
 Known, deliberate deviations from the plan text:
-- `full_update`'s B button goes to `SCR_LOGO`, not `SCR_GUIDE` — the guide screen doesn't exist yet (Task 7). Swap this once Task 7 lands.
-- `boot()` in `main.c` auto-tunes into the first channel and jumps straight to `SCR_FULL` (per Task 5 Step 3's own instruction to temporarily boot straight into fullscreen) rather than stopping at the Task 1–4 "logo placeholder". Task 7 should replace this with logo → guide.
+- `full_update`'s B button does nothing yet — the guide screen doesn't exist (Task 7). Task 7 points it at `SCR_GUIDE`.
+- `boot()` in `main.c` loads everything, plays the logo, and at 2.0 s hands off to `app.after_logo`: `SCR_FULL` (tunes the first channel then) when channels exist, otherwise `SCR_GUIDE`, which is still a placeholder (stripes + logo in its header rect). Task 7 should make the logo always hand off to the guide.
+- Task 6's guide panels sliding in from the left/right by 40 px and fading in during 1.4–2.0 s are deferred to Task 7 (the guide doesn't exist yet); the logo's move to `logo_header_rect` is done.
 - Task 2's temporary demo (panel, hot pill, rumble, ellipsized string) was never added to `main.c`; the UI kit was only checked through the screens that use it.
 
 **This environment is Windows, not macOS** — the plan (and roadmap Task 0) assume a Mac. What actually got installed/built here, for whoever picks this up next:
