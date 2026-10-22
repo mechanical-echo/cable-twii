@@ -17,6 +17,7 @@
 #include "yuvgx.h"
 #include "audio.h"
 #include "playback.h"
+#include "aspect.h"
 
 #define SLOT_FREE 0
 #define SLOT_READY 1
@@ -56,6 +57,7 @@ static volatile int wall_running;
 static volatile pl_state status = PL_IDLE;
 static int inited;
 static double last_shown_time;
+static bool widescreen_s;
 
 static double av_clock(void)
 {
@@ -273,6 +275,11 @@ pl_state pl_status(void)
     return status;
 }
 
+void pl_set_widescreen(bool widescreen)
+{
+    widescreen_s = widescreen;
+}
+
 void pl_set_volume(int volume_0_100)
 {
     au_set_volume(volume_0_100);
@@ -315,8 +322,8 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         if (slots[idx].time > now - LATE_FRAME_LIMIT * frame_dur) break;
     }
     int draw_slot = shown;
-    int fw = draw_slot >= 0 ? slots[draw_slot].w : 0;
-    int fh = draw_slot >= 0 ? slots[draw_slot].h : 0;
+    int frame_w = draw_slot >= 0 ? slots[draw_slot].w : 0;
+    int frame_h = draw_slot >= 0 ? slots[draw_slot].h : 0;
     LWP_MutexUnlock(q_lock);
 
     if (draw_slot < 0) {
@@ -324,18 +331,10 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         return;
     }
 
-    double target_aspect = (double)w / (double)h;
-    double frame_aspect = (double)fw / (double)fh;
-    float qw = w, qh = h;
-    if (frame_aspect >= target_aspect) {
-        qh = (float)(h * target_aspect / frame_aspect);
-    } else {
-        qw = (float)(w * frame_aspect / target_aspect);
-    }
-    float dx = x + (w - qw) / 2.0f;
-    float dy = y + (h - qh) / 2.0f;
+    asp_rect q = asp_fit(frame_h > 0 ? (float)frame_w / (float)frame_h : 0.0f, widescreen_s, x, y, w, h);
+    float dx = q.x, dy = q.y, qw = q.w, qh = q.h;
     if (qw < w || qh < h) GRRLIB_Rectangle(x, y, w, h, RGBA(0, 0, 0, 0xFF), 1);
-    yg_draw(draw_slot, fw, fh, dx, dy, qw, qh);
+    yg_draw(draw_slot, frame_w, frame_h, dx, dy, qw, qh);
     if (alpha < 1.0f) {
         uint8_t fade = (uint8_t)((1.0f - (alpha < 0.0f ? 0.0f : alpha)) * 255.0f);
         GRRLIB_Rectangle(dx, dy, qw, qh, RGBA(0, 0, 0, fade), 1);

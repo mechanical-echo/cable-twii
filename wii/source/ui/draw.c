@@ -6,6 +6,19 @@
 
 #include "theme.h"
 #include "text.h"
+#include "../aspect.h"
+
+static float pixel_x = 1.0f;
+
+void ui_set_widescreen(bool widescreen)
+{
+    pixel_x = asp_pixel_x(widescreen);
+}
+
+float ui_pixel_x(void)
+{
+    return pixel_x;
+}
 
 void ui_stripes(void)
 {
@@ -21,18 +34,20 @@ void ui_stripes(void)
 
 static void rounded_rect(float x, float y, float w, float h, float radius, uint32_t color)
 {
-    if (radius > w / 2.0f) radius = w / 2.0f;
-    if (radius > h / 2.0f) radius = h / 2.0f;
     if (radius < 0.0f) radius = 0.0f;
+    float rx = radius * pixel_x;
+    float ry = radius;
+    if (rx > w / 2.0f) rx = w / 2.0f;
+    if (ry > h / 2.0f) ry = h / 2.0f;
 
-    GRRLIB_Rectangle(x + radius, y, w - 2 * radius, h, color, 1);
-    if (radius > 0.0f) {
-        GRRLIB_Rectangle(x, y + radius, radius, h - 2 * radius, color, 1);
-        GRRLIB_Rectangle(x + w - radius, y + radius, radius, h - 2 * radius, color, 1);
-        GRRLIB_Circle(x + radius, y + radius, radius, color, 1);
-        GRRLIB_Circle(x + w - radius, y + radius, radius, color, 1);
-        GRRLIB_Circle(x + radius, y + h - radius, radius, color, 1);
-        GRRLIB_Circle(x + w - radius, y + h - radius, radius, color, 1);
+    GRRLIB_Rectangle(x + rx, y, w - 2 * rx, h, color, 1);
+    if (rx > 0.0f && ry > 0.0f) {
+        GRRLIB_Rectangle(x, y + ry, rx, h - 2 * ry, color, 1);
+        GRRLIB_Rectangle(x + w - rx, y + ry, rx, h - 2 * ry, color, 1);
+        GRRLIB_Ellipse(x + rx, y + ry, rx, ry, color, 1);
+        GRRLIB_Ellipse(x + w - rx, y + ry, rx, ry, color, 1);
+        GRRLIB_Ellipse(x + rx, y + h - ry, rx, ry, color, 1);
+        GRRLIB_Ellipse(x + w - rx, y + h - ry, rx, ry, color, 1);
     }
 }
 

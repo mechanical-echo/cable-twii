@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <grrlib.h>
 
+void ui_set_widescreen(bool widescreen);
+float ui_pixel_x(void);
 void ui_stripes(void);
 void ui_panel(float x, float y, float w, float h, float radius, uint32_t fill, uint32_t border);
 void ui_pill(float x, float y, float w, float h, const char *label, bool hot);

@@ -12,6 +12,7 @@
 #include "ui/text.h"
 #include "ui/cursor.h"
 #include "ui/sfx.h"
+#include "media/player.h"
 #include "screens/error.h"
 #include "screens/full.h"
 
@@ -104,6 +105,9 @@ int main(int argc, char **argv)
     sfx_init();
 
     memset(&g_app, 0, sizeof g_app);
+    g_app.widescreen = CONF_GetAspectRatio() == CONF_ASPECT_16_9;
+    ui_set_widescreen(g_app.widescreen);
+    pl_set_widescreen(g_app.widescreen);
     boot(&g_app);
 
     for (;;) {

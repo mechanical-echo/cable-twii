@@ -5,6 +5,7 @@
 #include "cursor_png.h"
 #include "cursor_shadow_png.h"
 #include "../input.h"
+#include "draw.h"
 
 static GRRLIB_texImg *tex_cursor;
 static GRRLIB_texImg *tex_shadow;
@@ -42,6 +43,7 @@ float cur_y(void)
 void cur_draw(void)
 {
     if (!ir_valid) return;
-    GRRLIB_DrawImg(ir_x + 3.0f, ir_y + 3.0f, tex_shadow, ir_angle, 1.0f, 1.0f, RGBA(0, 0, 0, 0xFF));
-    GRRLIB_DrawImg(ir_x, ir_y, tex_cursor, ir_angle, 1.0f, 1.0f, RGBA(0xFF, 0xFF, 0xFF, 0xFF));
+    float sx = ui_pixel_x();
+    GRRLIB_DrawImg(ir_x + 3.0f * sx, ir_y + 3.0f, tex_shadow, ir_angle, sx, 1.0f, RGBA(0, 0, 0, 0xFF));
+    GRRLIB_DrawImg(ir_x, ir_y, tex_cursor, ir_angle, sx, 1.0f, RGBA(0xFF, 0xFF, 0xFF, 0xFF));
 }
