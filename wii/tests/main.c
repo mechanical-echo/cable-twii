@@ -20,6 +20,7 @@ SUITE_EXTERN(guide_model_suite);
 SUITE_EXTERN(preview_suite);
 SUITE_EXTERN(guide_text_suite);
 SUITE_EXTERN(guide_layout_suite);
+SUITE_EXTERN(home_layout_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -46,5 +47,6 @@ int main(int argc, char **argv)
     RUN_SUITE(preview_suite);
     RUN_SUITE(guide_text_suite);
     RUN_SUITE(guide_layout_suite);
+    RUN_SUITE(home_layout_suite);
     GREATEST_MAIN_END();
 }

@@ -19,6 +19,7 @@
 #include "screens/error.h"
 #include "screens/full.h"
 #include "screens/guide.h"
+#include "screens/homemenu.h"
 #include "screens/logo.h"
 
 static app g_app;
@@ -50,7 +51,7 @@ static bool running_in_emulator(void)
     return true;
 }
 
-void app_quit(app *a)
+void app_quit(app *a, quit_dest dest)
 {
     bool emulator = running_in_emulator();
     pl_close();
@@ -58,7 +59,7 @@ void app_quit(app *a)
     WPAD_Shutdown();
     st_release(&a->drive);
     GRRLIB_Exit();
-    switch (quit_route_for(quit_stub_present((const unsigned char *)0x80001800), emulator)) {
+    switch (quit_route_for(dest, quit_stub_present((const unsigned char *)0x80001800), emulator)) {
     case QUIT_POWER_OFF:
         SYS_ResetSystem(SYS_POWEROFF, 0, 0);
         break;
@@ -143,7 +144,14 @@ int main(int argc, char **argv)
         in_poll();
         cur_update();
         g_app.now_ms += 16;
-        if (in_pressed(WPAD_BUTTON_HOME)) app_quit(&g_app);
+        if (in_power_requested()) app_quit(&g_app, QUIT_DEST_POWER_OFF);
+        if (in_reset_requested()) app_quit(&g_app, QUIT_DEST_HOMEBREW);
+
+        bool was_open = g_app.home_open;
+        home_update(&g_app);
+        bool paused = was_open || g_app.home_open;
+        in_block(paused);
+        cur_block(paused);
 
         switch (g_app.screen) {
         case SCR_ERROR:
@@ -165,7 +173,11 @@ int main(int argc, char **argv)
             break;
         }
 
-        if (g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();
+        in_block(false);
+        cur_block(false);
+        home_draw(&g_app);
+
+        if (paused || g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();
         GRRLIB_Render();
     }
 }

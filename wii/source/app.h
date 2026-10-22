@@ -6,6 +6,7 @@
 #include "ctw/ctw.h"
 #include "tuner.h"
 #include "storage.h"
+#include "quit.h"
 
 typedef enum { SCR_LOGO, SCR_GUIDE, SCR_FULL, SCR_ERROR } screen_id;
 
@@ -29,6 +30,6 @@ typedef struct {
 
 void app_go(app *a, screen_id s);
 void app_fail(app *a, const char *title, const char *body);
-void app_quit(app *a) __attribute__((noreturn));
+void app_quit(app *a, quit_dest dest) __attribute__((noreturn));
 
 #endif

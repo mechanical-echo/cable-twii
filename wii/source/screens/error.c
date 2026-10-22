@@ -49,7 +49,7 @@ static bool point_in(float px, float py, float x, float y, float w, float h)
 void error_update(app *a)
 {
     bool clicked = cur_visible() && in_pressed(WPAD_BUTTON_A) && point_in(cur_x(), cur_y(), pill_x(), pill_y(), PILL_W, PILL_H);
-    if (clicked || in_pressed(WPAD_BUTTON_HOME)) app_quit(a);
+    if (clicked) app_quit(a, QUIT_DEST_HOMEBREW);
 }
 
 void error_draw(app *a)

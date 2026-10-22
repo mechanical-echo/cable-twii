@@ -446,11 +446,11 @@ git add wii && git commit -m "wip | wii fullscreen info panel"
 - Produces: `void home_open(app *a); void home_update(app *a); void home_draw(app *a);` (overlay drawn above any screen; `a->home_open` pauses input to the screen below, video keeps playing behind a 60% dark dim).
 - Overlay: top bar `HOME Menu` style strip, two large pills `Wii Menu` and `Homebrew Channel`, `Resume` at the bottom, remote battery (`WPAD_BatteryLevel`) as 4 bars. `Wii Menu` → `SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0)` after `pl_close`, `st_save`; `Homebrew Channel` → `exit(0)` after the same cleanup. Power button → `SYS_ResetSystem(SYS_POWEROFF, 0, 0)` via `SYS_SetPowerCallback`; Reset button → return to Homebrew Channel via `SYS_SetResetCallback`. Callbacks only set flags; the main loop acts on them.
 
-- [ ] **Step 1: Implement.**
+- [x] **Step 1: Implement.**
 
-- [ ] **Step 2: Verify on the Wii:** each option works; Power turns the console off cleanly; Reset returns to HBC; HOME again closes the menu; leaving the remote untouched for 30 minutes while watching does not disconnect it.
+- [ ] **Step 2: Verify on the Wii (Dolphin only — real Wii pending, Task 11):** each option works; Power turns the console off cleanly; Reset returns to HBC; HOME again closes the menu; leaving the remote untouched for 30 minutes while watching does not disconnect it.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add wii && git commit -m "wip | wii home menu and power handling"

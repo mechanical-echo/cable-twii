@@ -11,6 +11,7 @@ static GRRLIB_texImg *tex_cursor;
 static GRRLIB_texImg *tex_shadow;
 static float ir_x, ir_y, ir_angle;
 static bool ir_valid;
+static bool blocked;
 
 void cur_init(void)
 {
@@ -25,7 +26,17 @@ void cur_update(void)
     ir_valid = in_ir(&ir_x, &ir_y, &ir_angle);
 }
 
+void cur_block(bool on)
+{
+    blocked = on;
+}
+
 bool cur_visible(void)
+{
+    return ir_valid && !blocked;
+}
+
+bool cur_raw_visible(void)
 {
     return ir_valid;
 }
