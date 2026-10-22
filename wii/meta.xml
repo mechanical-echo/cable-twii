@@ -2,8 +2,8 @@
 <app version="1">
     <name>cable-twii</name>
     <coder>mechanical-echo</coder>
-    <version>0.1.0</version>
-    <release_date>20261021000000</release_date>
+    <version>@VERSION@</version>
+    <release_date>@RELEASE_DATE@</release_date>
     <short_description>Your own cable TV</short_description>
     <long_description>Turns your Wii into your own cable TV, playing your videos, channels and ads from a USB drive on a schedule you build in cable-twii Studio.</long_description>
     <ahb_access/>

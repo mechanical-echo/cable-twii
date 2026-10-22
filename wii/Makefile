@@ -76,7 +76,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 export LIBPATHS	:= -L$(LIBOGC_LIB) $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: $(BUILD) clean
+.PHONY: $(BUILD) clean dist
 
 #---------------------------------------------------------------------------------
 $(BUILD):
@@ -87,6 +87,19 @@ $(BUILD):
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+
+#---------------------------------------------------------------------------------
+DIST	:=	$(CURDIR)/../dist/apps/cable-twii
+
+dist:
+	@$(MAKE) --no-print-directory DEBUG_OVERLAY=0 build
+	@rm -rf $(DIST)
+	@mkdir -p $(DIST)
+	@cp $(CURDIR)/cable-twii.dol $(DIST)/boot.dol
+	@cp $(CURDIR)/icon.png $(DIST)/icon.png
+	@version=$$(sed -n 's/^## \([0-9][0-9.]*\).*/\1/p' $(CURDIR)/../CHANGELOG.md | head -n 1); \
+	date=$$(date +%Y%m%d%H%M%S); \
+	sed -e "s/@VERSION@/$$version/" -e "s/@RELEASE_DATE@/$$date/" $(CURDIR)/meta.xml > $(DIST)/meta.xml
 
 #---------------------------------------------------------------------------------
 run:
