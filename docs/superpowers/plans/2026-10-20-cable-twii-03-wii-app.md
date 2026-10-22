@@ -34,9 +34,17 @@
 
 ## Progress (2026-10-21/22)
 
-Tasks 1–5 are mostly implemented, host-tested (`make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory). Steps that still miss a deliverable (`wii/icon.png`, the debug overlay, chip/up-next icons, the disconnect dialog, 16:9) or need a real-Wii run are unticked.
+Tasks 1–5 are mostly implemented, host-tested (`make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory). Steps that still miss a deliverable (`wii/icon.png`, the debug overlay, chip/up-next icons) or need a real-Wii run are unticked.
 
 The review fixes on branch `wii-review-fixes` added: the 256-entry LRU text cache (text is rasterised once into a texture with our own UTF-8 decoder), error dialog line wrapping, the up-next card across midnight (`tn_next`), `tuner_spans_midnight`, and the drive search over every USB FAT partition (read-only) then the SD card. `st_find_root` now also fills an `st_volume` (`app.drive`) naming the chosen partition, for Task 10's `state.toml` write.
+
+A second batch added: the "The drive was disconnected" dialog (the decoder tells a read error or a vanished file from a real end of file with `pb_classify_end`; on `PL_ERROR` the full screen probes the chosen partition with `st_drive_present` and shows the dialog only if the drive is gone, otherwise it stays black until the next airing like a short file); 16:9 handling (`CONF_GetAspectRatio` → `app.widescreen`; `asp_fit` corrects for the 4:3-wide EFB pixels so a 4:3 file is pillarboxed on 16:9 and a 16:9 file is letterboxed on 4:3; rounded corners and the cursor are narrowed by `asp_pixel_x` on 16:9); texture cache invalidation after each frame upload and YUV tiling by each plane's own stride (`tile_i8`); and the audio double buffer starting on a prefilled `bufs[0]` with the first callback filling `bufs[1]` (`ab_start`/`ab_take`), with both buffers cleared on every re-tune. All of this is host-tested or build-checked only; none of it has run on a real Wii, and video playback, unplugging and 16:9 have not been checked in Dolphin either.
+
+Known gaps, recorded and not fixed yet:
+- The up-next card has no title for the last airing of today's lineup, because its successor lives in tomorrow's lineup (`tn_next` returns NULL there).
+- 50 Hz: `GRRLIB_Init` picks the console's preferred mode, so the 50/60 Hz setting is followed, but on PAL 50 Hz it uses `TVPal528IntDf` (528-line EFB) while the app lays out 640×480, leaving the bottom of the screen unused. Fixing it needs our own video init or a 480→528 projection; left for Task 11.
+- Text is not narrowed on 16:9 (the plan lets the 640×480 layout stretch horizontally); only corners and the cursor are corrected. The cursor correction is approximate while the pointer is tilted, because GRRLIB scales before it rotates.
+- The video fit uses the coded frame size, so Studio's 16-pixel padding (640×368 for a 640×360 picture) leaves a few black pixels at the edges of a 16:9 file on a 16:9 TV.
 
 Known, deliberate deviations from the plan text:
 - `full_update`'s B button goes to `SCR_LOGO`, not `SCR_GUIDE` — the guide screen doesn't exist yet (Task 7). Swap this once Task 7 lands.
@@ -67,6 +75,8 @@ wii/
 │   ├── app.h                   app struct shared by screens
 │   ├── storage.c/.h            mounting and root search
 │   ├── volume.c/.h             boot sector/MBR parsing and root choice               [host-tested]
+│   ├── playback.c/.h           end-of-file vs read error, disconnect decision        [host-tested]
+│   ├── aspect.c/.h             4:3/16:9 video fit and EFB pixel width                [host-tested]
 │   ├── clock.c/.h              Wii time → (date, ms_of_day)
 │   ├── tuner.c/.h              lineup cache + current/next airing per channel        [host-tested]
 │   ├── nav.c/.h                channel order and wrap-around                         [host-tested]
@@ -77,6 +87,8 @@ wii/
 │   ├── media/player.c/.h       decoder thread, frame queue, A/V sync, seeking
 │   ├── media/yuvgx.c/.h        Y/U/V planes → GX textures → TEV → screen
 │   ├── media/audio.c/.h        ASND streaming ring buffer, volume
+│   ├── media/tile.c/.h         I8 texture tiling                                     [host-tested]
+│   ├── media/audiobuf.c/.h     ASND double-buffer order and ring drain               [host-tested]
 │   ├── ui/theme.h              colours, sizes, timings from Global Constraints
 │   ├── ui/tween.c/.h           easing and tweens                                     [host-tested]
 │   ├── ui/textfit.c/.h         ellipsizing and line wrapping with a width callback   [host-tested]
@@ -275,7 +287,7 @@ git add wii && git commit -m "wip | wii boot loading, clock and tuner"
 
 - [x] **Step 2: Temporary harness in `main.c`** (removed in Task 5): A opens `Cartoon Network/Gumball/Season 1/S01E01 - Test One.mpg` at offset 0; 1 reopens at offset 20 000; +/− volume.
 
-- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the `CTW_DEBUG_OVERLAY` fps/underrun overlay, 16:9 handling and the "The drive was disconnected" screen are not built yet)
+- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the `CTW_DEBUG_OVERLAY` fps/underrun overlay is not built yet; 16:9 handling and the "The drive was disconnected" screen are built and host-tested but not yet checked in Dolphin or on the Wii)
   - fps overlay (debug build flag `-DCTW_DEBUG_OVERLAY`) shows 30.0 average, 0 underruns over 10 minutes;
   - reopen at 20 000 ms shows burned-in timecode within 00:00:19.5–00:00:20.5, in under 1.5 s;
   - 4:3 Ben 10 file is pillarboxed on a 16:9 TV setting and fills the width on 4:3;
