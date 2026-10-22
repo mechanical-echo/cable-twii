@@ -137,7 +137,7 @@ git add forwarder tools/build-wad.sh && git commit -m "wip | forwarder channel b
 
 - [ ] **Step 2: Owner completes checks 1–4** and confirms each in chat before installing. (not started)
 
-- [ ] **Step 3: Owner installs the WAD.** Verify: channel appears on the Wii Menu; launches cable-twii with `boot.dol` on SD; launches it with `boot.dol` only on USB and no SD card; the games drive still works in the USB loader. (not started)
+- [ ] **Step 3: Owner installs the WAD.** Verify: channel appears on the Wii Menu; launches cable-twii with `boot.dol` on SD; launches it with `boot.dol` only on USB and no SD card; the games drive still works in the USB loader. (not started) Note from the Task 4 review (2026-10-22): the channel's USB search is libogc's single-device one, so with the games drive plugged in it may not see the flash drive (0003, "USB limit"); if the USB-only launch fails with both drives, keep `boot.dol` on the SD card or follow up by giving the forwarder the app's device scan.
 
 - [ ] **Step 4: Owner tests the uninstall once and reinstalls**: after uninstalling, the Wii Menu looks as before and the console boots normally. (not started)
 

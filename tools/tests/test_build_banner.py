@@ -149,11 +149,14 @@ class Brlyt(unittest.TestCase):
         self.assertEqual(b"Material", material[:8])
         flags = struct.unpack(">I", material[0x3C:0x40])[0]
         self.assertEqual(1, flags & 0xF)
+        self.assertEqual(1, (flags >> 4) & 0xF)
         self.assertEqual(1, (flags >> 8) & 0xF)
-        self.assertEqual(0, (flags >> 4) & 0xF)
-        self.assertEqual(0, (flags >> 18) & 0x1F)
+        self.assertEqual(0, (flags >> 20) & 0x1F)
         tex_index, tex_settings = struct.unpack(">HH", material[0x40:0x44])
         self.assertEqual((0, 0), (tex_index, tex_settings))
+        self.assertEqual((0.0, 0.0, 0.0, 1.0, 1.0), struct.unpack(">5f", material[0x44:0x58]))
+        self.assertEqual((1, 4, 30, 0), struct.unpack(">BBBB", material[0x58:0x5C]))
+        self.assertEqual(0x10 + 0x5C, sections(self.blob, 16)[2][2])
 
     def test_root_pane_and_picture_pane(self):
         found = sections(self.blob, 16)

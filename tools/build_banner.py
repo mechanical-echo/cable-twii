@@ -125,8 +125,9 @@ def material_body():
     out = name_field(MATERIAL, 20)
     out += struct.pack(">4h", 0, 0, 0, 0) + struct.pack(">4h", 255, 255, 255, 255) + struct.pack(">4h", 0, 0, 0, 0)
     out += b"\xff" * 16
-    out += struct.pack(">I", (1 << 8) | 1)
+    out += struct.pack(">I", (1 << 8) | (1 << 4) | 1)
     out += struct.pack(">HH", 0, 0)
+    out += struct.pack(">5f", 0.0, 0.0, 0.0, 1.0, 1.0)
     out += struct.pack(">BBBB", 1, 4, 30, 0)
     return out
 
