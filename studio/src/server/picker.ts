@@ -67,7 +67,7 @@ export async function pickFiles(prompt: string, run: OsascriptRunner = defaultOs
       "end run",
       prompt,
     ]);
-    return out.replace(/\n$/, "").split("").filter((line) => line !== "");
+    return out.replace(/\n$/, "").split("\u001f").filter((line) => line !== "");
   } catch (error) {
     if (isCancel(error)) return [];
     throw error;
@@ -93,12 +93,11 @@ export const defaultPowershell: PowershellRunner = (script) =>
   });
 
 function psSingleQuote(s: string): string {
-  return `'${s.replace(/'/g, "''")}'`;
+  return `'${s.replace(/['‘’‚‛]/g, "$&$&")}'`;
 }
 
-// A dialog shown from a background Node process has no foreground-focus rights of its
-// own, so Windows opens it behind other windows with no visible indication at all. Giving
-// it a hidden TopMost owner form forces it above everything else and lets it take focus.
+const UTF8_OUTPUT = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8";
+
 const TOPMOST_OWNER = [
   "Add-Type -AssemblyName System.Windows.Forms",
   "Add-Type -AssemblyName System.Drawing",
@@ -113,6 +112,7 @@ const TOPMOST_OWNER = [
 
 export async function pickFolderWindows(prompt: string, run: PowershellRunner = defaultPowershell): Promise<string | null> {
   const script = [
+    UTF8_OUTPUT,
     TOPMOST_OWNER,
     "$f = New-Object System.Windows.Forms.FolderBrowserDialog",
     `$f.Description = ${psSingleQuote(prompt)}`,
@@ -126,26 +126,13 @@ export async function pickFolderWindows(prompt: string, run: PowershellRunner = 
   return picked === "" ? null : picked;
 }
 
-export async function pickFilesWindows(prompt: string, run: PowershellRunner = defaultPowershell): Promise<string[]> {
-  const script = [
-    TOPMOST_OWNER,
-    "$f = New-Object System.Windows.Forms.OpenFileDialog",
-    `$f.Title = ${psSingleQuote(prompt)}`,
-    "$f.Multiselect = $true",
-    "$result = $f.ShowDialog($owner)",
-    "$owner.Close()",
-    "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write(($f.FileNames -join [char]31)) }",
-  ].join("; ");
-  const out = await run(script);
-  return out.split("").filter((line) => line !== "");
+export interface PickerDeps {
+  platform?: NodeJS.Platform;
+  osascript?: OsascriptRunner;
+  powershell?: PowershellRunner;
 }
 
-const isWindows = process.platform === "win32";
-
-export async function pickFolderNative(prompt: string): Promise<string | null> {
-  return isWindows ? pickFolderWindows(prompt) : pickFolder(prompt);
-}
-
-export async function pickFilesNative(prompt: string): Promise<string[]> {
-  return isWindows ? pickFilesWindows(prompt) : pickFiles(prompt);
+export async function pickFolderNative(prompt: string, deps: PickerDeps = {}): Promise<string | null> {
+  if ((deps.platform ?? process.platform) === "win32") return pickFolderWindows(prompt, deps.powershell);
+  return pickFolder(prompt, deps.osascript);
 }

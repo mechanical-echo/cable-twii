@@ -2,6 +2,8 @@ import type { EpisodeGuess } from "./types.js";
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".m4v", ".mpg", ".mpeg", ".ts", ".webm", ".wmv", ".flv"]);
 const MAX_NAME_LENGTH = 120;
+const DEVICE_PREFIX = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])/i;
+const DEVICE_NAME = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³]) *(\.|$)/i;
 
 const SEASON_EPISODE = /(?<![a-z0-9])s(\d{1,3})[ ._-]?e(\d{1,3})(?![0-9])/i;
 const CROSS = /(?<![a-z0-9])(\d{1,2})x(\d{1,3})(?![a-z0-9])/i;
@@ -59,11 +61,15 @@ export function fatSafe(name: string): string {
     .replace(/ {2,}/g, " ")
     .trim();
   const capped = Array.from(cleaned).slice(0, MAX_NAME_LENGTH).join("");
-  return capped.replace(/[ .]+$/, "").replace(/^ +/, "");
+  return notDevice(capped.replace(/[ .]+$/, "").replace(/^ +/, ""));
+}
+
+function notDevice(name: string): string {
+  return DEVICE_NAME.test(name) ? name.replace(DEVICE_PREFIX, "$1_") : name;
 }
 
 export function fileStem(name: string): string {
-  return fatSafe(name).replace(/^[ .]+/, "");
+  return notDevice(fatSafe(name).replace(/^[ .]+/, ""));
 }
 
 export function uniqueName(name: string, taken: Set<string>): string {

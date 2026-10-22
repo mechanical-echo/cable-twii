@@ -8,14 +8,17 @@ import {
   defaultBootDevices,
   defaultFindMountPoint,
   defaultRunDiskutil,
+  defaultRunVolumeInfo,
   dotClean,
   initRoot,
   inspectDrive,
+  isSystemPath,
   scanSource,
   type DiskutilInfo,
   type DriveDeps,
+  type RunCommand,
 } from "../src/server/drive.js";
-import { pickFiles, pickFolder } from "../src/server/picker.js";
+import { pickFiles, pickFolder, pickFolderNative, pickFolderWindows } from "../src/server/picker.js";
 
 let dir: string;
 
@@ -602,4 +605,182 @@ test("pickFiles passes prompt as argv and splits lines", async () => {
 test("pickFiles returns empty list on cancel", async () => {
   const cancel = Object.assign(new Error("x"), { code: 1, stderr: "User canceled. (-128)" });
   expect(await pickFiles("p", async () => Promise.reject(cancel))).toEqual([]);
+});
+
+function windowsDeps(extra: Partial<DriveDeps> = {}): DriveDeps {
+  return {
+    platform: "win32",
+    env: {
+      SystemDrive: "C:",
+      SystemRoot: "C:\\Windows",
+      ProgramFiles: "C:\\Program Files",
+      "ProgramFiles(x86)": "C:\\Program Files (x86)",
+      ProgramData: "C:\\ProgramData",
+    },
+    homedir: () => "C:\\Users\\me",
+    realpathNative: async (p) => p,
+    ...extra,
+  };
+}
+
+test("windows system folders, profile roots and home are refused", async () => {
+  const refused = [
+    "C:\\",
+    "c:\\",
+    "C:\\Windows",
+    "c:\\WINDOWS\\system32",
+    "C:\\Program Files\\x",
+    "C:\\Program Files (x86)",
+    "C:\\ProgramData\\y",
+    "C:\\Users",
+    "c:\\users",
+    "C:\\Users\\Public",
+    "C:\\Users\\Default",
+    "C:\\Users\\other",
+    "C:\\Users\\me",
+    "c:\\USERS\\ME",
+    "C:\\$Recycle.Bin",
+    "C:\\$Recycle.Bin\\S-1-5-21",
+    "C:\\System Volume Information",
+    "C:\\Recovery\\x",
+    "C:\\Boot",
+    "c:\\boot\\en-US",
+  ];
+  for (const p of refused) expect(await isSystemPath(p, windowsDeps()), p).toBe(true);
+});
+
+test("windows test folders are allowed", async () => {
+  const allowed = ["C:\\Users\\me\\Desktop\\ctw-test", "C:\\ctw-test", "C:\\Windowsish", "C:\\Bootcamp", "D:\\Windows", "D:\\Users"];
+  for (const p of allowed) expect(await isSystemPath(p, windowsDeps()), p).toBe(false);
+});
+
+test("windows system folders are compared against their real paths", async () => {
+  const deps = windowsDeps({
+    env: { SystemDrive: "D:", SystemRoot: "D:\\Win\\" },
+    homedir: () => "D:\\Profiles\\me",
+    realpathNative: async (p) => {
+      if (p === "D:\\Win\\") return "E:\\RealWin";
+      if (p === "D:\\Profiles\\me") return "E:\\Home";
+      throw new Error("no such path");
+    },
+  });
+  for (const p of ["E:\\RealWin\\System32", "e:\\home", "D:\\", "D:\\Users", "D:\\Program Files\\x", "D:\\Recovery"]) {
+    expect(await isSystemPath(p, deps), p).toBe(true);
+  }
+  expect(await isSystemPath("C:\\Windows\\x", deps)).toBe(false);
+});
+
+test("windows falls back to drive C when SystemDrive is not a drive letter", async () => {
+  const deps = windowsDeps({ env: { SystemDrive: "\\\\server\\share" } });
+  expect(await isSystemPath("C:\\", deps)).toBe(true);
+  expect(await isSystemPath("C:\\Windows", deps)).toBe(true);
+});
+
+test("macOS home is refused even when it sits under an allowed temp folder", async () => {
+  expect(await isSystemPath(dir, { platform: "darwin", homedir: () => dir })).toBe(true);
+  expect(await isSystemPath(path.join(dir, "sub"), { platform: "darwin", homedir: () => dir })).toBe(false);
+});
+
+test("inspectDrive uses the injected home", async () => {
+  const info = await inspectDrive(dir, { ...plainDeps(), homedir: () => dir });
+  expect(info.usable).toBe(false);
+  expect(info.reason).toBe("Choose your media drive or a test folder, not a system folder.");
+});
+
+test("windows boot device is the system drive root", async () => {
+  const asked: string[] = [];
+  const statDev = async (p: string) => {
+    asked.push(p);
+    return 3;
+  };
+  expect(await defaultBootDevices(statDev, "win32", { SystemDrive: "D:" })).toEqual([3]);
+  expect(await defaultBootDevices(statDev, "win32", { SystemDrive: "$(calc)" })).toEqual([3]);
+  expect(asked).toEqual(["D:\\", "C:\\"]);
+});
+
+test("windows mount finder walks windows paths and uses only the boot set", async () => {
+  const statDev = async (p: string) => (p.toUpperCase().startsWith("E:") ? 7 : 1);
+  expect(await defaultFindMountPoint("E:\\shows\\x", statDev, async () => [1], "win32")).toEqual({ mountPoint: "E:\\", external: true });
+  expect((await defaultFindMountPoint("C:\\Users\\me\\t", async () => 1, async () => [1], "win32")).external).toBe(false);
+});
+
+type ExecCall = { cmd: string; args: string[]; env?: Record<string, string> };
+
+function volumeExec(output: string, calls: ExecCall[] = []): RunCommand {
+  return async (cmd, args, _input, env) => {
+    calls.push({ cmd, args, env });
+    return output;
+  };
+}
+
+test("windows volume info passes the mount point as data, never inside the script", async () => {
+  const calls: ExecCall[] = [];
+  const info = await defaultRunVolumeInfo("E:\\", volumeExec('{"FileSystem":"FAT32"}', calls));
+  expect(info).toEqual({ FilesystemType: "msdos", FilesystemName: "FAT32" });
+  expect(calls).toHaveLength(1);
+  expect(calls[0].cmd).toBe("powershell.exe");
+  expect(calls[0].env).toEqual({ CTW_VOLUME_PATH: "E:\\" });
+  const script = calls[0].args.join(" ");
+  expect(script).not.toContain("E:");
+  expect(script).toContain("Win32_Volume");
+  expect(script).toContain("$env:CTW_VOLUME_PATH");
+  expect(script).not.toContain("FreeSpace");
+});
+
+test("windows volume info asks for a folder-mounted volume by its mount point", async () => {
+  const calls: ExecCall[] = [];
+  await defaultRunVolumeInfo("C:\\mnt\\usb $(calc)", volumeExec('{"FileSystem":"FAT32"}', calls));
+  expect(calls[0].env).toEqual({ CTW_VOLUME_PATH: "C:\\mnt\\usb $(calc)\\" });
+  expect(calls[0].args.join(" ")).not.toContain("calc");
+});
+
+test("windows volume info reports other filesystems and fails closed on unknown values", async () => {
+  expect(await defaultRunVolumeInfo("E:\\", volumeExec('{"FileSystem":"NTFS"}'))).toEqual({ FilesystemType: "ntfs", FilesystemName: "NTFS" });
+  expect(await defaultRunVolumeInfo("E:\\", volumeExec('{"FileSystem":"exFAT"}'))).toEqual({ FilesystemType: "exfat", FilesystemName: "exFAT" });
+  for (const out of ['{"FileSystem":6}', '{"FileSystemType":6}', '{"FileSystem":null}', '{"FileSystem":""}', "{}", "[]", "null"]) {
+    expect(await defaultRunVolumeInfo("E:\\", volumeExec(out)), out).toEqual({});
+  }
+  await expect(defaultRunVolumeInfo("E:\\", volumeExec("not json"))).rejects.toThrow();
+});
+
+test("windows volume info refuses anything but a drive letter path before running PowerShell", async () => {
+  const calls: ExecCall[] = [];
+  const bad = ["\\\\server\\share\\", "\\\\?\\C:\\", "\\\\.\\C:\\", "\\\\?\\Volume{1}\\", "$(calc):\\", "1:\\", "EE:\\", "E:", "relative\\x", "/Volumes/X"];
+  for (const p of bad) await expect(defaultRunVolumeInfo(p, volumeExec('{"FileSystem":"FAT32"}', calls)), p).rejects.toThrow();
+  expect(calls).toHaveLength(0);
+});
+
+test("windows inspectDrive refuses a volume whose filesystem cannot be read", async () => {
+  const calls: ExecCall[] = [];
+  const info = await inspectDrive(dir, { platform: "win32", findMountPoint: mountAt(dir), exec: volumeExec('{"FileSystem":"FAT32"}', calls) });
+  expect(info.usable).toBe(false);
+  expect(info.fsType).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
+test("dotClean does nothing on windows", async () => {
+  const runs: string[][] = [];
+  await dotClean(dir, { ...volumeDeps(FAT), platform: "win32", run: async (_cmd, args) => runs.push(args) });
+  expect(runs).toEqual([]);
+});
+
+test("windows folder picker forces UTF-8 output and escapes quotes in the prompt", async () => {
+  const scripts: string[] = [];
+  const result = await pickFolderWindows("Pick 'my' \u2018drive\u2019", async (script) => {
+    scripts.push(script);
+    return "E:\\Shows \u2728\r\n";
+  });
+  expect(scripts[0].startsWith("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;")).toBe(true);
+  expect(scripts[0]).toContain("$f.Description = 'Pick ''my'' \u2018\u2018drive\u2019\u2019'");
+  expect(result).toBe("E:\\Shows \u2728");
+});
+
+test("windows folder picker returns null on cancel", async () => {
+  expect(await pickFolderWindows("p", async () => "")).toBeNull();
+});
+
+test("native folder picker chooses the runner by platform", async () => {
+  const never = async (): Promise<string> => Promise.reject(new Error("wrong runner"));
+  expect(await pickFolderNative("p", { platform: "win32", powershell: async () => "E:\\x", osascript: never })).toBe("E:\\x");
+  expect(await pickFolderNative("p", { platform: "darwin", powershell: never, osascript: async () => "/Volumes/X/\n" })).toBe("/Volumes/X");
 });

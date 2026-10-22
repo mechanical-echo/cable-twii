@@ -75,9 +75,6 @@ test("a missing binary throws a clear error", async () => {
   await expect(validateRoot(root, false, path.join(dir, "nope"))).rejects.toThrow(/nope/);
 });
 
-// Windows' execFile needs shell:true to run .bat/.cmd scripts (the real sched
-// binary is a compiled .exe and isn't affected); a shell script fixture can't
-// stand in for that here, so this exercises the shebang path on POSIX only.
 test.skipIf(process.platform === "win32")("a failing binary throws", async () => {
   const bin = path.join(dir, "bad.sh");
   await writeFile(bin, "#!/bin/sh\necho boom >&2\nexit 7\n");

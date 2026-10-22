@@ -50,8 +50,6 @@ async function isExecutable(file: string): Promise<boolean> {
 
 export async function ensureSchedBin(bin: string = schedBinPath()): Promise<string> {
   if (await isExecutable(bin)) return bin;
-  // MSYS2's make.exe drops TMP/TEMP from its own process environment, so cc.exe
-  // can't create temp files unless they're re-supplied as make command-line vars.
   const winTmpVars = isWindows ? [`TMP=${process.env.TMP ?? ""}`, `TEMP=${process.env.TEMP ?? ""}`] : [];
   await new Promise<void>((resolve, reject) => {
     execFile(
