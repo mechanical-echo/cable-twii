@@ -1,11 +1,10 @@
 #include "guide_layout.h"
 
 #define SCREEN_W 640.0f
-#define SCREEN_H 480.0f
 #define INSET_X 0.03f
-#define INSET_BOTTOM 0.04f
-#define GAP 0.03f
-#define LIST_COL 0.42f
+#define GAP_COL 0.032f
+#define GAP_ROW 0.04f
+#define LIST_COL 0.447f
 #define WIDE_W 16.0f
 #define WIDE_H 9.0f
 
@@ -14,10 +13,10 @@ guide_layout guide_layout_for(float pixel_x)
     guide_layout l;
     float left = SCREEN_W * INSET_X;
     float right = SCREEN_W - left;
-    float top = GL_HEADER_H;
-    float bottom = SCREEN_H * (1.0f - INSET_BOTTOM);
+    float top = GL_TOP;
+    float bottom = GL_BOTTOM;
     float gw = right - left, gh = bottom - top;
-    float col_gap = gw * GAP, row_gap = gh * GAP;
+    float col_gap = gw * GAP_COL, row_gap = gh * GAP_ROW;
 
     l.list = (asp_rect){ left, top, gw * LIST_COL, gh };
 

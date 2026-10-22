@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Wii app redesigned at system detail, after the "Wii app redesign" deck: glossy cards with highlights and soft shadows, a curved system bar with the clock, date, HOME disc and channel pills, channel-number pills in the guide (blue for the channel playing), an "A Watch" hint on the preview, an "Up next" column with a countdown in the info panel and the OSD, a channel chip with a blue tile and the channel name dropping in, a glossy volume panel, an up-next card with a bloom and a commercial-break pill, a redesigned HOME menu, an intro panel with a shine and loading dots, an empty-library screen, and pills that press under A and act on release. The OSD panel no longer has buttons: the D-pad flips channels, B returns to the guide, and the pointer presses only the volume panel's − and +.
+- Wii app: text is narrowed to the pixel width on 16:9 TVs, so letters keep their shape instead of stretching.
+
 ## 0.9.0
 
 Feature-complete, not yet verified on real Wii hardware.

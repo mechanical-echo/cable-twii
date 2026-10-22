@@ -10,6 +10,9 @@
 #define LOGO_HANDOFF_MS 2000u
 #define LOGO_TOTAL_MS THEME_LOGO_DURATION_MS
 #define LOGO_PANEL_SLIDE_PX 40.0f
+#define LOGO_PANEL_W 333.3f
+#define LOGO_PANEL_H 124.4f
+#define LOGO_FULL_W 285.3f
 
 typedef struct {
     float x;
@@ -20,6 +23,12 @@ typedef struct {
     float alpha;
     float shine;
     float panels;
+    float px;
+    float py;
+    float pw;
+    float ph;
+    float panel_alpha;
+    int dot;
     bool done;
 } logo_frame;
 

@@ -1,11 +1,12 @@
 #include "osd.h"
 
+#include "ui/theme.h"
 #include "ui/tween.h"
 
-#define OSD_CHIP_MS 2000u
-#define OSD_TIMEOUT_MS 3000u
+#define OSD_CHIP_MS THEME_CHIP_DURATION_MS
+#define OSD_TIMEOUT_MS THEME_OSD_TIMEOUT_MS
 #define OSD_SLIDE_MS 200u
-#define OSD_VOLUME_MS 2000u
+#define OSD_VOLUME_MS THEME_VOLUME_MS
 #define VOLUME_STEP 10
 #define VOLUME_MAX 100
 
@@ -51,11 +52,32 @@ float osd_slide(const osd_state *s, uint32_t now_ms)
 void osd_volume_changed(osd_state *s, uint32_t now_ms)
 {
     s->volume_until = now_ms + OSD_VOLUME_MS;
+    osd_activity(s, now_ms);
 }
 
-bool osd_volume_alone(const osd_state *s, uint32_t now_ms)
+bool osd_volume_visible(const osd_state *s, uint32_t now_ms)
 {
-    return now_ms < s->volume_until && !osd_visible(s, now_ms);
+    return now_ms < s->volume_until;
+}
+
+bool osd_panel_visible(const osd_state *s, uint32_t now_ms)
+{
+    return osd_visible(s, now_ms) && !osd_volume_visible(s, now_ms);
+}
+
+float osd_chip_glow(const osd_state *s, uint32_t now_ms)
+{
+    if (s->chip_until == 0 || now_ms >= s->chip_until) return 0.0f;
+    uint32_t since = now_ms - (s->chip_until - OSD_CHIP_MS);
+    if (since >= THEME_CHIP_GLOW_MS) return 0.0f;
+    return 1.0f - (float)since / (float)THEME_CHIP_GLOW_MS;
+}
+
+float osd_chip_name_drop(const osd_state *s, uint32_t now_ms)
+{
+    if (s->chip_until == 0) return 0.0f;
+    uint32_t since = now_ms - (s->chip_until - OSD_CHIP_MS);
+    return tw_ease_out((float)since / (float)THEME_CHIP_NAME_MS);
 }
 
 int osd_volume_step(int volume, int dir)

@@ -11,16 +11,33 @@
 #include "../ui/text.h"
 #include "../ui/theme.h"
 
+#define ROW_INSET_LEFT 6.7f
+#define ROW_INSET_RIGHT 14.0f
 #define ICON_PX 44.0f
-#define LINE_ICON_PX 20.0f
-#define TEXT_X 62.0f
-#define ROW_PAD 8.0f
+#define ICON_X 7.3f
+#define TEXT_GAP 7.3f
 #define NAME_PX 16
+#define NAME_Y 13.4f
 #define LINE_PX 13
-#define SMALL_PX 12
-#define HEADER_PX 14
-#define BAR_H 4.0f
-#define HEADER_INSET 6.0f
+#define LINE_Y 34.0f
+#define NUMBER_PX 12
+#define NUMBER_H 19.0f
+#define NUMBER_INSET 3.3f
+#define NUMBER_GAP 6.0f
+#define BAR_Y 52.6f
+#define BAR_H 4.4f
+#define BAR_GAP 7.3f
+#define HEADER_PX 12
+#define HEADER_INSET 6.7f
+#define HEADER_Y 8.0f
+#define RULE_GAP 6.0f
+#define RULE_DY 6.5f
+#define SCROLL_W 3.0f
+#define SCROLL_RIGHT 9.3f
+#define SCROLL_INSET 17.0f
+#define SCROLL_MIN_THUMB 20.0f
+#define HOT_SHADOW_DY 3.0f
+#define HOT_SHADOW_BLUR 7.0f
 
 typedef struct {
     bool valid;
@@ -28,10 +45,10 @@ typedef struct {
     char name[TF_LINE_BYTES];
     char number[8];
     char line[TF_LINE_BYTES];
-    char times[32];
-    float times_w;
-    const ctw_show *line_show;
+    float number_w;
 } row_text;
+
+static const ui_stop HOT_STOPS[] = { { 0.0f, THEME_ROW_HOT_TOP }, { 0.55f, THEME_ROW_HOT_MID }, { 1.0f, THEME_ROW_HOT_BOTTOM } };
 
 static row_text *texts;
 static size_t text_count;
@@ -52,28 +69,30 @@ void glist_view(asp_rect panel, float *top, float *height)
     *height = panel.h - 2.0f * GLIST_PAD;
 }
 
+static float icon_w(void)
+{
+    return ICON_PX * ui_pixel_x();
+}
+
 static void refresh(app *a, row_text *t, const ctw_channel *ch, const ctw_airing *air, int64_t start, float w)
 {
     t->valid = true;
     t->start = start;
-    snprintf(t->number, sizeof t->number, "%d", ch->number);
-    float text_w = w - TEXT_X - ROW_PAD;
-    float num_w = ui_text_width(FONT_BODY, SMALL_PX, t->number);
-    ui_text_fit(FONT_BOLD, NAME_PX, ch->name, text_w - num_w - 6.0f, t->name, sizeof t->name);
-
+    gt_number(ch->number, t->number, sizeof t->number);
+    t->number_w = ui_number_pill_w(t->number, NUMBER_PX);
+    float text_w = w - (ICON_X + icon_w() + TEXT_GAP) - NUMBER_INSET - t->number_w - NUMBER_GAP;
+    ui_text_fit(FONT_BOLD, NAME_PX, ch->name, text_w, t->name, sizeof t->name);
     const ctw_airing *next = air != NULL && air->kind == CTW_AIR_UPNEXT ? tn_next(&a->tuner, ch->number, air) : NULL;
-    t->line_show = gt_line_show(air, next);
     char line[TF_LINE_BYTES];
     gt_line(air, next, line, sizeof line);
-    float line_w = text_w - (t->line_show != NULL ? LINE_ICON_PX + 6.0f : 0.0f);
-    ui_text_fit(FONT_BODY, LINE_PX, line, line_w, t->line, sizeof t->line);
+    ui_text_fit(FONT_BODY, LINE_PX, line, text_w, t->line, sizeof t->line);
+}
 
-    if (air != NULL) {
-        gt_times(air->start_ms, air->duration_ms, t->times, sizeof t->times);
-    } else {
-        t->times[0] = '\0';
+static void upper_ascii(char *s)
+{
+    for (; *s != '\0'; s++) {
+        if (*s >= 'a' && *s <= 'z') *s = (char)(*s - 'a' + 'A');
     }
-    t->times_w = ui_text_width(FONT_BODY, SMALL_PX, t->times);
 }
 
 static void draw_header(row_text *t, const gm_row *r, float x, float y, float w)
@@ -81,11 +100,14 @@ static void draw_header(row_text *t, const gm_row *r, float x, float y, float w)
     if (!t->valid) {
         t->valid = true;
         ui_text_fit(FONT_BOLD, HEADER_PX, r->category != NULL ? r->category : "", w - 2.0f * HEADER_INSET, t->name, sizeof t->name);
+        upper_ascii(t->name);
     }
-    ui_text(FONT_BOLD, HEADER_PX, x + HEADER_INSET, y + 7.0f, t->name, THEME_TEXT_SECONDARY, ALIGN_LEFT);
+    ui_text(FONT_BOLD, HEADER_PX, x + HEADER_INSET, y + HEADER_Y, t->name, THEME_TEXT_SECONDARY, ALIGN_LEFT);
+    float rx = x + HEADER_INSET + ui_text_width(FONT_BOLD, HEADER_PX, t->name) + RULE_GAP;
+    if (rx < x + w) GRRLIB_Rectangle(rx, y + HEADER_Y + RULE_DY, x + w - rx, 1.0f, THEME_BAR_TRACK, 1);
 }
 
-static void draw_channel(app *a, row_text *t, const gm_row *r, bool hot, float x, float y, float w)
+static void draw_channel(app *a, row_text *t, const gm_row *r, bool hot, bool tuned, float x, float y, float w)
 {
     const ctw_channel *ch = r->channel;
     uint32_t offset = 0;
@@ -94,43 +116,49 @@ static void draw_channel(app *a, row_text *t, const gm_row *r, bool hot, float x
     if (!t->valid || t->start != start) refresh(a, t, ch, air, start, w);
 
     if (hot) {
-        ui_glow(x, y, w, r->h, THEME_ROW_RADIUS, 0.25f);
-        ui_panel(x, y, w, r->h, THEME_ROW_RADIUS, THEME_ROW_ACTIVE_FILL, THEME_ACCENT);
+        ui_shadow(x, y, w, r->h, THEME_ROW_RADIUS, THEME_ROW_HOT_SHADOW, HOT_SHADOW_DY, HOT_SHADOW_BLUR);
+        ui_ring(x, y, w, r->h, THEME_ROW_RADIUS, THEME_RING, THEME_RING_SPREAD);
+        ui_outline(x, y, w, r->h, THEME_ROW_RADIUS, 2.0f, THEME_ACCENT);
+        float ix = x + 2.0f * ui_pixel_x(), iy = y + 2.0f, iw = w - 4.0f * ui_pixel_x(), ih = r->h - 4.0f;
+        ui_rounded(ix, iy, iw, ih, THEME_ROW_RADIUS - 2.0f, THEME_PANEL_HIGHLIGHT);
+        ui_rounded_gradient(ix, iy + 1.0f, iw, ih - 1.0f, THEME_ROW_RADIUS - 2.0f, HOT_STOPS, 3);
     }
 
     char path[320];
     gt_icon_path(a->root, ch, NULL, path, sizeof path);
-    icons_draw(path, x + ROW_PAD, y + (r->h - ICON_PX) / 2.0f, ICON_PX);
+    float iw = icon_w();
+    float icon_x = x + ICON_X;
+    icons_draw(path, icon_x - (ICON_PX - iw) / 2.0f, y + (r->h - ICON_PX) / 2.0f, ICON_PX);
 
-    float tx = x + TEXT_X;
-    ui_text(FONT_BOLD, NAME_PX, tx, y + 5.0f, t->name, THEME_TEXT_PRIMARY, ALIGN_LEFT);
-    ui_text(FONT_BODY, SMALL_PX, x + w - ROW_PAD, y + 7.0f, t->number, THEME_TEXT_SECONDARY, ALIGN_RIGHT);
+    float tx = icon_x + iw + TEXT_GAP;
+    ui_text(FONT_BOLD, NAME_PX, tx, y + NAME_Y, t->name, THEME_TEXT_PRIMARY, ALIGN_LEFT);
+    ui_text(FONT_BODY, LINE_PX, tx, y + LINE_Y, t->line, hot ? THEME_TEXT_LABEL : THEME_TEXT_SECONDARY, ALIGN_LEFT);
 
-    float lx = tx;
-    if (t->line_show != NULL) {
-        gt_icon_path(a->root, ch, t->line_show, path, sizeof path);
-        icons_draw(path, tx, y + 24.0f, LINE_ICON_PX);
-        lx += LINE_ICON_PX + 6.0f;
-    }
-    ui_text(FONT_BODY, LINE_PX, lx, y + 26.0f, t->line, THEME_TEXT_SECONDARY, ALIGN_LEFT);
+    float px = x + w - NUMBER_INSET - t->number_w;
+    ui_number_pill(px, y + (r->h - NUMBER_H) / 2.0f, NUMBER_H, t->number, NUMBER_PX, tuned);
 
-    if (air == NULL) return;
-    ui_text(FONT_BODY, SMALL_PX, tx, y + 45.0f, t->times, THEME_TEXT_SECONDARY, ALIGN_LEFT);
-    float bx = tx + t->times_w + 8.0f;
-    ui_bar(bx, y + 51.0f, x + w - ROW_PAD - bx, BAR_H, gt_progress(air, offset));
+    if (hot && air != NULL) ui_bar(tx, y + BAR_Y, px - BAR_GAP - tx, BAR_H, gt_progress(air, offset));
 }
 
-void glist_draw(app *a, const gm_row *rows, size_t n, int highlight, float scroll, asp_rect panel)
+static void draw_scrollbar(asp_rect panel, float view_h, float content_h, float scroll)
 {
-    ui_panel(panel.x, panel.y, panel.w, panel.h, THEME_PANEL_RADIUS, THEME_PANEL_FILL, THEME_PANEL_BORDER);
+    if (content_h <= view_h) return;
+    float x = panel.x + panel.w - SCROLL_RIGHT;
+    float y = panel.y + SCROLL_INSET, h = panel.h - 2.0f * SCROLL_INSET;
+    ui_rounded(x, y, SCROLL_W, h, SCROLL_W / 2.0f, THEME_BAR_TRACK);
+    float th = h * view_h / content_h;
+    if (th < SCROLL_MIN_THUMB) th = SCROLL_MIN_THUMB;
+    float ty = y + (h - th) * (scroll / (content_h - view_h));
+    ui_rounded(x, ty, SCROLL_W, th, SCROLL_W / 2.0f, THEME_PILL_BORDER);
+}
+
+void glist_draw(app *a, const gm_row *rows, size_t n, int highlight, float scroll, asp_rect panel, int tuned_channel)
+{
+    ui_card(panel.x, panel.y, panel.w, panel.h, THEME_PANEL_RADIUS, 0.7f, THEME_GLOSS_BOTTOM, UI_SHADOW_PANEL);
     float top, view_h;
     glist_view(panel, &top, &view_h);
-    float x = panel.x + GLIST_PAD, w = panel.w - 2.0f * GLIST_PAD;
-
-    if (n == 0) {
-        ui_text(FONT_BODY, 14, panel.x + panel.w / 2.0f, top + 20.0f, "No channels yet", THEME_TEXT_SECONDARY, ALIGN_CENTER);
-        return;
-    }
+    float x = panel.x + ROW_INSET_LEFT, w = panel.w - ROW_INSET_LEFT - ROW_INSET_RIGHT;
+    if (n == 0) return;
 
     float cx = panel.x + 2.0f, cy = panel.y + 2.0f;
     GRRLIB_ClipDrawing((u32)(cx < 0.0f ? 0.0f : cx), (u32)cy, (u32)(panel.w - 4.0f), (u32)(panel.h - 4.0f));
@@ -142,8 +170,10 @@ void glist_draw(app *a, const gm_row *rows, size_t n, int highlight, float scrol
         if (r->kind == GM_HEADER) {
             draw_header(&texts[i], r, x, y, w);
         } else {
-            draw_channel(a, &texts[i], r, (int)i == highlight, x, y, w);
+            bool tuned = tuned_channel != 0 && r->channel->number == tuned_channel;
+            draw_channel(a, &texts[i], r, (int)i == highlight, tuned, x, y, w);
         }
     }
     GRRLIB_ClipReset();
+    draw_scrollbar(panel, view_h, gm_content_h(rows, n), scroll);
 }

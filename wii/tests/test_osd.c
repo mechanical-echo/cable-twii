@@ -66,26 +66,53 @@ TEST volume_step_snaps_to_tens(void)
     PASS();
 }
 
-TEST volume_bar_shows_alone_for_two_seconds(void)
+TEST volume_panel_shows_for_two_seconds(void)
 {
     osd_state s;
     memset(&s, 0, sizeof s);
-    ASSERT(!osd_volume_alone(&s, 0));
+    ASSERT(!osd_volume_visible(&s, 0));
     osd_volume_changed(&s, 1000);
-    ASSERT(osd_volume_alone(&s, 2999));
-    ASSERT(!osd_volume_alone(&s, 3000));
+    ASSERT(osd_volume_visible(&s, 2999));
+    ASSERT(!osd_volume_visible(&s, 3000));
     PASS();
 }
 
-TEST volume_bar_yields_to_panel(void)
+TEST panel_yields_to_volume(void)
 {
     osd_state s;
     memset(&s, 0, sizeof s);
-    osd_volume_changed(&s, 1000);
-    osd_pointer(&s, true, true, 1100);
-    ASSERT(!osd_volume_alone(&s, 1200));
-    osd_pointer(&s, false, false, 1300);
-    ASSERT(osd_volume_alone(&s, 1300));
+    osd_pointer(&s, true, true, 1000);
+    ASSERT(osd_panel_visible(&s, 1050));
+    osd_volume_changed(&s, 1100);
+    ASSERT(osd_volume_visible(&s, 1200));
+    ASSERT(!osd_panel_visible(&s, 1200));
+    ASSERT(osd_visible(&s, 1200));
+    ASSERT(!osd_volume_visible(&s, 3200));
+    ASSERT(osd_panel_visible(&s, 3200));
+    PASS();
+}
+
+TEST chip_glow_fades_in_600ms(void)
+{
+    osd_state s;
+    memset(&s, 0, sizeof s);
+    osd_channel_changed(&s, 1000);
+    ASSERT_IN_RANGE(1.0f, osd_chip_glow(&s, 1000), 0.001f);
+    ASSERT_IN_RANGE(0.5f, osd_chip_glow(&s, 1300), 0.001f);
+    ASSERT_IN_RANGE(0.0f, osd_chip_glow(&s, 1600), 0.001f);
+    ASSERT_IN_RANGE(0.0f, osd_chip_glow(&s, 2000), 0.001f);
+    PASS();
+}
+
+TEST chip_name_drops_in_200ms(void)
+{
+    osd_state s;
+    memset(&s, 0, sizeof s);
+    osd_channel_changed(&s, 1000);
+    ASSERT_IN_RANGE(0.0f, osd_chip_name_drop(&s, 1000), 0.001f);
+    ASSERT_IN_RANGE(0.875f, osd_chip_name_drop(&s, 1100), 0.001f);
+    ASSERT_IN_RANGE(1.0f, osd_chip_name_drop(&s, 1200), 0.001f);
+    ASSERT_IN_RANGE(1.0f, osd_chip_name_drop(&s, 2500), 0.001f);
     PASS();
 }
 
@@ -149,8 +176,10 @@ SUITE(osd_suite)
     RUN_TEST(volume_step_moves_by_ten);
     RUN_TEST(volume_step_clamps);
     RUN_TEST(volume_step_snaps_to_tens);
-    RUN_TEST(volume_bar_shows_alone_for_two_seconds);
-    RUN_TEST(volume_bar_yields_to_panel);
+    RUN_TEST(volume_panel_shows_for_two_seconds);
+    RUN_TEST(panel_yields_to_volume);
+    RUN_TEST(chip_glow_fades_in_600ms);
+    RUN_TEST(chip_name_drops_in_200ms);
     RUN_TEST(activity_extends_visible_panel);
     RUN_TEST(activity_does_not_show_hidden_panel);
     RUN_TEST(slide_eases_out_over_200ms);

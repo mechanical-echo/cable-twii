@@ -224,8 +224,106 @@ TEST tuner_remaining(void)
     PASS();
 }
 
+TEST next_episode_skips_ads(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ctw_date day = { 2026, 10, 20 };
+    uint32_t offset = 0;
+    const ctw_airing *first = tn_current(&t, 1, day, 7u * 3600000u + 5000u, &offset);
+    ASSERT(first != NULL);
+    const ctw_airing *second = tn_next_episode(&t, 1, first);
+    ASSERT(second != NULL);
+    ASSERT_EQ(CTW_AIR_EPISODE, second->kind);
+    ASSERT_EQ(1, second->episode->season);
+    ASSERT_EQ(2, second->episode->episode);
+    const ctw_airing *third = tn_current(&t, 1, day, 7u * 3600000u + 20u * 60000u + 5000u, &offset);
+    ASSERT(third != NULL);
+    const ctw_airing *after_ad = tn_next(&t, 1, third);
+    ASSERT(after_ad != NULL);
+    ASSERT_EQ(CTW_AIR_AD, after_ad->kind);
+    const ctw_airing *ep = tn_next_episode(&t, 1, third);
+    ASSERT(ep != NULL);
+    ASSERT_EQ(CTW_AIR_EPISODE, ep->kind);
+    ASSERT_EQ(5, ep->episode->season);
+    ASSERT_EQ(4, ep->episode->episode);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST next_episode_none_at_end(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ctw_date day = { 2026, 10, 20 };
+    uint32_t offset = 0;
+    ASSERT(tn_current(&t, 1, day, 1000, &offset) != NULL);
+    const ctw_lineup *today = &t.entries[0].today;
+    ASSERT(today->count > 0);
+    const ctw_airing *last = &today->items[today->count - 1];
+    ASSERT_EQ((size_t)NULL, (size_t)tn_next_episode(&t, 1, last));
+    ASSERT_EQ((size_t)NULL, (size_t)tn_next_episode(&t, 1, NULL));
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST ms_until_next_episode(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ctw_date day = { 2026, 10, 20 };
+    uint32_t offset = 0;
+    const ctw_airing *third = tn_current(&t, 1, day, 7u * 3600000u + 21u * 60000u, &offset);
+    ASSERT(third != NULL);
+    ASSERT_EQ(60000u, offset);
+    const ctw_airing *ep = tn_next_episode(&t, 1, third);
+    ASSERT(ep != NULL);
+    ASSERT_EQ(555000LL, tn_ms_until(&t, 1, third, offset, ep));
+    ASSERT_EQ(0LL, tn_ms_until(&t, 1, third, offset, NULL));
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST rebuild_keeps_the_next_episode_start_across_midnight(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ctw_date day = { 2026, 10, 20 };
+    ctw_date next_day = { 2026, 10, 21 };
+    uint32_t offset = 0;
+    const ctw_airing *before = tn_current(&t, 1, day, 23u * 3600000u + 50u * 60000u, &offset);
+    ASSERT(before != NULL);
+    const ctw_airing *ep_before = tn_next_episode(&t, 1, before);
+    ASSERT(ep_before != NULL);
+    int64_t ep_start = tn_airing_start(&t, 1, ep_before);
+    ASSERT(ep_start > 0);
+    const ctw_airing *after = tn_current(&t, 1, next_day, 5u * 60000u, &offset);
+    ASSERT(after != NULL);
+    ASSERT_EQ(CTW_AIR_EPISODE, after->kind);
+    ASSERT_EQ(ep_start, tn_airing_start(&t, 1, after));
+    ASSERT((size_t)before != (size_t)after);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
 SUITE(tuner_suite)
 {
+    RUN_TEST(rebuild_keeps_the_next_episode_start_across_midnight);
+    RUN_TEST(next_episode_skips_ads);
+    RUN_TEST(next_episode_none_at_end);
+    RUN_TEST(ms_until_next_episode);
     RUN_TEST(tuner_current_matches_engine);
     RUN_TEST(tuner_caches_by_day);
     RUN_TEST(tuner_rebuilds_on_day_change);

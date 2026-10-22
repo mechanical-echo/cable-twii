@@ -4,7 +4,8 @@
 #include "../app.h"
 #include "../osd_layout.h"
 
-void panel_draw(app *a, const osd_layout *l, osd_btn hot);
-void panel_draw_volume(const osd_layout *l, int volume);
+osd_layout panel_layout(app *a, float offset_y);
+void panel_draw(app *a, const osd_layout *l);
+void panel_draw_volume(const osd_layout *l, int volume, osd_btn hot, osd_btn pressed);
 
 #endif

@@ -11,6 +11,7 @@
 #include "textfit.h"
 #include "textcache.h"
 #include "utf8.h"
+#include "draw.h"
 
 #define ADV_SLOTS 2048
 #define MAX_TEX_SIDE 1024
@@ -73,6 +74,8 @@ static FT_Face face_for(ui_font f, int px)
     if (fonts[f] == NULL) return NULL;
     FT_Face face = (FT_Face)fonts[f]->face;
     if (FT_Set_Pixel_Sizes(face, 0, (FT_UInt)px) != 0) FT_Set_Pixel_Sizes(face, 0, 12);
+    FT_Matrix narrow = { (FT_Fixed)(ui_pixel_x() * 65536.0f), 0, 0, 65536 };
+    FT_Set_Transform(face, &narrow, NULL);
     return face;
 }
 
@@ -96,7 +99,7 @@ static int kerning(ui_font f, FT_Face face, FT_UInt prev, FT_UInt gi)
     if (!fonts[f]->kerning || prev == 0 || gi == 0) return 0;
     FT_Vector delta;
     if (FT_Get_Kerning(face, prev, gi, FT_KERNING_DEFAULT, &delta) != 0) return 0;
-    return (int)(delta.x >> 6);
+    return (int)((float)(delta.x >> 6) * ui_pixel_x());
 }
 
 static float measure(ui_font f, int px, const uint32_t *cps, size_t n)

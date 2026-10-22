@@ -17,6 +17,7 @@
 #include "ui/cursor.h"
 #include "ui/sfx.h"
 #include "ui/icons.h"
+#include "ui/glyphs.h"
 #include "media/player.h"
 #include "screens/error.h"
 #include "screens/full.h"
@@ -25,6 +26,9 @@
 #include "screens/logo.h"
 #ifdef CTW_DEBUG_OVERLAY
 #include "debug/overlay.h"
+#endif
+#ifdef CTW_DEBUG_SCRIPT
+#include "script/script.h"
 #endif
 
 static app g_app;
@@ -133,6 +137,9 @@ static void boot(app *a)
         return;
     }
 
+#ifdef CTW_DEBUG_SCRIPT
+    dbg_script_load(a->root);
+#endif
     ctw_issues issues;
     memset(&issues, 0, sizeof issues);
     int rc = ctw_db_load(a->root, &a->db, &issues);
@@ -177,6 +184,7 @@ int main(int argc, char **argv)
     cur_init();
     sfx_init();
     icons_init();
+    glyphs_init();
 #ifdef CTW_DEBUG_OVERLAY
     overlay_init();
 #endif

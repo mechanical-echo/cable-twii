@@ -13,6 +13,35 @@ void gt_hhmm(int64_t ms, char *out, size_t out_size)
     snprintf(out, out_size, "%02d:%02d", (int)(m / 3600000), (int)((m / 60000) % 60));
 }
 
+void gt_date(ctw_date d, char *out, size_t out_size)
+{
+    static const char *const names[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    static const int month_offset[] = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 };
+    int m = d.month < 1 ? 1 : (d.month > 12 ? 12 : d.month);
+    int y = d.year - (m < 3 ? 1 : 0);
+    int wd = (y + y / 4 - y / 100 + y / 400 + month_offset[m - 1] + d.day) % 7;
+    if (wd < 0) wd += 7;
+    snprintf(out, out_size, "%s %02d/%02d", names[wd], d.day, d.month);
+}
+
+void gt_number(int number, char *out, size_t out_size)
+{
+    snprintf(out, out_size, "%02d", number);
+}
+
+void gt_countdown(uint32_t ms_left, char *out, size_t out_size)
+{
+    uint32_t s = ms_left / 1000u;
+    snprintf(out, out_size, "%u:%02u", (unsigned)(s / 60u), (unsigned)(s % 60u));
+}
+
+void gt_at(int64_t start_ms, char *out, size_t out_size)
+{
+    char hhmm[8];
+    gt_hhmm(start_ms, hhmm, sizeof hhmm);
+    snprintf(out, out_size, "at %s", hhmm);
+}
+
 void gt_times(int64_t start_ms, uint32_t duration_ms, char *out, size_t out_size)
 {
     char from[8], to[8];

@@ -1,5 +1,6 @@
 #include "logo.h"
 
+#include <math.h>
 #include <grrlib.h>
 #include <wiiuse/wpad.h>
 
@@ -7,17 +8,28 @@
 #include "../input.h"
 #include "../logoanim.h"
 #include "../ui/draw.h"
+#include "../ui/theme.h"
 #include "guide.h"
 
-#define SHINE_SLOPE 0.5f
-#define SHINE_SLICE 2.0f
-#define SHINE_OUTER_W 44.0f
-#define SHINE_INNER_W 16.0f
-#define SHINE_OUTER_ALPHA 0.30f
-#define SHINE_INNER_ALPHA 0.45f
+#define BLOOM_CX 320.0f
+#define BLOOM_CY 216.0f
+#define BLOOM_RX 448.0f
+#define BLOOM_RY 336.0f
+#define PANEL_SHADOW 0x344A6029u
+#define PANEL_SHADOW_DY 7.0f
+#define PANEL_SHADOW_BLUR 20.0f
+#define SHINE_W 82.8f
+#define SHINE_TILT 0.404f
+#define SHINE_COLOR 0xEEFAFF00u
+#define SHINE_ALPHA 0.95f
+#define DOT_Y 328.9f
+#define DOT_H 8.9f
+#define DOT_X0 304.0f
+#define DOT_STEP 12.67f
+#define DOT_RING 2.2f
+#define DOTS 3
 
 static GRRLIB_texImg *tex_logo;
-static GRRLIB_texImg *tex_shine;
 static uint32_t start_ms;
 static bool skipped;
 static logo_frame frame;
@@ -26,16 +38,6 @@ static void ensure_loaded(void)
 {
     if (tex_logo != NULL) return;
     tex_logo = GRRLIB_LoadTexture(logo_png);
-    if (tex_logo == NULL) return;
-    tex_shine = GRRLIB_CreateEmptyTexture(tex_logo->w, tex_logo->h);
-    if (tex_shine == NULL) return;
-    for (unsigned int y = 0; y < tex_logo->h; y++) {
-        for (unsigned int x = 0; x < tex_logo->w; x++) {
-            u32 alpha = GRRLIB_GetPixelFromtexImg(x, y, tex_logo) & 0xFFu;
-            GRRLIB_SetPixelTotexImg(x, y, tex_shine, 0xFFFFFF00u | alpha);
-        }
-    }
-    GRRLIB_FlushTex(tex_shine);
 }
 
 static float logo_w(void)
@@ -69,41 +71,69 @@ void logo_update(app *a)
     if (frame.done) app_go(a, SCR_GUIDE);
 }
 
-static void shine_band(float center, float width, float alpha)
+static uint32_t faded(uint32_t color, float alpha)
 {
-    float w = logo_w(), h = logo_h();
-    float sx = frame.w / w, sy = frame.h / h;
-    u32 color = RGBA(0xFF, 0xFF, 0xFF, (u8)(alpha * frame.alpha * 255.0f));
-    for (float u = 0.0f; u < w; u += SHINE_SLICE) {
-        float pw = u + SHINE_SLICE > w ? w - u : SHINE_SLICE;
-        float mid = u + pw / 2.0f;
-        float v0 = h - (mid - center + width / 2.0f) / SHINE_SLOPE;
-        float v1 = h - (mid - center - width / 2.0f) / SHINE_SLOPE;
-        if (v0 < 0.0f) v0 = 0.0f;
-        if (v1 > h) v1 = h;
-        if (v1 <= v0) continue;
-        float ph = v1 - v0;
-        float dx = frame.x + u * sx, dy = frame.y + v0 * sy;
-        GRRLIB_DrawPart(dx, dy, u, v0, pw, ph, tex_shine, 0.0f, sx, sy, color);
-    }
+    float a = (float)(color & 0xFFu) * (alpha < 0.0f ? 0.0f : (alpha > 1.0f ? 1.0f : alpha));
+    return (color & 0xFFFFFF00u) | (uint32_t)(a + 0.5f);
+}
+
+static void draw_panel(void)
+{
+    float a = frame.panel_alpha;
+    if (a <= 0.0f) return;
+    ui_radial(BLOOM_CX, BLOOM_CY, BLOOM_RX, BLOOM_RY, faded(0xFFFFFFFFu, a));
+    ui_radial(BLOOM_CX, BLOOM_CY, BLOOM_RX * 0.6f, BLOOM_RY * 0.6f, faded(0xFFFFFFFFu, a));
+    ui_shadow(frame.px, frame.py, frame.pw, frame.ph, THEME_PANEL_RADIUS, faded(PANEL_SHADOW, a), PANEL_SHADOW_DY, PANEL_SHADOW_BLUR);
+    ui_ring(frame.px, frame.py, frame.pw, frame.ph, THEME_PANEL_RADIUS, faded(THEME_RING, a), THEME_RING_SPREAD);
+    ui_card_alpha(frame.px, frame.py, frame.pw, frame.ph, THEME_PANEL_RADIUS, 0.5f, THEME_GLOSS_SOFT, UI_SHADOW_NONE, a);
 }
 
 static void draw_shine(void)
 {
-    if (tex_shine == NULL || frame.shine <= 0.0f || frame.shine >= 1.0f) return;
-    float lean = logo_h() * SHINE_SLOPE;
-    float travel = logo_w() + lean + SHINE_OUTER_W;
-    float center = -lean - SHINE_OUTER_W / 2.0f + travel * frame.shine;
-    shine_band(center, SHINE_OUTER_W, SHINE_OUTER_ALPHA);
-    shine_band(center, SHINE_INNER_W, SHINE_INNER_ALPHA);
+    if (frame.shine <= 0.0f || frame.shine >= 1.0f || frame.panel_alpha <= 0.0f) return;
+    float px = frame.px, py = frame.py, pw = frame.pw, ph = frame.ph;
+    float lean = ph / 2.0f * SHINE_TILT;
+    float half = SHINE_W / 2.0f;
+    float cx = px - half - lean + (pw + SHINE_W + 2.0f * lean) * frame.shine;
+    uint32_t edge = SHINE_COLOR;
+    uint32_t mid = faded(SHINE_COLOR | 0xFFu, SHINE_ALPHA * frame.panel_alpha);
+    GRRLIB_ClipDrawing((u32)(px + 2.0f), (u32)(py + 2.0f), (u32)(pw - 4.0f), (u32)(ph - 4.0f));
+    float xs[4], ys[4];
+    uint32_t cs[4];
+    xs[0] = cx - half + lean; ys[0] = py; cs[0] = edge;
+    xs[1] = cx + lean; ys[1] = py; cs[1] = mid;
+    xs[2] = cx - lean; ys[2] = py + ph; cs[2] = mid;
+    xs[3] = cx - half - lean; ys[3] = py + ph; cs[3] = edge;
+    ui_quad(xs, ys, cs);
+    xs[0] = cx + lean; ys[0] = py; cs[0] = mid;
+    xs[1] = cx + half + lean; ys[1] = py; cs[1] = edge;
+    xs[2] = cx + half - lean; ys[2] = py + ph; cs[2] = edge;
+    xs[3] = cx - lean; ys[3] = py + ph; cs[3] = mid;
+    ui_quad(xs, ys, cs);
+    GRRLIB_ClipReset();
+}
+
+static void draw_dots(void)
+{
+    float a = frame.panel_alpha;
+    if (a <= 0.0f) return;
+    float w = DOT_H * ui_pixel_x();
+    for (int i = 0; i < DOTS; i++) {
+        float x = DOT_X0 + DOT_STEP * (float)i;
+        uint32_t color = i == frame.dot ? THEME_ACCENT : (i == (frame.dot + 1) % DOTS ? THEME_DOT_2 : THEME_DOT_3);
+        if (i == frame.dot) ui_ring(x, DOT_Y, w, DOT_H, DOT_H / 2.0f, faded(THEME_RING, a), DOT_RING);
+        ui_rounded(x, DOT_Y, w, DOT_H, DOT_H / 2.0f, faded(color, a));
+    }
 }
 
 void logo_draw(app *a)
 {
     ui_stripes();
     if (frame.panels > 0.0f) guide_draw_intro(a, frame.panels);
+    draw_panel();
     ui_image(tex_logo, frame.x, frame.y, frame.w, frame.h, frame.alpha);
     draw_shine();
+    draw_dots();
 }
 
 void logo_draw_header(void)
