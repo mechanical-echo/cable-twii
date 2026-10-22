@@ -11,6 +11,7 @@ SUITE_EXTERN(textcache_suite);
 SUITE_EXTERN(volume_suite);
 SUITE_EXTERN(playback_suite);
 SUITE_EXTERN(aspect_suite);
+SUITE_EXTERN(tile_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -28,5 +29,6 @@ int main(int argc, char **argv)
     RUN_SUITE(volume_suite);
     RUN_SUITE(playback_suite);
     RUN_SUITE(aspect_suite);
+    RUN_SUITE(tile_suite);
     GREATEST_MAIN_END();
 }

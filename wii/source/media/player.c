@@ -73,7 +73,10 @@ static void push_frame(plm_frame_t *f)
 {
     slot_meta *s = &slots[q_w];
     if (s->state != SLOT_FREE) return;
-    yg_upload(q_w, f->y.data, f->cb.data, f->cr.data, f->width, f->height);
+    yg_plane py = { f->y.data, (int)f->y.width, (int)f->y.height, (int)f->y.width };
+    yg_plane pcb = { f->cb.data, (int)f->cb.width, (int)f->cb.height, (int)f->cb.width };
+    yg_plane pcr = { f->cr.data, (int)f->cr.width, (int)f->cr.height, (int)f->cr.width };
+    yg_upload(q_w, &py, &pcb, &pcr);
     s->time = f->time;
     s->w = (int)f->width;
     s->h = (int)f->height;

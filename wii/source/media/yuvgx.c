@@ -4,41 +4,21 @@
 #include <string.h>
 #include <gccore.h>
 
+#include "tile.h"
+
+#define Y_BLACK 16
+#define C_NEUTRAL 128
+
 typedef struct {
     uint8_t *y;
     uint8_t *cb;
     uint8_t *cr;
     GXTexObj ty, tcb, tcr;
+    volatile int dirty;
 } yg_slot;
 
 static yg_slot slots[YG_SLOTS];
 static int tex_w, tex_h;
-
-static void tile_i8(uint8_t *dst, const uint8_t *src, int w, int h, int stride)
-{
-    uint32_t *d = (uint32_t *)dst;
-    for (int y = 0; y < h; y += 4) {
-        const uint8_t *r0 = src + y * stride;
-        const uint8_t *r1 = r0 + stride;
-        const uint8_t *r2 = r1 + stride;
-        const uint8_t *r3 = r2 + stride;
-        for (int x = 0; x < w; x += 8) {
-            const uint32_t *a = (const uint32_t *)(r0 + x);
-            const uint32_t *b = (const uint32_t *)(r1 + x);
-            const uint32_t *c = (const uint32_t *)(r2 + x);
-            const uint32_t *e = (const uint32_t *)(r3 + x);
-            d[0] = a[0];
-            d[1] = a[1];
-            d[2] = b[0];
-            d[3] = b[1];
-            d[4] = c[0];
-            d[5] = c[1];
-            d[6] = e[0];
-            d[7] = e[1];
-            d += 8;
-        }
-    }
-}
 
 int yg_init(int w, int h)
 {
@@ -74,15 +54,17 @@ void yg_free(void)
     }
 }
 
-void yg_upload(int slot, const uint8_t *y, const uint8_t *cb, const uint8_t *cr, int w, int h)
+void yg_upload(int slot, const yg_plane *y, const yg_plane *cb, const yg_plane *cr)
 {
     yg_slot *s = &slots[slot];
-    tile_i8(s->y, y, w, h, w);
-    tile_i8(s->cb, cb, w / 2, h / 2, w / 2);
-    tile_i8(s->cr, cr, w / 2, h / 2, w / 2);
+    int cw = tex_w / 2, ch = tex_h / 2;
+    tile_i8(s->y, tex_w, tex_h, y->data, y->width, y->height, y->stride, Y_BLACK);
+    tile_i8(s->cb, cw, ch, cb->data, cb->width, cb->height, cb->stride, C_NEUTRAL);
+    tile_i8(s->cr, cw, ch, cr->data, cr->width, cr->height, cr->stride, C_NEUTRAL);
     DCFlushRange(s->y, tex_w * tex_h);
-    DCFlushRange(s->cb, tex_w * tex_h / 4);
-    DCFlushRange(s->cr, tex_w * tex_h / 4);
+    DCFlushRange(s->cb, cw * ch);
+    DCFlushRange(s->cr, cw * ch);
+    s->dirty = 1;
 }
 
 static void tev_yuv_stage(uint8_t stage, uint8_t texcoord, uint32_t texmap, uint8_t ksel, uint8_t d, uint8_t op, uint8_t scale, uint8_t clamp)
@@ -124,6 +106,10 @@ void yg_draw(int slot, int frame_w, int frame_h, float x, float y, float w, floa
     GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
     GX_SetTexCoordGen(GX_TEXCOORD1, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
 
+    if (s->dirty) {
+        s->dirty = 0;
+        GX_InvalidateTexAll();
+    }
     GX_LoadTexObj(&s->ty, GX_TEXMAP0);
     GX_LoadTexObj(&s->tcb, GX_TEXMAP1);
     GX_LoadTexObj(&s->tcr, GX_TEXMAP2);
