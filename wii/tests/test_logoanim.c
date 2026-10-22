@@ -7,10 +7,10 @@ TEST logo_header_rect_fits_header(void)
 {
     float x, y, w, h;
     logo_header_rect_for(256.0f, 64.0f, &x, &y, &w, &h);
-    ASSERT_IN_RANGE(19.2f, x, EPS);
-    ASSERT_IN_RANGE(8.0f, y, EPS);
-    ASSERT_IN_RANGE(112.0f, w, EPS);
-    ASSERT_IN_RANGE(28.0f, h, EPS);
+    ASSERT_IN_RANGE(19.3f, x, EPS);
+    ASSERT_IN_RANGE(11.5f, y, EPS);
+    ASSERT_IN_RANGE(100.0f, w, EPS);
+    ASSERT_IN_RANGE(25.0f, h, EPS);
     PASS();
 }
 
@@ -69,10 +69,10 @@ TEST logo_shine_sweeps_600_to_1400(void)
 TEST logo_moves_to_header_1400_to_2000(void)
 {
     logo_frame f = logo_frame_at(1700, false, 256.0f, 64.0f);
-    ASSERT_IN_RANGE(192.0f + (19.2f - 192.0f) * 0.875f, f.x, EPS);
-    ASSERT_IN_RANGE(208.0f + (8.0f - 208.0f) * 0.875f, f.y, EPS);
-    ASSERT_IN_RANGE(256.0f + (112.0f - 256.0f) * 0.875f, f.w, EPS);
-    ASSERT_IN_RANGE(64.0f + (28.0f - 64.0f) * 0.875f, f.h, EPS);
+    ASSERT_IN_RANGE(192.0f + (19.3f - 192.0f) * 0.875f, f.x, EPS);
+    ASSERT_IN_RANGE(208.0f + (11.5f - 208.0f) * 0.875f, f.y, EPS);
+    ASSERT_IN_RANGE(256.0f + (100.0f - 256.0f) * 0.875f, f.w, EPS);
+    ASSERT_IN_RANGE(64.0f + (25.0f - 64.0f) * 0.875f, f.h, EPS);
     ASSERT_IN_RANGE(f.w / 256.0f, f.scale, EPS);
     ASSERT_IN_RANGE(1.0f, f.alpha, EPS);
     ASSERT_IN_RANGE(1.0f, f.shine, EPS);
@@ -85,15 +85,15 @@ TEST logo_hands_off_at_2000_in_header(void)
 {
     logo_frame f = logo_frame_at(2000, false, 256.0f, 64.0f);
     ASSERT(f.done);
-    ASSERT_EQ_FMT(19.2f, f.x, "%f");
-    ASSERT_EQ_FMT(8.0f, f.y, "%f");
-    ASSERT_EQ_FMT(112.0f, f.w, "%f");
-    ASSERT_EQ_FMT(28.0f, f.h, "%f");
+    ASSERT_EQ_FMT(19.3f, f.x, "%f");
+    ASSERT_EQ_FMT(11.5f, f.y, "%f");
+    ASSERT_EQ_FMT(100.0f, f.w, "%f");
+    ASSERT_EQ_FMT(25.0f, f.h, "%f");
     ASSERT_IN_RANGE(1.0f, f.alpha, EPS);
     logo_frame later = logo_frame_at(LOGO_TOTAL_MS, false, 256.0f, 64.0f);
     ASSERT(later.done);
-    ASSERT_EQ_FMT(19.2f, later.x, "%f");
-    ASSERT_EQ_FMT(112.0f, later.w, "%f");
+    ASSERT_EQ_FMT(19.3f, later.x, "%f");
+    ASSERT_EQ_FMT(100.0f, later.w, "%f");
     PASS();
 }
 
@@ -110,10 +110,10 @@ TEST logo_skip_jumps_to_end(void)
 {
     logo_frame f = logo_frame_at(100, true, 256.0f, 64.0f);
     ASSERT(f.done);
-    ASSERT_EQ_FMT(19.2f, f.x, "%f");
-    ASSERT_EQ_FMT(8.0f, f.y, "%f");
-    ASSERT_EQ_FMT(112.0f, f.w, "%f");
-    ASSERT_EQ_FMT(28.0f, f.h, "%f");
+    ASSERT_EQ_FMT(19.3f, f.x, "%f");
+    ASSERT_EQ_FMT(11.5f, f.y, "%f");
+    ASSERT_EQ_FMT(100.0f, f.w, "%f");
+    ASSERT_EQ_FMT(25.0f, f.h, "%f");
     ASSERT_IN_RANGE(1.0f, f.alpha, EPS);
     ASSERT_IN_RANGE(1.0f, f.shine, EPS);
     PASS();

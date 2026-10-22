@@ -16,7 +16,7 @@ VENDOR_SRC = ../../engine/vendor/tomlc99/toml.c
 VENDOR_OBJ = $(BUILD)/toml.o
 VENDOR_CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Wno-char-subscripts -I../../engine/vendor
 
-SRC = ../source/ui/tween.c ../source/ui/press.c ../source/ui/textfit.c ../source/ui/utf8.c ../source/ui/textcache.c ../source/clock.c ../source/tuner.c ../source/nav.c ../source/osd.c ../source/osd_layout.c ../source/volume.c ../source/playback.c ../source/aspect.c ../source/media/tile.c ../source/media/audiobuf.c ../source/quit.c ../source/logoanim.c ../source/guide_model.c ../source/preview.c ../source/guide_text.c ../source/guide_layout.c ../source/home_layout.c ../source/state.c ../source/vmode.c ../source/debug/dbgstats.c $(ENGINE_SRC)
+SRC = ../source/ui/tween.c ../source/ui/press.c ../source/sysbar_layout.c ../source/ui/textfit.c ../source/ui/utf8.c ../source/ui/textcache.c ../source/clock.c ../source/tuner.c ../source/nav.c ../source/osd.c ../source/osd_layout.c ../source/volume.c ../source/playback.c ../source/aspect.c ../source/media/tile.c ../source/media/audiobuf.c ../source/quit.c ../source/logoanim.c ../source/guide_model.c ../source/preview.c ../source/guide_text.c ../source/guide_layout.c ../source/home_layout.c ../source/state.c ../source/vmode.c ../source/debug/dbgstats.c $(ENGINE_SRC)
 TEST_SRC = $(wildcard *.c)
 
 .PHONY: test clean

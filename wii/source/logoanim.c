@@ -2,9 +2,9 @@
 
 #include "ui/tween.h"
 
-#define LOGO_HEADER_X 19.2f
-#define LOGO_HEADER_BAND_H 44.0f
-#define LOGO_HEADER_H 28.0f
+#define LOGO_HEADER_X 19.3f
+#define LOGO_HEADER_BAND_H THEME_HEADER_H
+#define LOGO_HEADER_H 25.0f
 #define LOGO_CENTER_X 320.0f
 #define LOGO_CENTER_Y 240.0f
 #define LOGO_START_SCALE 0.6f
