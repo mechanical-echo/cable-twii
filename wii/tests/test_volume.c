@@ -182,6 +182,99 @@ TEST ebr_gives_logical_and_next(void)
     PASS();
 }
 
+TEST boot_sector_counts_total_sectors(void)
+{
+    make_fat32_boot(sector);
+    put_le32(sector + 32, 3000000);
+    ASSERT_EQ(3000000u, vol_boot_sectors(sector));
+    make_fat16_boot(sector);
+    sector[19] = 0x10;
+    sector[20] = 0x27;
+    put_le32(sector + 32, 5000000);
+    ASSERT_EQ(10000u, vol_boot_sectors(sector));
+    make_fat32_boot(sector);
+    ASSERT_EQ(0u, vol_boot_sectors(sector));
+    PASS();
+}
+
+TEST write_span_is_smaller_of_entry_and_boot(void)
+{
+    ASSERT_EQ(1000u, vol_write_span(1000, 2000));
+    ASSERT_EQ(1000u, vol_write_span(2000, 1000));
+    ASSERT_EQ(1500u, vol_write_span(0, 1500));
+    ASSERT_EQ(0u, vol_write_span(1000, 0));
+    ASSERT_EQ(0u, vol_write_span(0, 0));
+    PASS();
+}
+
+TEST write_inside_partition_allowed(void)
+{
+    ASSERT(vol_write_in_range(2048, 1000, 2048, 1));
+    ASSERT(vol_write_in_range(2048, 1000, 2500, 64));
+    ASSERT(vol_write_in_range(0, 1000, 0, 1000));
+    PASS();
+}
+
+TEST write_at_partition_boundary(void)
+{
+    ASSERT(vol_write_in_range(2048, 1000, 3047, 1));
+    ASSERT(vol_write_in_range(2048, 1000, 2048, 1000));
+    ASSERT(!vol_write_in_range(2048, 1000, 3048, 1));
+    PASS();
+}
+
+TEST write_before_partition_refused(void)
+{
+    ASSERT(!vol_write_in_range(2048, 1000, 2047, 1));
+    ASSERT(!vol_write_in_range(2048, 1000, 0, 1));
+    ASSERT(!vol_write_in_range(2048, 1000, 2000, 100));
+    PASS();
+}
+
+TEST write_past_partition_end_refused(void)
+{
+    ASSERT(!vol_write_in_range(2048, 1000, 5000, 1));
+    ASSERT(!vol_write_in_range(2048, 1000, 0xFFFFFFFFu, 1));
+    ASSERT(!vol_write_in_range(0xFFFFFF00u, 0x100u, 0xFFFFFFFFu, 2));
+    PASS();
+}
+
+TEST write_straddling_end_refused(void)
+{
+    ASSERT(!vol_write_in_range(2048, 1000, 3040, 9));
+    ASSERT(!vol_write_in_range(2048, 1000, 2048, 1001));
+    ASSERT(!vol_write_in_range(2048, 1000, 3000, 0xFFFFFFFFFFFFFFFFull));
+    PASS();
+}
+
+TEST write_empty_or_zero_span_refused(void)
+{
+    ASSERT(!vol_write_in_range(2048, 1000, 2048, 0));
+    ASSERT(!vol_write_in_range(2048, 0, 2048, 1));
+    PASS();
+}
+
+TEST wbfs_name_case_insensitive(void)
+{
+    ASSERT(vol_is_wbfs_name("wbfs"));
+    ASSERT(vol_is_wbfs_name("WBFS"));
+    ASSERT(vol_is_wbfs_name("WbFs"));
+    ASSERT(!vol_is_wbfs_name("wbfs2"));
+    ASSERT(!vol_is_wbfs_name("wbf"));
+    ASSERT(!vol_is_wbfs_name(""));
+    ASSERT(!vol_is_wbfs_name("games"));
+    PASS();
+}
+
+TEST writes_only_on_root_without_wbfs(void)
+{
+    ASSERT(vol_write_allowed(true, false));
+    ASSERT(!vol_write_allowed(true, true));
+    ASSERT(!vol_write_allowed(false, false));
+    ASSERT(!vol_write_allowed(false, true));
+    PASS();
+}
+
 SUITE(volume_suite)
 {
     RUN_TEST(pick_flash_drive_after_games_drive);
@@ -194,4 +287,14 @@ SUITE(volume_suite)
     RUN_TEST(boot_sector_rejects_wbfs_ntfs_exfat);
     RUN_TEST(mbr_lists_primary_entries);
     RUN_TEST(ebr_gives_logical_and_next);
+    RUN_TEST(boot_sector_counts_total_sectors);
+    RUN_TEST(write_span_is_smaller_of_entry_and_boot);
+    RUN_TEST(write_inside_partition_allowed);
+    RUN_TEST(write_at_partition_boundary);
+    RUN_TEST(write_before_partition_refused);
+    RUN_TEST(write_past_partition_end_refused);
+    RUN_TEST(write_straddling_end_refused);
+    RUN_TEST(write_empty_or_zero_span_refused);
+    RUN_TEST(wbfs_name_case_insensitive);
+    RUN_TEST(writes_only_on_root_without_wbfs);
 }

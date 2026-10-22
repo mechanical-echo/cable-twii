@@ -7,6 +7,7 @@
 #include "tuner.h"
 #include "storage.h"
 #include "quit.h"
+#include "state.h"
 
 typedef enum { SCR_LOGO, SCR_GUIDE, SCR_FULL, SCR_ERROR } screen_id;
 
@@ -20,6 +21,8 @@ typedef struct {
     bool home_open;
     int current_channel;
     int volume;
+    ctw_state saved;
+    uint32_t saved_ms;
     bool widescreen;
     uint32_t now_ms;
     ctw_date today;

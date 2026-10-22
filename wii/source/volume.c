@@ -78,3 +78,40 @@ bool vol_ebr_parse(const uint8_t *ebr, uint32_t ext_start, uint32_t ebr_lba, vol
     *next_ebr = vol_is_extended(e1[4]) && le32(e1 + 12) != 0 ? ext_start + le32(e1 + 8) : 0;
     return true;
 }
+
+uint32_t vol_boot_sectors(const uint8_t *s)
+{
+    uint16_t small = le16(s + 19);
+    if (small != 0) return small;
+    return le32(s + 32);
+}
+
+uint32_t vol_write_span(uint32_t entry_sectors, uint32_t boot_sectors)
+{
+    if (entry_sectors == 0 || boot_sectors < entry_sectors) return boot_sectors;
+    return entry_sectors;
+}
+
+bool vol_write_in_range(uint32_t start, uint32_t span, uint64_t sector, uint64_t count)
+{
+    if (count == 0 || span == 0 || sector < start) return false;
+    uint64_t offset = sector - start;
+    if (offset >= span) return false;
+    return count <= (uint64_t)span - offset;
+}
+
+bool vol_is_wbfs_name(const char *name)
+{
+    static const char want[] = "wbfs";
+    for (size_t i = 0; i < sizeof want - 1; i++) {
+        char c = name[i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        if (c != want[i]) return false;
+    }
+    return name[sizeof want - 1] == '\0';
+}
+
+bool vol_write_allowed(bool has_root, bool has_wbfs)
+{
+    return has_root && !has_wbfs;
+}

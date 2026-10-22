@@ -5,6 +5,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <gccore.h>
 #include <fat.h>
 #include <ogc/usb.h>
@@ -40,6 +41,7 @@ typedef struct {
 typedef struct {
     int disk;
     u32 start;
+    u32 span;
     bool mounted;
     bool has_root;
     char name[16];
@@ -52,6 +54,10 @@ static int disk_count;
 static part parts[MAX_PARTS];
 static int part_count;
 static bool sd_started;
+static int write_disk = -1;
+static u32 write_start;
+static u32 write_span;
+static DISC_INTERFACE write_iface;
 
 static bool usb_read(int d, sec_t sector, sec_t count, void *buffer)
 {
@@ -83,6 +89,29 @@ static const FN_MEDIUM_READSECTORS usb_read_fns[MAX_USB_DISKS] = {
     usb_read_0, usb_read_1, usb_read_2, usb_read_3,
     usb_read_4, usb_read_5, usb_read_6, usb_read_7
 };
+
+static bool usb_write(int d, sec_t sector, sec_t count, const void *buffer)
+{
+    disk *k = &disks[d];
+    const u8 *in = (const u8 *)buffer;
+    u32 per = CHUNK_BYTES / k->sector_size;
+    while (count > 0) {
+        u32 n = count > per ? per : count;
+        if (USBStorage_Write(&devs[k->dev].handle, k->lun, sector, (u16)n, in) < 0) return false;
+        sector += n;
+        count -= n;
+        in += n * k->sector_size;
+    }
+    return true;
+}
+
+static bool guarded_write(sec_t sector, sec_t count, const void *buffer)
+{
+    if (write_disk < 0 || write_disk >= disk_count) return false;
+    if (!vol_write_in_range(write_start, write_span, sector, count)) return false;
+    if (disks[write_disk].source == VOL_SD) return __io_wiisd.writeSectors(sector, count, buffer);
+    return usb_write(write_disk, sector, count, buffer);
+}
 
 static bool refuse_write(sec_t sector, sec_t count, const void *buffer)
 {
@@ -185,18 +214,19 @@ static bool read_sector(int d, u32 lba, u8 *buf)
     return disks[d].iface.readSectors(lba, 1, buf);
 }
 
-static void add_part(int d, u32 start)
+static void add_part(int d, u32 start, u32 entry_sectors, const u8 *boot)
 {
     if (part_count >= MAX_PARTS) return;
     part *p = &parts[part_count++];
     memset(p, 0, sizeof *p);
     p->disk = d;
     p->start = start;
+    p->span = vol_write_span(entry_sectors, vol_boot_sectors(boot));
 }
 
-static void probe(int d, u32 start, u8 *buf)
+static void probe(int d, u32 start, u32 sectors, u8 *buf)
 {
-    if (read_sector(d, start, buf) && vol_boot_is_fat(buf)) add_part(d, start);
+    if (read_sector(d, start, buf) && vol_boot_is_fat(buf)) add_part(d, start, sectors, buf);
 }
 
 static void scan_extended(int d, u32 ext_start, u8 *buf)
@@ -207,7 +237,7 @@ static void scan_extended(int d, u32 ext_start, u8 *buf)
         u32 next = 0;
         if (!read_sector(d, ebr, buf)) return;
         if (!vol_ebr_parse(buf, ext_start, ebr, &logical, &next)) return;
-        if (logical.type != 0 && logical.sectors != 0 && !vol_is_extended(logical.type)) probe(d, logical.start, buf);
+        if (logical.type != 0 && logical.sectors != 0 && !vol_is_extended(logical.type)) probe(d, logical.start, logical.sectors, buf);
         if (next <= ebr) return;
         ebr = next;
     }
@@ -217,7 +247,7 @@ static void scan_disk(int d, u8 *buf)
 {
     if (!read_sector(d, 0, buf)) return;
     if (vol_boot_is_fat(buf)) {
-        add_part(d, 0);
+        add_part(d, 0, disks[d].sectors, buf);
         return;
     }
     if (!vol_mbr_valid(buf)) return;
@@ -227,7 +257,7 @@ static void scan_disk(int d, u8 *buf)
     for (size_t i = 0; i < n; i++) {
         if (entries[i].type == GPT_PROTECTIVE) continue;
         if (vol_is_extended(entries[i].type)) scan_extended(d, entries[i].start, buf);
-        else probe(d, entries[i].start, buf);
+        else probe(d, entries[i].start, entries[i].sectors, buf);
     }
 }
 
@@ -281,9 +311,43 @@ static void release_unchosen(int chosen)
     }
 }
 
+static bool has_wbfs(const char *name)
+{
+    char path[32];
+    snprintf(path, sizeof path, "%s:/", name);
+    DIR *dir = opendir(path);
+    if (dir == NULL) return true;
+    bool found = false;
+    struct dirent *e;
+    while (!found && (e = readdir(dir)) != NULL) found = vol_is_wbfs_name(e->d_name);
+    closedir(dir);
+    return found;
+}
+
+static bool enable_writes(int chosen)
+{
+    part *p = &parts[chosen];
+    disk *k = &disks[p->disk];
+    if (p->span == 0 || !vol_write_allowed(p->has_root, has_wbfs(p->name))) return false;
+
+    write_iface = k->iface;
+    write_iface.features |= FEATURE_MEDIUM_CANWRITE;
+    write_iface.writeSectors = guarded_write;
+    write_disk = p->disk;
+    write_start = p->start;
+    write_span = p->span;
+
+    fatUnmount(p->name);
+    if (fatMount(p->name, &write_iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE)) return true;
+    write_disk = -1;
+    p->mounted = fatMount(p->name, &k->iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE);
+    return false;
+}
+
 int st_find_root(char *out, size_t out_size, st_volume *vol)
 {
     memset(vol, 0, sizeof *vol);
+    write_disk = -1;
     dev_count = 0;
     disk_count = 0;
     part_count = 0;
@@ -313,6 +377,12 @@ int st_find_root(char *out, size_t out_size, st_volume *vol)
     release_unchosen(chosen);
     if (chosen < 0) return -1;
 
+    vol->writable = enable_writes(chosen);
+    if (!parts[chosen].mounted) {
+        release_unchosen(-1);
+        return -1;
+    }
+
     vol->found = true;
     vol->source = disks[parts[chosen].disk].source;
     snprintf(vol->name, sizeof vol->name, "%s", parts[chosen].name);
@@ -324,7 +394,9 @@ int st_find_root(char *out, size_t out_size, st_volume *vol)
 void st_release(st_volume *vol)
 {
     release_unchosen(-1);
+    write_disk = -1;
     vol->found = false;
+    vol->writable = false;
 }
 
 bool st_drive_present(const st_volume *vol)

@@ -10,6 +10,7 @@
 #include "input.h"
 #include "storage.h"
 #include "quit.h"
+#include "state.h"
 #include "ui/draw.h"
 #include "ui/text.h"
 #include "ui/cursor.h"
@@ -43,6 +44,28 @@ void app_fail(app *a, const char *title, const char *body)
     error_enter(a);
 }
 
+static ctw_state current_state(const app *a)
+{
+    ctw_state s = { a->current_channel, a->volume };
+    return s;
+}
+
+static bool can_save(const app *a)
+{
+    return a->drive.found && a->drive.writable && a->db != NULL && a->screen != SCR_ERROR;
+}
+
+static void save_state(app *a, bool force)
+{
+    if (!can_save(a)) return;
+    ctw_state s = current_state(a);
+    bool changed = state_changed(&s, &a->saved);
+    if (force ? !changed : !state_save_due(changed, a->saved_ms, a->now_ms)) return;
+    state_save(a->root, &s);
+    a->saved = s;
+    a->saved_ms = a->now_ms;
+}
+
 static bool running_in_emulator(void)
 {
     s32 fd = IOS_Open("/dev/dolphin", 0);
@@ -53,6 +76,7 @@ static bool running_in_emulator(void)
 
 void app_quit(app *a, quit_dest dest)
 {
+    save_state(a, true);
     bool emulator = running_in_emulator();
     pl_close();
     ASND_End();
@@ -83,6 +107,18 @@ static void append_issue_line(char *out, size_t out_size, const ctw_issue *iss)
     } else {
         snprintf(out + len, out_size - len, "%s\n", iss->message);
     }
+}
+
+static int start_channel(const ctw_db *db, int last_channel)
+{
+    size_t count = ctw_db_channel_count(db);
+    if (count == 0) return 0;
+    int *numbers = malloc(count * sizeof *numbers);
+    if (numbers == NULL) return ctw_db_channel_at(db, 0)->number;
+    for (size_t i = 0; i < count; i++) numbers[i] = ctw_db_channel_at(db, i)->number;
+    int channel = state_start_channel(last_channel, numbers, count);
+    free(numbers);
+    return channel;
 }
 
 static void boot(app *a)
@@ -116,7 +152,12 @@ static void boot(app *a)
 
     tn_init(&a->tuner, a->db);
 
-    if (ctw_db_channel_count(a->db) > 0) a->current_channel = ctw_db_channel_at(a->db, 0)->number;
+    ctw_state saved;
+    state_load(a->root, &saved);
+    a->volume = saved.volume;
+    a->current_channel = start_channel(a->db, saved.last_channel);
+    a->saved = current_state(a);
+    a->saved_ms = a->now_ms;
     guide_prepare(a);
     app_go(a, SCR_LOGO);
 }
@@ -134,7 +175,7 @@ int main(int argc, char **argv)
     icons_init();
 
     memset(&g_app, 0, sizeof g_app);
-    g_app.volume = 100;
+    g_app.volume = STATE_DEFAULT_VOLUME;
     g_app.widescreen = CONF_GetAspectRatio() == CONF_ASPECT_16_9;
     ui_set_widescreen(g_app.widescreen);
     pl_set_widescreen(g_app.widescreen);
@@ -175,6 +216,7 @@ int main(int argc, char **argv)
 
         in_block(false);
         cur_block(false);
+        save_state(&g_app, false);
         home_draw(&g_app);
 
         if (paused || g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();

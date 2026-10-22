@@ -471,7 +471,7 @@ git add wii && git commit -m "wip | wii home menu and power handling"
   - `void state_load(const char *root, ctw_state *out); void state_save(const char *root, const ctw_state *s);` (write `state.toml.tmp`, then rename)
 - Guide opens with `last_channel` highlighted (first channel if missing); volume restored; saved on channel change (at most once every 10 s) and on exit.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```c
 TEST state_round_trip(void) { /* {3, 60} → format → parse → {3, 60} */ }
@@ -480,9 +480,9 @@ TEST state_clamps(void)     { /* "volume = 250" → 100 */ }
 TEST state_garbage(void)    { /* "%%%" → returns -1, defaults */ }
 ```
 
-- [ ] **Step 2–4: Fail, implement, pass** — `make -C wii/tests`.
+- [x] **Step 2–4: Fail, implement, pass** — `make -C wii/tests`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add wii && git commit -m "wip | wii remembered channel and volume"

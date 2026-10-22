@@ -8,6 +8,7 @@
 
 typedef struct {
     bool found;
+    bool writable;
     vol_source source;
     char name[16];
     int disk;
