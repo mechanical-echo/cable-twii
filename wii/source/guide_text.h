@@ -6,6 +6,10 @@
 #include "ctw/ctw.h"
 
 void gt_hhmm(int64_t ms, char *out, size_t out_size);
+void gt_date(ctw_date d, char *out, size_t out_size);
+void gt_number(int number, char *out, size_t out_size);
+void gt_countdown(uint32_t ms_left, char *out, size_t out_size);
+void gt_at(int64_t start_ms, char *out, size_t out_size);
 void gt_times(int64_t start_ms, uint32_t duration_ms, char *out, size_t out_size);
 void gt_episode(const ctw_episode *ep, char *out, size_t out_size);
 void gt_line(const ctw_airing *air, const ctw_airing *next, char *out, size_t out_size);

@@ -127,8 +127,64 @@ TEST gt_icon_path_falls_back_to_channel(void)
     PASS();
 }
 
+TEST gt_date_formats_weekday(void)
+{
+    char out[16];
+    ctw_date a = { 2026, 10, 22 };
+    gt_date(a, out, sizeof out);
+    ASSERT_STR_EQ("Thu 22/10", out);
+    ctw_date b = { 2026, 1, 1 };
+    gt_date(b, out, sizeof out);
+    ASSERT_STR_EQ("Thu 01/01", out);
+    ctw_date c = { 2024, 2, 29 };
+    gt_date(c, out, sizeof out);
+    ASSERT_STR_EQ("Thu 29/02", out);
+    ctw_date d = { 2026, 10, 25 };
+    gt_date(d, out, sizeof out);
+    ASSERT_STR_EQ("Sun 25/10", out);
+    PASS();
+}
+
+TEST gt_number_pads_to_two(void)
+{
+    char out[8];
+    gt_number(1, out, sizeof out);
+    ASSERT_STR_EQ("01", out);
+    gt_number(12, out, sizeof out);
+    ASSERT_STR_EQ("12", out);
+    gt_number(128, out, sizeof out);
+    ASSERT_STR_EQ("128", out);
+    PASS();
+}
+
+TEST gt_countdown_minutes_unbounded(void)
+{
+    char out[16];
+    gt_countdown(272000u, out, sizeof out);
+    ASSERT_STR_EQ("4:32", out);
+    gt_countdown(33983000u, out, sizeof out);
+    ASSERT_STR_EQ("566:23", out);
+    gt_countdown(0u, out, sizeof out);
+    ASSERT_STR_EQ("0:00", out);
+    PASS();
+}
+
+TEST gt_at_formats(void)
+{
+    char out[16];
+    gt_at(14 * 3600000LL + 41 * 60000LL, out, sizeof out);
+    ASSERT_STR_EQ("at 14:41", out);
+    gt_at(24 * 3600000LL + 5 * 60000LL, out, sizeof out);
+    ASSERT_STR_EQ("at 00:05", out);
+    PASS();
+}
+
 SUITE(guide_text_suite)
 {
+    RUN_TEST(gt_date_formats_weekday);
+    RUN_TEST(gt_number_pads_to_two);
+    RUN_TEST(gt_countdown_minutes_unbounded);
+    RUN_TEST(gt_at_formats);
     RUN_TEST(gt_hhmm_formats_and_wraps);
     RUN_TEST(gt_times_range);
     RUN_TEST(gt_episode_code_and_title);

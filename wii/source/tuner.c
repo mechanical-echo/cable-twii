@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TN_NEXT_EPISODE_STEPS 64
+
 static tuner_entry *find_entry(tuner *t, int channel)
 {
     for (size_t i = 0; i < t->count; i++) {
@@ -105,6 +107,25 @@ const ctw_airing *tn_next(tuner *t, int channel, const ctw_airing *a)
     int64_t end = a->start_ms + (int64_t)a->duration_ms - (int64_t)CTW_DAY_MS;
     if (end < 0 || end >= (int64_t)CTW_DAY_MS) return NULL;
     return ctw_lineup_at(&e->today, &e->yesterday, (uint32_t)end, NULL);
+}
+
+const ctw_airing *tn_next_episode(tuner *t, int channel, const ctw_airing *a)
+{
+    const ctw_airing *n = a;
+    for (int i = 0; i < TN_NEXT_EPISODE_STEPS && n != NULL; i++) {
+        n = tn_next(t, channel, n);
+        if (n != NULL && n->kind == CTW_AIR_EPISODE) return n;
+    }
+    return NULL;
+}
+
+int64_t tn_ms_until(const tuner *t, int channel, const ctw_airing *from, uint32_t offset_ms, const ctw_airing *to)
+{
+    int64_t a = tn_airing_start(t, channel, from);
+    int64_t b = tn_airing_start(t, channel, to);
+    if (a < 0 || b < 0) return 0;
+    int64_t d = b - (a + (int64_t)offset_ms);
+    return d < 0 ? 0 : d;
 }
 
 int64_t tn_airing_start(const tuner *t, int channel, const ctw_airing *a)
