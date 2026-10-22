@@ -1,6 +1,6 @@
 # 0003: Forwarder channel
 
-Status: **Accepted** for the build. The Dolphin check (release Task 4) and the real-Wii install (Task 5) can still send it back here.
+Status: **Accepted** and built (release Task 4, branch `forwarder`, 2026-10-22). Checked in Dolphin on 2026-10-22: the channel starts the app from the SD card and shows the missing-file message. The banner has not been seen yet (no Wii Menu in Dolphin), and the real-Wii install (Task 5) can still send it back here.
 
 ## Context
 
@@ -23,7 +23,7 @@ Cloned on 2026-10-22 into `.tooling/forwarders/` (ignored by git) with the owner
 What the evaluation showed:
 
 - app_booter would put a GPLv2 binary inside our WAD. The self-contained approach needs only libogc and libfat.
-- `__exception_closeall` is not needed on libogc 3.2.1: `SYS_ResetSystem(SYS_SHUTDOWN, 0, 0)` stops the DSP, the interrupts and the thread system and clears the exception table at 0x80003000 itself (libogc 3.2.1 `system.c`).
+- `__exception_closeall` is not needed on libogc 3.2.1: `SYS_ResetSystem(SYS_SHUTDOWN, 0, 0)` runs the registered reset functions, shuts the IOS subsystems down, disables interrupts, disables the locked cache and clears the low-memory areas at 0x80000040 and 0x80002FC0 to 0x80003080 (libogc 3.2.1 `system.c`, checked in the disassembly during the review).
 - `cable-twii.dol` (9.3 MB) occupies 0x80003F00 to 0x809A7020 (text, data and bss), so everything from 0x81230000 up is free for a forwarder, with about 8.5 MB of headroom.
 
 ## Decision
@@ -32,7 +32,7 @@ What the evaluation showed:
 
 Our own source in `forwarder/` (release Task 4), written for libogc 3.2.1 after the EasyRPG design. No code is copied from that repository, which has no licence. The program is about 150 lines of C:
 
-1. Start video with a text console. The screen stays black unless something goes wrong.
+1. Start video with a text console and print what it is doing (looking on the SD card, on USB, starting), so a stuck boot is readable.
 2. Mount `sd` (`__io_wiisd`) and look for `sd:/apps/cable-twii/boot.dol`. If it is not there, mount `usb` (`__io_usbstorage`, retrying for up to 10 s because drives take time to answer) and look for `usb:/apps/cable-twii/boot.dol`. The path is a build-time macro.
 3. Read the file to 0x92000000 in MEM2. The limit is 0x933E0000, so a DOL may be up to about 19 MB.
 4. Check the DOL header: every text, data and bss range must lie inside 0x80003400 to 0x81230000 and inside the file. Otherwise show a message.
@@ -43,7 +43,11 @@ Our own source in `forwarder/` (release Task 4), written for libogc 3.2.1 after 
 
 No arguments are passed. cable-twii's `main` ignores `argc` and `argv` and finds its data root by scanning the devices (decision 0002).
 
-Build: the Wii Makefile pattern from `wii/Makefile` (`include $(DEVKITPPC)/wii_rules`) with `LIBS := -lfat -logc -lm` and `LDFLAGS += -Wl,--section-start,.init=0x81230000`. A prototype of exactly this built on 2026-10-22: `forwarder.dol` is 310 KB, the entry point is 0x81230000, the bss ends at 0x812A7280 and `__Arena1Lo` follows it, so the forwarder's heap and stack sit in the free top of MEM1 and never touch the region the app is copied into. The prototype is kept at `.tooling/forwarder-proto/` (not committed); Task 4 moves it to `forwarder/` and adds host tests for the header check.
+USB limit, found in the review: the forwarder uses libogc's single-device `__io_usbstorage`, which binds to the first mass-storage device IOS lists and mounts its first FAT partition. The app itself scans every USB device, LUN and partition (`wii/source/storage.c`). With the owner's two drives on USB (games drive and flash drive), the channel may therefore not see `boot.dol` on the flash drive when the games drive is listed first, while the app, once started, still finds its library. Until the two-drive test on the Wii (Task 5 Step 3, and decision 0002's open question) says otherwise, `apps/cable-twii/boot.dol` belongs on the SD card; if that test fails for USB, the follow-up is to give the forwarder the app's device scan as a shared source file.
+
+A channel is not started the way the Homebrew Channel starts an app. IOS loads the DOL's sections and starts the CPU in real mode at physical address 0x3400, and Dolphin's bootstrap does the same. devkitPPC's linker script reserves the `.stub` section there, and nothing in libogc 3.2.1 fills it, so `forwarder/source/stub.S` provides the stub: it clears the BAT registers, maps MEM1 and MEM2 (cached at 0x80000000 and 0x90000000, uncached at 0xC0000000 and 0xD0000000), turns address translation on and jumps to `__app_start`. It becomes text section 0 of the DOL at 0x00003400. Without it the channel shows a black screen, which is what the first Dolphin boot did; `tools/build_wad.py` refuses a DOL whose text sections do not include 0x3400.
+
+Build: the Wii Makefile pattern from `wii/Makefile` (`include $(DEVKITPPC)/wii_rules`) with `LIBS := -lfat -logc -lm` and `LDFLAGS += -Wl,--section-start,.init=0x81230000`. A prototype of exactly this built on 2026-10-22: `forwarder.dol` is 310 KB, the entry point is 0x81230000, the bss ends at 0x812A7280 and `__Arena1Lo` follows it, so the forwarder's heap and stack sit in the free top of MEM1 and never touch the region the app is copied into. The source lives in `forwarder/` (`make -C forwarder`, `APP_PATH` overridable); the header parsing and range check are in `forwarder/source/dol.c` with host tests in `forwarder/tests` (`make -C forwarder/tests test`).
 
 ### IOS
 
@@ -69,7 +73,7 @@ The dry run on the Mac proved:
 - libWiiPy embeds no certificate chain, and `dump_wad()` writes a WAD with an empty certificate section without complaint; libWiiPy itself then refuses to load that WAD back ("Unknown certificate in chain!"), and an installer needs the chain to check the title. The build script fetches the retail chain (the public certificates Root-CA00000001, CP00000004 and XS00000003, present in every WAD) once with `libWiiPy.title.nus.download_cert_chain()` and caches it under `.tooling/`.
 - A fakesigned WAD installs only through a WAD manager running under an IOS with the signature bug, which the owner's existing manager does. Once installed, the Wii Menu launches it like any channel.
 
-Build (Task 4): `tools/build-wad.sh` runs `make -C forwarder`, builds `opening.bnr` from `forwarder/banner/`, and assembles `dist/cable-twii-forwarder.wad` with a Python step on libWiiPy (title ID, IOS, both contents, fakesign).
+Build: `tools/build-wad.sh` runs `make -C forwarder`, generates the jingle and `opening.bnr` into `dist/forwarder/`, and assembles `dist/cable-twii-forwarder.wad` with `tools/build_wad.py` on libWiiPy (title ID, IOS, both contents, fakesign). The script refuses to run until `.tooling/cert-chain.bin` exists and prints the one-line fetch command for it. `tools/build_wad.py` refuses an empty chain, because libWiiPy would otherwise write a placeholder certificate section.
 
 ### Banner
 
@@ -77,7 +81,7 @@ Build (Task 4): `tools/build-wad.sh` runs `make -C forwarder`, builds `opening.b
 
 No maintained command-line tool builds the whole file. libWiiPy packs U8 archives, writes IMD5 headers and compresses LZ77; devkitPro's `gxtexconv` writes TPL textures; ffmpeg is on the Mac for the WAV. The layout and animation files must be written by our tool. benzin converts XML to BRLYT and BRLAN but its current source location and licence are unverified; libWiiSharp (the engine behind CustomizeMii) is GPLv3 .NET, would need mono here, and its banner templates would end up inside our WAD.
 
-Decision: Task 4 writes `tools/build-banner.py` on libWiiPy with a minimal static layout (one picture pane with the 608 by 456 banner texture, the 128 by 96 icon the same way), a minimal animation file, TPL through `gxtexconv` and the sound through ffmpeg, and verifies it on Dolphin's Wii Menu (Task 4 Step 3). If the hand-written layout does not render, the fallback is to author the layout with benzin and keep its output in `forwarder/banner/`.
+Decision, as built in Task 4: `tools/build_banner.py` (standard library plus Pillow for reading the PNGs, no libWiiPy) writes every part itself: RGB565 TPL textures (608 by 456 banner, 128 by 96 icon, both from `forwarder/banner/*.png`), a minimal layout per file (one picture pane, one material with one texture map, a root pane and a root group), one material per layout with a texture map, an identity texture matrix and a texture coordinate generator (the review found the matrix missing; without it the Wii Menu would reuse whatever matrix it loaded last), a single `banner.brlan` that fades the pane in over 30 frames and a single `icon.brlan` that holds it, IMD5 wrappers, uncompressed U8 archives (LZ77 is optional and skipped) and the IMET header with "cable-twii" in all ten languages. The sound is a 2.4 s original four-note jingle from `tools/make_jingle.py`, stored as 16-bit stereo 32 kHz WAV inside `sound.bin`. Unit tests check every structure (`tools/tests/test_build_banner.py`); rendering is verified on Dolphin's Wii Menu in Task 4 Step 3, which needs a Wii Menu in Dolphin (the owner's NAND backup). If the hand-written layout does not render, the fallback is to author the layout with benzin and keep its output in `forwarder/banner/`.
 
 ## Open question
 

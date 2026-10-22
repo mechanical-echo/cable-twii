@@ -11,11 +11,11 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 | 02 Studio | Tasks 1-11, reviewed, plus final review, fix wave and Windows port | Task 12, end-to-end check on a real flash drive | Owner |
 | 03 Wii app | Tasks 1-10 and the 50-item checklist | Task 11: run the checklist on a real Wii, fix failures | Owner and real hardware |
 | 05 Wii redesign | Tasks 1-11 on branch `wii-redesign` (kit, guide, system bar, OSD, chip, volume, up-next card, HOME menu, intro, empty state, error dialog, checklist items 51-55), reviewed and fixed; every screen checked in Dolphin with the scripted-input build (`make -C wii DEBUG_SCRIPT=1`); Design System artifact re-synced (tokens and component notes, main previews redrawn) | real-Wii run of checklist items 51-55 | Owner and real hardware |
-| 04 Release | `make dist`, `CHANGELOG.md`, owner's guide, forwarder research and decision 0003 (our own forwarder source, IOS58, title ID `CTWA`, libWiiPy packing, banner builder to write) | Owner checks of both; forwarder build and Dolphin check (Task 4); channel install guide and install; final acceptance; v1.0.0 tag | Task 4 can start on the Mac; Tasks 5-6 need the owner and the Wii |
+| 04 Release | `make dist`, `CHANGELOG.md`, owner's guide, decision 0003, forwarder source with host tests, banner assets and builder, `tools/build-wad.sh`, channel boot and missing-file message checked in Dolphin (branch `forwarder`) | Owner checks of both; banner, icon and sound check on Dolphin's Wii Menu (Task 4 Step 3); channel install guide and install; final acceptance; v1.0.0 tag | The banner check needs a Wii Menu in Dolphin (owner's NAND backup imported); Tasks 5-6 need the owner and the Wii |
 
 ## Left that does not need hardware
 
-- Forwarder build (release Task 4) per decision 0003: banner assets and `tools/build-banner.py`, `forwarder/` from the prototype with host tests, `tools/build-wad.sh`, Dolphin check.
+- Banner, icon and sound check on Dolphin's Wii Menu (release Task 4 Step 3) once the owner's NAND backup is imported into Dolphin.
 - Install document for the channel (release Task 5, Step 1).
 - Decision 0001 once the video test numbers exist (the writing, not the test).
 - Triage of the deferred minor review findings logged in the progress ledgers (`.superpowers/sdd/*/progress.md`, git-ignored).
@@ -45,4 +45,5 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 - File formats: `docs/formats.md`
 - Engine API: `docs/engine-api.md`
 - Release package: `make -C wii dist` (output in `dist/apps/cable-twii/`)
+- Channel WAD: `tools/build-wad.sh` (output `dist/cable-twii-forwarder.wad`; needs `.tooling/cert-chain.bin`, see decision 0003); tests `make -C forwarder/tests test`, `python3 -m unittest discover -s tools/tests -p 'test_make_*.py'`, `python3 -m unittest discover -s tools/tests -p test_build_banner.py`, `.tooling/wiipy-venv/bin/python -m unittest discover -s tools/tests -p test_build_wad.py`
 - Changes by version: `CHANGELOG.md`

@@ -15,7 +15,8 @@
 - Done: Task 1 Steps 1 and 3 (`make dist` and `CHANGELOG.md`), Task 2 Steps 1 and 3 (`docs/USER-GUIDE.md`, merged).
 - Waiting on the owner: Task 1 Step 2 (check the package on a real SD card and the Homebrew Channel) and Task 2 Step 2 (follow the guide from a fresh flash drive).
 - Done: Task 3 (forwarder research), recorded in `docs/decisions/0003-forwarder.md`: our own forwarder source after the EasyRPG design, IOS58, title ID `CTWA`, libWiiPy/WiiPy packing, our own banner builder.
-- Not started: Tasks 4-6 (forwarder build, safe install on the Wii, final acceptance and the v1.0.0 tag). Task 4 can start on the Mac; the forwarder prototype from Task 3 is at `.tooling/forwarder-proto/`.
+- In progress: Task 4 (forwarder build) on branch `forwarder`: `forwarder/` with host tests, banner assets, `tools/build_banner.py`, `tools/build_wad.py` and `tools/build-wad.sh` are done; Step 3 (Dolphin): the channel starts the app and shows the missing-file message (checked 2026-10-22); the banner, icon and sound check waits for a Wii Menu in Dolphin (the owner's NAND backup imported).
+- Not started: Tasks 5-6 (safe install on the Wii, final acceptance and the v1.0.0 tag).
 
 ## Global Constraints
 
@@ -104,17 +105,17 @@ git add docs/decisions/0003-forwarder.md && git commit -m "wip | forwarder decis
 **Interfaces:**
 - Produces: `dist/cable-twii-forwarder.wad`.
 
-- [ ] **Step 1: Make the banner assets**: banner 608×456 and icon 128×96 in the guide's Wii style (stripes, cable-twii logo); a short original jingle (under 5 s) for the banner sound. (not started)
+- [x] **Step 1: Make the banner assets**: banner 608×456 and icon 128×96 in the guide's Wii style (stripes, cable-twii logo); a short original jingle (under 5 s) for the banner sound. (done 2026-10-22: `forwarder/banner/banner.png` and `icon.png` from `tools/make_banner_assets.py`; the 2.4 s jingle is generated at build time by `tools/make_jingle.py`)
 
-- [ ] **Step 2: Write `tools/build-wad.sh`** following 0003: build the forwarder DOL with the `apps/cable-twii/boot.dol` path, build `opening.bnr` from the assets, pack the WAD with the chosen title ID. (not started)
+- [x] **Step 2: Write `tools/build-wad.sh`** following 0003: build the forwarder DOL with the `apps/cable-twii/boot.dol` path, build `opening.bnr` from the assets, pack the WAD with the chosen title ID. (done 2026-10-22: `make -C forwarder`, `tools/build_banner.py`, `tools/build_wad.py`; the script stops with instructions until `.tooling/cert-chain.bin` has been fetched)
 
-- [ ] **Step 3: Test in Dolphin** (Tools → Install WAD into Dolphin's own emulated NAND, never the real console): (not started)
-  - the channel shows on Dolphin's Wii Menu with the banner, icon and sound;
-  - starting it launches cable-twii from the virtual SD card;
-  - with no `boot.dol` on the SD card it returns to the Wii Menu with the message;
+- [ ] **Step 3: Test in Dolphin** (Tools → Install WAD into Dolphin's own emulated NAND, never the real console): (partly done 2026-10-22 by booting `dist/cable-twii-forwarder.wad` directly, which installs it into Dolphin's NAND; a first build showed only a black screen until the real-mode boot stub at 0x3400 was added, see 0003)
+  - the channel shows on Dolphin's Wii Menu with the banner, icon and sound; (open: needs a Wii Menu in Dolphin, which this Mac gets only from the owner's NAND backup)
+  - starting it launches cable-twii from the virtual SD card; (done 2026-10-22: intro at 3 s, guide at 5 s)
+  - with no `boot.dol` on the SD card it returns to the Wii Menu with the message; (done 2026-10-22: status lines, a 10 s USB wait, the message for 5 s, then the return, which ends emulation because Dolphin has no Wii Menu)
   - USB-only launch cannot be tested in Dolphin and is checked in Task 5.
 
-- [ ] **Step 4: Commit** (not started)
+- [x] **Step 4: Commit** (done 2026-10-22 on branch `forwarder`; Step 3 stays open)
 
 ```bash
 git add forwarder tools/build-wad.sh && git commit -m "wip | forwarder channel build"
@@ -136,7 +137,7 @@ git add forwarder tools/build-wad.sh && git commit -m "wip | forwarder channel b
 
 - [ ] **Step 2: Owner completes checks 1–4** and confirms each in chat before installing. (not started)
 
-- [ ] **Step 3: Owner installs the WAD.** Verify: channel appears on the Wii Menu; launches cable-twii with `boot.dol` on SD; launches it with `boot.dol` only on USB and no SD card; the games drive still works in the USB loader. (not started)
+- [ ] **Step 3: Owner installs the WAD.** Verify: channel appears on the Wii Menu; launches cable-twii with `boot.dol` on SD; launches it with `boot.dol` only on USB and no SD card; the games drive still works in the USB loader. (not started) Note from the Task 4 review (2026-10-22): the channel's USB search is libogc's single-device one, so with the games drive plugged in it may not see the flash drive (0003, "USB limit"); if the USB-only launch fails with both drives, keep `boot.dol` on the SD card or follow up by giving the forwarder the app's device scan.
 
 - [ ] **Step 4: Owner tests the uninstall once and reinstalls**: after uninstalling, the Wii Menu looks as before and the console boots normally. (not started)
 
