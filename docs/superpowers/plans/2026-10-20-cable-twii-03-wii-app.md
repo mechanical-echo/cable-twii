@@ -34,7 +34,7 @@
 
 ## Progress (2026-10-21/22)
 
-Tasks 1–5 are mostly implemented, host-tested (`make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory). Steps that still miss a deliverable (`wii/icon.png`, the debug overlay, chip/up-next icons) or need a real-Wii run are unticked.
+Tasks 1–5 are mostly implemented, host-tested (`make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory). Steps that need a real-Wii run are unticked. The deliverables that were missing (`wii/icon.png`, the `CTW_DEBUG_OVERLAY` build, the chip and up-next channel icons) were added on branch `wii-hardening-prep`, together with the 50/60 Hz video mode fix-up and `docs/testing/wii-checklist.md`.
 
 The review fixes on branch `wii-review-fixes` added: the 256-entry LRU text cache (text is rasterised once into a texture with our own UTF-8 decoder), error dialog line wrapping, the up-next card across midnight (`tn_next`), `tuner_spans_midnight`, and the drive search over every USB FAT partition (read-only) then the SD card. `st_find_root` now also fills an `st_volume` (`app.drive`) naming the chosen partition, for Task 10's `state.toml` write.
 
@@ -42,7 +42,9 @@ A second batch added: the "The drive was disconnected" dialog (the decoder tells
 
 Known gaps, recorded and not fixed yet:
 - The up-next card has no title for the last airing of today's lineup, because its successor lives in tomorrow's lineup (`tn_next` returns NULL there).
-- 50 Hz: `GRRLIB_Init` picks the console's preferred mode, so the 50/60 Hz setting is followed, but on PAL 50 Hz it uses `TVPal528IntDf` (528-line EFB) while the app lays out 640×480, leaving the bottom of the screen unused. Fixing it needs our own video init or a 480→528 projection; left for Task 11.
+- 50 Hz (fixed in code, **unverified on hardware**): with libogc 3.2.1, `VIDEO_GetPreferredMode` already returns `TVPal576IntDfScale` on PAL 50 Hz (EFB 480, XFB 576, scaled by `GX_SetDispCopyYScale`) and `TVEurgb60Hz480IntDf` on EURGB60 (same as NTSC 480), so the normal cases already fill the screen; only GRRLIB's `VI_DEBUG_PAL` override picks `TVPal528IntDf` (528-line EFB). `video_init` (`source/video.c`) now runs `GRRLIB_Init` and then, when `vm_plan_for` (`source/vmode.c`, host-tested) says the EFB is not 480 lines, sets `rmode->efbHeight` to 480 and redoes the copy Y scale, copy source/destination, projection, viewport and scissor, so the 640×480 layout always fills the XFB. Dolphin could not be put into 50 Hz for a DOL (it stayed at 60 fps), so 50 Hz has not been seen anywhere yet.
+- The up-next countdown prints whole minutes (`566:23` for a gap of more than nine hours); it never switches to hours.
+- In the debug overlay build, heap use climbs for the first minutes because each new overlay string fills the 256-entry text cache; the soak check reads memory after the cache is full.
 - Text is not narrowed on 16:9 (the plan lets the 640×480 layout stretch horizontally); only corners and the cursor are corrected. The cursor correction is approximate while the pointer is tilted, because GRRLIB scales before it rotates.
 - The video fit uses the coded frame size, so Studio's 16-pixel padding (640×368 for a 640×360 picture) leaves a few black pixels at the edges of a 16:9 file on a 16:9 TV.
 
@@ -83,6 +85,10 @@ wii/
 │   ├── osd.c/.h                OSD/chip visibility timers                            [host-tested]
 │   ├── state.c/.h              state.toml load/save                                  [host-tested]
 │   ├── input.c/.h              WPAD wrapper, edge detection, rumble pulses
+│   ├── vmode.c/.h              EFB/XFB height plan for 50/60 Hz modes                [host-tested]
+│   ├── video.c/.h              GRRLIB init plus the 480-line EFB fix-up
+│   ├── debug/dbgstats.c/.h     fps averaging and overlay text (DEBUG_OVERLAY only)   [host-tested]
+│   ├── debug/overlay.c/.h      corner debug overlay (DEBUG_OVERLAY only)
 │   ├── media/player.c/.h       decoder thread, frame queue, A/V sync, seeking
 │   ├── media/yuvgx.c/.h        Y/U/V planes → GX textures → TEV → screen
 │   ├── media/audio.c/.h        ASND streaming ring buffer, volume
@@ -155,7 +161,7 @@ TEST tween_progress(void)     { tween t = tw_make(10, 20, 1000, 100); ASSERT_IN_
 
 - [x] **Step 2: Run** `make -C wii/tests` → FAIL (missing `tw_ease_out`).
 
-- [ ] **Step 3: Implement `tween.c`** (done except `wii/icon.png`, still missing), the host test Makefile (compiles `../source/ui/tween.c` etc. plus engine sources with the host compiler), and a `main.c` that initialises video (GRRLIB), WPAD (`WPAD_SetDataFormat(WPAD_CHAN_ALL, WPAD_FMT_BTNS_ACC_IR)`, `WPAD_SetIdleTimeout(3600)`), draws the striped background and exits to the Homebrew Channel on HOME.
+- [x] **Step 3: Implement `tween.c`** (`wii/icon.png` 128×48 is generated by `tools/make-logo.py`), the host test Makefile (compiles `../source/ui/tween.c` etc. plus engine sources with the host compiler), and a `main.c` that initialises video (GRRLIB), WPAD (`WPAD_SetDataFormat(WPAD_CHAN_ALL, WPAD_FMT_BTNS_ACC_IR)`, `WPAD_SetIdleTimeout(3600)`), draws the striped background and exits to the Homebrew Channel on HOME.
 
 - [x] **Step 4: Verify**
 
@@ -286,7 +292,7 @@ git add wii && git commit -m "wip | wii boot loading, clock and tuner"
 
 - [x] **Step 2: Temporary harness in `main.c`** (removed in Task 5): A opens `Cartoon Network/Gumball/Season 1/S01E01 - Test One.mpg` at offset 0; 1 reopens at offset 20 000; +/− volume.
 
-- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the `CTW_DEBUG_OVERLAY` fps/underrun overlay is not built yet; 16:9 handling and the "The drive was disconnected" screen are built and host-tested but not yet checked in Dolphin or on the Wii)
+- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the overlay is built with `make -C wii DEBUG_OVERLAY=1` → `wii/cable-twii-debug.dol` and was seen in Dolphin (UI 59.9 fps, memory lines), but not yet with video playing; 16:9 handling and the "The drive was disconnected" screen are built and host-tested but not yet checked in Dolphin or on the Wii)
   - fps overlay (debug build flag `-DCTW_DEBUG_OVERLAY`) shows 30.0 average, 0 underruns over 10 minutes;
   - reopen at 20 000 ms shows burned-in timecode within 00:00:19.5–00:00:20.5, in under 1.5 s;
   - 4:3 Ben 10 file is pillarboxed on a 16:9 TV setting and fills the width on 4:3;
@@ -334,7 +340,7 @@ TEST osd_still_pointer_times_out(void) { osd_state s = {0}; osd_pointer(&s, true
 
 - [x] **Step 2: Run** `make -C wii/tests` → FAIL.
 
-- [ ] **Step 3: Implement**; temporarily boot straight into fullscreen on the last/first channel. (done except the channel icons on the chip and the up-next card)
+- [x] **Step 3: Implement**; temporarily boot straight into fullscreen on the last/first channel. (chip: 40×40 channel icon + 36 px number, laid out by `osd_chip_layout`; up-next card shows the channel icon and ellipsizes its titles; both seen in Dolphin with a real channel icon and with the placeholder)
 
 - [ ] **Step 4: Verify on the real Wii** with the sample library and a schedule from Studio: (Dolphin only — real Wii pending, Task 11)
   - tune-in lands mid-episode at the time Studio's Preview shows (compare burned-in timecode);
@@ -405,7 +411,7 @@ TEST gm_scroll_to_visible(void)  { /* view_h 200, row at y 250 h 64 → scroll 1
 
 - [x] **Step 3: Implement**; remove the temporary boot-to-fullscreen; boot flow becomes logo → guide.
 
-- [ ] **Step 4: Verify** in Dolphin and on the Wii against the approved mockup: layout matches; hover sweeps don't thrash the preview; 60 fps with the preview playing (debug overlay); 3 channels + headers scroll correctly when the TV is 4:3. (Dolphin only, with a throwaway build that embeds a 9-channel library and scripts the D-pad, A and B: the layout matches the mockup on a 16:9 Dolphin, the panels slide in under the moving logo, D-pad scrolling and the A expand / B return work. No video files, so the preview stayed black; pointer hover, the 60 fps check (no debug overlay yet) and 4:3 were not seen. Real Wii pending, Task 11.)
+- [ ] **Step 4: Verify** in Dolphin and on the Wii against the approved mockup: layout matches; hover sweeps don't thrash the preview; 60 fps with the preview playing (debug overlay); 3 channels + headers scroll correctly when the TV is 4:3. (Dolphin only, with a throwaway build that embeds a 9-channel library and scripts the D-pad, A and B: the layout matches the mockup on a 16:9 Dolphin, the panels slide in under the moving logo, D-pad scrolling and the A expand / B return work. No video files, so the preview stayed black; pointer hover, the 60 fps check (the debug overlay exists now but has not been run with a playing preview) and 4:3 were not seen. Real Wii pending, Task 11.)
 
 - [ ] **Step 5: Commit**
 
@@ -495,7 +501,7 @@ git add wii && git commit -m "wip | wii remembered channel and volume"
 **Files:**
 - Create: `docs/testing/wii-checklist.md`
 
-- [ ] **Step 1: Write the checklist** from spec §10 plus this plan's Review Focus: tune-in mid-episode; D-pad flipping; preview→fullscreen and back; OSD show/hide; HOME menu options; remote disconnect/reconnect; no drive; bad config; drive unplugged while watching; short file; midnight rollover on a timed and a looping channel (set the Wii clock to 23:58); 4:3 and 16:9 TV settings; 50 Hz and 60 Hz; 4-hour soak with memory free shown in the debug overlay staying flat.
+- [x] **Step 1: Write the checklist** (`docs/testing/wii-checklist.md`, 50 items including the debug-overlay build and `wiiload` steps) from spec §10 plus this plan's Review Focus: tune-in mid-episode; D-pad flipping; preview→fullscreen and back; OSD show/hide; HOME menu options; remote disconnect/reconnect; no drive; bad config; drive unplugged while watching; short file; midnight rollover on a timed and a looping channel (set the Wii clock to 23:58); 4:3 and 16:9 TV settings; 50 Hz and 60 Hz; 4-hour soak with memory free shown in the debug overlay staying flat.
 
 - [ ] **Step 2: Run every item on the real Wii** with the owner's real library and both drives plugged in (per decision 0002). Record pass/fail with notes in the checklist.
 
