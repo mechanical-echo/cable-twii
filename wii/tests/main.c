@@ -6,6 +6,8 @@ SUITE_EXTERN(clock_suite);
 SUITE_EXTERN(tuner_suite);
 SUITE_EXTERN(nav_suite);
 SUITE_EXTERN(osd_suite);
+SUITE_EXTERN(utf8_suite);
+SUITE_EXTERN(textcache_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -18,5 +20,7 @@ int main(int argc, char **argv)
     RUN_SUITE(tuner_suite);
     RUN_SUITE(nav_suite);
     RUN_SUITE(osd_suite);
+    RUN_SUITE(utf8_suite);
+    RUN_SUITE(textcache_suite);
     GREATEST_MAIN_END();
 }
