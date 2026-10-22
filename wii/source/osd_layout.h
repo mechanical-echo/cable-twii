@@ -45,7 +45,7 @@ typedef struct {
     asp_rect name_pill;
 } osd_chip;
 
-osd_layout osd_layout_for(float offset_y, float pixel_x, float name_w, float start_w);
+osd_layout osd_layout_for(float offset_y, float pixel_x, float name_w, float number_w, float start_w, float countdown_w);
 osd_chip osd_chip_layout(float number_w, float name_w, float pixel_x);
 osd_btn osd_hit(const osd_layout *l, float x, float y, bool volume_visible);
 asp_rect osd_scrim(void);

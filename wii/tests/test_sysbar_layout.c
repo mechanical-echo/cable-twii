@@ -115,8 +115,27 @@ TEST sysbar_hit_misses_the_clock(void)
     PASS();
 }
 
+TEST sysbar_shift_moves_everything_down(void)
+{
+    sysbar_layout l = sysbar_layout_for(0.75f);
+    sysbar_layout s = sysbar_layout_shift(&l, 40.0f);
+    ASSERT_IN_RANGE(l.body.y + 40.0f, s.body.y, EPS);
+    ASSERT_IN_RANGE(l.hump.y + 40.0f, s.hump.y, EPS);
+    ASSERT_IN_RANGE(l.clock.y + 40.0f, s.clock.y, EPS);
+    ASSERT_IN_RANGE(l.date.y + 40.0f, s.date.y, EPS);
+    ASSERT_IN_RANGE(l.home_disc.y + 40.0f, s.home_disc.y, EPS);
+    ASSERT_IN_RANGE(l.home_label.y + 40.0f, s.home_label.y, EPS);
+    ASSERT_IN_RANGE(l.home_hit.y + 40.0f, s.home_hit.y, EPS);
+    ASSERT_IN_RANGE(l.prev.y + 40.0f, s.prev.y, EPS);
+    ASSERT_IN_RANGE(l.next.y + 40.0f, s.next.y, EPS);
+    ASSERT_IN_RANGE(l.prev.x, s.prev.x, EPS);
+    ASSERT_IN_RANGE(sysbar_top_at(&l, 320.0f) + 40.0f, sysbar_top_at(&s, 320.0f), EPS);
+    PASS();
+}
+
 SUITE(sysbar_layout_suite)
 {
+    RUN_TEST(sysbar_shift_moves_everything_down);
     RUN_TEST(sysbar_body_and_hump);
     RUN_TEST(sysbar_top_follows_the_curve);
     RUN_TEST(sysbar_clock_and_date_are_centred);

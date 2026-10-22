@@ -29,12 +29,12 @@ void header_bloom(void)
     ui_radial(BLOOM_CX, BLOOM_CY, BLOOM_RX, BLOOM_RY, BLOOM_COLOR);
 }
 
-void header_draw(app *a, bool with_logo)
+void header_draw(app *a, bool with_logo, float dy)
 {
     (void)a;
-    ui_shadow(0.0f, 0.0f, SCREEN_W, THEME_HEADER_H, 0.0f, SHADOW_COLOR, SHADOW_DY, SHADOW_BLUR);
-    ui_rounded_gradient(0.0f, 0.0f, SCREEN_W, THEME_HEADER_H, 0.0f, HEADER_STOPS, 3);
-    GRRLIB_Rectangle(0.0f, THEME_HEADER_H - 1.0f, SCREEN_W, 1.0f, THEME_PANEL_BORDER, 1);
+    ui_shadow(0.0f, dy, SCREEN_W, THEME_HEADER_H, 0.0f, SHADOW_COLOR, SHADOW_DY, SHADOW_BLUR);
+    ui_rounded_gradient(0.0f, dy, SCREEN_W, THEME_HEADER_H, 0.0f, HEADER_STOPS, 3);
+    GRRLIB_Rectangle(0.0f, dy + THEME_HEADER_H - 1.0f, SCREEN_W, 1.0f, THEME_PANEL_BORDER, 1);
     if (with_logo) logo_draw_header();
-    ui_battery(BATTERY_X, BATTERY_Y, BATTERY_PILL_H, home_battery_bars(in_battery_level()), BATTERY_LABEL_PX, NULL);
+    ui_battery(BATTERY_X, BATTERY_Y + dy, BATTERY_PILL_H, home_battery_bars(in_battery_level()), BATTERY_LABEL_PX, NULL);
 }

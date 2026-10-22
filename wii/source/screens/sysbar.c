@@ -40,7 +40,7 @@ sysbar_btn sysbar_update(app *a, const sysbar_layout *l, bool channels, ps_state
     }
     hot_btn = hot;
     int fired = ps_update(ps, (int)hot, in_pressed(WPAD_BUTTON_A), in_held(WPAD_BUTTON_A), in_released(WPAD_BUTTON_A));
-    if (fired != 0) sfx_play(SFX_SELECT);
+    if (fired == SYSBAR_BTN_PREV || fired == SYSBAR_BTN_NEXT) sfx_play(SFX_SELECT);
     return (sysbar_btn)fired;
 }
 
@@ -97,7 +97,7 @@ static void draw_home(const sysbar_layout *l, bool hot, bool pressed)
     asp_rect d = l->home_disc;
     float y = d.y + (pressed ? 2.0f : 0.0f);
     float r = d.h / 2.0f;
-    if (!pressed) ui_drop_shadow(d.x, y, d.w, d.h, r, UI_SHADOW_PANEL, 1.5f);
+    if (!pressed) ui_drop_shadow(d.x, y, d.w, d.h, r, UI_SHADOW_PANEL, 1.0f);
     if (hot && !pressed) ui_ring(d.x, y, d.w, d.h, r, THEME_RING_STRONG, THEME_RING_SPREAD);
     if (pressed) ui_ring(d.x, y, d.w, d.h, r, THEME_RING, THEME_RING_SPREAD);
     ui_disc(d.x, y, d.h, THEME_PANEL_FILL, THEME_DISC_MID, THEME_DISC_EDGE);

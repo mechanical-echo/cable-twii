@@ -10,7 +10,7 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 | 01 Engine | Everything; merged, tests pass on the host | Nothing | Nothing |
 | 02 Studio | Tasks 1-11, reviewed, plus final review, fix wave and Windows port | Task 12, end-to-end check on a real flash drive | Owner |
 | 03 Wii app | Tasks 1-10 and the 50-item checklist | Task 11: run the checklist on a real Wii, fix failures | Owner and real hardware |
-| 05 Wii redesign | Tasks 1-11 on branch `wii-redesign` (kit, guide, system bar, OSD, chip, volume, up-next card, HOME menu, intro, empty state, error dialog, checklist items 51-55), reviewed and fixed; every screen checked in Dolphin with the scripted-input build (`make -C wii DEBUG_SCRIPT=1`) | Design System artifact re-sync; merge into master; real-Wii run of checklist items 51-55 | Owner |
+| 05 Wii redesign | Tasks 1-11 on branch `wii-redesign` (kit, guide, system bar, OSD, chip, volume, up-next card, HOME menu, intro, empty state, error dialog, checklist items 51-55), reviewed and fixed; every screen checked in Dolphin with the scripted-input build (`make -C wii DEBUG_SCRIPT=1`) | Design System artifact re-sync (in progress); real-Wii run of checklist items 51-55 | Owner and real hardware |
 | 04 Release | `make dist`, `CHANGELOG.md`, owner's guide | Owner checks of both; forwarder research, build, install; final acceptance; v1.0.0 tag | Owner approval of the research downloads (Task 3); Tasks 4-6 not started |
 
 ## Left that does not need hardware

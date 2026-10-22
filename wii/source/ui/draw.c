@@ -128,18 +128,20 @@ void ui_quad(const float *xs, const float *ys, const uint32_t *colors)
     GRRLIB_GXEngine(v, c, 4, GX_QUADS);
 }
 
+static void segment_quad(float x0, float y0, float x1, float y1, float thickness, uint32_t color)
+{
+    float dx = x1 - x0, dy = y1 - y0;
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len <= 0.0f) return;
+    float nx = -dy / len * thickness / 2.0f, ny = dx / len * thickness / 2.0f;
+    guVector v[4] = { { x0 + nx, y0 + ny, 0.0f }, { x1 + nx, y1 + ny, 0.0f }, { x1 - nx, y1 - ny, 0.0f }, { x0 - nx, y0 - ny, 0.0f } };
+    u32 c[4] = { color, color, color, color };
+    GRRLIB_GXEngine(v, c, 4, GX_QUADS);
+}
+
 void ui_polyline(const float *xs, const float *ys, int n, float thickness, uint32_t color)
 {
-    for (int i = 0; i + 1 < n; i++) {
-        float dx = xs[i + 1] - xs[i], dy = ys[i + 1] - ys[i];
-        float len = sqrtf(dx * dx + dy * dy);
-        if (len <= 0.0f) continue;
-        float nx = -dy / len * thickness / 2.0f, ny = dx / len * thickness / 2.0f;
-        guVector v[4] = { { xs[i] + nx, ys[i] + ny, 0.0f }, { xs[i + 1] + nx, ys[i + 1] + ny, 0.0f },
-                          { xs[i + 1] - nx, ys[i + 1] - ny, 0.0f }, { xs[i] - nx, ys[i] - ny, 0.0f } };
-        u32 c[4] = { color, color, color, color };
-        GRRLIB_GXEngine(v, c, 4, GX_QUADS);
-    }
+    for (int i = 0; i + 1 < n; i++) segment_quad(xs[i], ys[i], xs[i + 1], ys[i + 1], thickness, color);
 }
 
 static void corner_colored(float cx, float cy, float rx, float ry, int q, const ui_stop *stops, int n, float gy, float gh, uint32_t flat)
@@ -549,17 +551,6 @@ void ui_pill(float x, float y, float w, float h, const char *label, bool hot)
     ui_pill_ex(x, y, w, h, label, 14, hot ? UI_PILL_HOT : UI_PILL_REST, UI_SHADOW_PANEL);
 }
 
-static void dash_quad(float x0, float y0, float x1, float y1, float thickness, uint32_t color)
-{
-    float dx = x1 - x0, dy = y1 - y0;
-    float len = sqrtf(dx * dx + dy * dy);
-    if (len <= 0.0f) return;
-    float nx = -dy / len * thickness / 2.0f, ny = dx / len * thickness / 2.0f;
-    guVector v[4] = { { x0 + nx, y0 + ny, 0.0f }, { x1 + nx, y1 + ny, 0.0f }, { x1 - nx, y1 - ny, 0.0f }, { x0 - nx, y0 - ny, 0.0f } };
-    u32 c[4] = { color, color, color, color };
-    GRRLIB_GXEngine(v, c, 4, GX_QUADS);
-}
-
 void ui_dashed_rounded(float x, float y, float w, float h, float radius, float thickness, float dash, float gap, uint32_t color)
 {
     if (w <= 0.0f || h <= 0.0f || dash <= 0.0f) return;
@@ -582,7 +573,7 @@ void ui_dashed_rounded(float x, float y, float w, float h, float radius, float t
         while (pos < len) {
             float step = left < len - pos ? left : len - pos;
             float t0 = pos / len, t1 = (pos + step) / len;
-            if (on) dash_quad(ax + (bx - ax) * t0, ay + (by - ay) * t0, ax + (bx - ax) * t1, ay + (by - ay) * t1, thickness, color);
+            if (on) segment_quad(ax + (bx - ax) * t0, ay + (by - ay) * t0, ax + (bx - ax) * t1, ay + (by - ay) * t1, thickness, color);
             pos += step;
             left -= step;
             if (left <= 0.0f) {

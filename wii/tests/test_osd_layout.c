@@ -23,7 +23,7 @@ static bool within(asp_rect inner, asp_rect outer)
 
 TEST layout_panel_sits_at_the_bottom(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(26.0f, l.panel.x, EPS);
     ASSERT_IN_RANGE(588.0f, l.panel.w, EPS);
     ASSERT_IN_RANGE(108.0f, l.panel.h, EPS);
@@ -33,8 +33,8 @@ TEST layout_panel_sits_at_the_bottom(void)
 
 TEST layout_offset_moves_everything_down(void)
 {
-    osd_layout a = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
-    osd_layout b = osd_layout_for(50.0f, WIDE, 100.0f, 30.0f);
+    osd_layout a = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
+    osd_layout b = osd_layout_for(50.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(a.panel.y + 50.0f, b.panel.y, EPS);
     ASSERT_IN_RANGE(a.name.y + 50.0f, b.name.y, EPS);
     ASSERT_IN_RANGE(a.bar.y + 50.0f, b.bar.y, EPS);
@@ -46,7 +46,7 @@ TEST layout_offset_moves_everything_down(void)
 
 TEST layout_contents_stay_inside_the_panel(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     asp_rect all[] = { l.icon, l.name, l.number, l.line, l.start, l.bar, l.end, l.divider, l.next_icon, l.next_label, l.next_title, l.next_at, l.countdown };
     for (size_t i = 0; i < sizeof all / sizeof all[0]; i++) ASSERT(within(all[i], l.panel));
     PASS();
@@ -54,7 +54,7 @@ TEST layout_contents_stay_inside_the_panel(void)
 
 TEST layout_matches_the_deck(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     float px = l.panel.x, py = l.panel.y;
     ASSERT_IN_RANGE(px + 14.0f, l.icon.x, EPS);
     ASSERT_IN_RANGE(py + 30.0f, l.icon.y, EPS);
@@ -82,23 +82,23 @@ TEST layout_matches_the_deck(void)
 
 TEST layout_number_pill_follows_the_name(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(l.panel.x + 60.7f + 100.0f + 5.3f, l.number.x, EPS);
     ASSERT_IN_RANGE(l.panel.y + 24.3f, l.number.y, EPS);
     ASSERT_IN_RANGE(16.0f, l.number.h, EPS);
-    osd_layout wide = osd_layout_for(0.0f, WIDE, 150.0f, 30.0f);
+    osd_layout wide = osd_layout_for(0.0f, WIDE, 150.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(l.number.x + 50.0f, wide.number.x, EPS);
     PASS();
 }
 
 TEST layout_bar_follows_the_start_time(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(l.start.x + 30.0f + 5.9f, l.bar.x, EPS);
     ASSERT_IN_RANGE(l.panel.x + 352.0f, l.bar.x + l.bar.w, EPS);
     ASSERT_IN_RANGE(l.panel.y + 74.3f, l.bar.y, EPS);
     ASSERT_IN_RANGE(8.0f, l.bar.h, EPS);
-    osd_layout wide = osd_layout_for(0.0f, WIDE, 100.0f, 40.0f);
+    osd_layout wide = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 40.0f, 50.0f);
     ASSERT_IN_RANGE(l.bar.x + 10.0f, wide.bar.x, EPS);
     ASSERT_IN_RANGE(l.bar.w - 10.0f, wide.bar.w, EPS);
     PASS();
@@ -106,7 +106,7 @@ TEST layout_bar_follows_the_start_time(void)
 
 TEST hit_only_volume_pills_and_only_while_visible(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     float x, y;
     centre(l.vol_down, &x, &y);
     ASSERT_EQ(OSD_BTN_VOL_DOWN, osd_hit(&l, x, y, true));
@@ -123,7 +123,7 @@ TEST hit_only_volume_pills_and_only_while_visible(void)
 
 TEST segments_tile_the_volume_bar(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(185.3f, l.vol_bar.w, EPS);
     ASSERT_IN_RANGE(16.0f, l.vol_bar.h, EPS);
     asp_rect first = osd_segment(l.vol_bar, 0);
@@ -148,7 +148,7 @@ TEST segments_lit_counts_tens(void)
 
 TEST standalone_volume_is_centred_above_the_bottom(void)
 {
-    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 30.0f);
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
     ASSERT_IN_RANGE(190.0f, l.vol_panel.x, EPS);
     ASSERT_IN_RANGE(412.0f, l.vol_panel.y, EPS);
     ASSERT_IN_RANGE(260.0f, l.vol_panel.w, EPS);
@@ -232,8 +232,31 @@ TEST inside_helper_sanity(void)
     PASS();
 }
 
+TEST layout_title_column_yields_to_a_wide_countdown(void)
+{
+    osd_layout narrow = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 50.0f);
+    ASSERT_IN_RANGE(70.4f, narrow.next_title.w, EPS);
+    osd_layout wide = osd_layout_for(0.0f, WIDE, 100.0f, 20.0f, 30.0f, 90.0f);
+    ASSERT_IN_RANGE(wide.panel.x + 574.0f - 90.0f, wide.countdown.x, EPS);
+    ASSERT_IN_RANGE(90.0f, wide.countdown.w, EPS);
+    ASSERT(wide.next_title.x + wide.next_title.w <= wide.countdown.x - 6.0f + EPS);
+    ASSERT(wide.next_title.w < narrow.next_title.w);
+    ASSERT_IN_RANGE(wide.next_title.x, narrow.next_title.x, EPS);
+    PASS();
+}
+
+TEST layout_number_pill_uses_its_width(void)
+{
+    osd_layout l = osd_layout_for(0.0f, WIDE, 100.0f, 34.0f, 30.0f, 50.0f);
+    ASSERT_IN_RANGE(34.0f, l.number.w, EPS);
+    ASSERT(l.number.x + l.number.w <= l.panel.x + l.panel.w);
+    PASS();
+}
+
 SUITE(osd_layout_suite)
 {
+    RUN_TEST(layout_title_column_yields_to_a_wide_countdown);
+    RUN_TEST(layout_number_pill_uses_its_width);
     RUN_TEST(layout_panel_sits_at_the_bottom);
     RUN_TEST(layout_offset_moves_everything_down);
     RUN_TEST(layout_contents_stay_inside_the_panel);

@@ -42,12 +42,17 @@ typedef struct {
     float start_w;
     tf_line next[NEXT_LINES];
     size_t next_count;
+    char next_title[TF_LINE_BYTES];
+    float next_wrap_w;
     char next_at[16];
     const ctw_show *icon_show;
     const ctw_airing *next_ep;
+    float number_w;
 } panel_text;
 
 static panel_text text;
+static char countdown_text[16];
+static float countdown_w;
 
 static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start)
 {
@@ -59,10 +64,11 @@ static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_
     ui_text_fit(FONT_BOLD, NAME_PX, ch->name, NAME_MAX_W, text.name, sizeof text.name);
     text.name_w = ui_text_width(FONT_BOLD, NAME_PX, text.name);
     gt_number(ch->number, text.number, sizeof text.number);
+    text.number_w = ui_number_pill_w(text.number, NUMBER_PX);
     if (air == NULL) return;
     const ctw_airing *next = air->kind == CTW_AIR_UPNEXT ? tn_next(&a->tuner, ch->number, air) : NULL;
     text.icon_show = gt_line_show(air, next);
-    osd_layout probe = osd_layout_for(0.0f, ui_pixel_x(), text.name_w, 0.0f);
+    osd_layout probe = osd_layout_for(0.0f, ui_pixel_x(), text.name_w, text.number_w, 0.0f, 0.0f);
     char buf[TF_LINE_BYTES];
     gt_line(air, next, buf, sizeof buf);
     ui_text_fit(FONT_BOLD, LINE_PX, buf, probe.line.w, text.line, sizeof text.line);
@@ -71,8 +77,8 @@ static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_
     text.start_w = ui_text_width(FONT_BODY, TIMES_PX, text.start_text);
     text.next_ep = tn_next_episode(&a->tuner, ch->number, air);
     if (text.next_ep != NULL && text.next_ep->episode != NULL) {
-        gt_episode(text.next_ep->episode, buf, sizeof buf);
-        text.next_count = ui_text_wrap(FONT_BOLD, NEXT_TITLE_PX, buf, probe.next_title.w, NEXT_LINES, text.next);
+        gt_episode(text.next_ep->episode, text.next_title, sizeof text.next_title);
+        text.next_wrap_w = -1.0f;
         gt_at(text.next_ep->start_ms, text.next_at, sizeof text.next_at);
     }
 }
@@ -87,12 +93,29 @@ static const ctw_airing *current(app *a, const ctw_channel **ch, uint32_t *offse
     return air;
 }
 
+static void refresh_countdown(app *a, const ctw_channel *ch, const ctw_airing *air, uint32_t offset)
+{
+    countdown_text[0] = '\0';
+    countdown_w = 0.0f;
+    if (ch == NULL || air == NULL || !text.valid || text.next_ep == NULL) return;
+    int64_t until = tn_ms_until(&a->tuner, ch->number, air, offset, text.next_ep);
+    gt_countdown((uint32_t)(until > 0xFFFFFFFFLL ? 0xFFFFFFFFu : until), countdown_text, sizeof countdown_text);
+    countdown_w = ui_text_width(FONT_BOLD, COUNTDOWN_PX, countdown_text);
+}
+
 osd_layout panel_layout(app *a, float offset_y)
 {
     const ctw_channel *ch;
     uint32_t offset = 0;
-    current(a, &ch, &offset);
-    return osd_layout_for(offset_y, ui_pixel_x(), text.valid ? text.name_w : 0.0f, text.valid ? text.start_w : 0.0f);
+    const ctw_airing *air = current(a, &ch, &offset);
+    refresh_countdown(a, ch, air, offset);
+    if (!text.valid) return osd_layout_for(offset_y, ui_pixel_x(), 0.0f, 0.0f, 0.0f, 0.0f);
+    osd_layout l = osd_layout_for(offset_y, ui_pixel_x(), text.name_w, text.number_w, text.start_w, countdown_w);
+    if (text.next_ep != NULL && text.next_title[0] != '\0' && (text.next_wrap_w < 0.0f || text.next_wrap_w > l.next_title.w + 0.5f || text.next_wrap_w < l.next_title.w - 0.5f)) {
+        text.next_count = ui_text_wrap(FONT_BOLD, NEXT_TITLE_PX, text.next_title, l.next_title.w, NEXT_LINES, text.next);
+        text.next_wrap_w = l.next_title.w;
+    }
+    return l;
 }
 
 void panel_draw(app *a, const osd_layout *l)
@@ -129,10 +152,7 @@ void panel_draw(app *a, const osd_layout *l)
     }
     if (text.next_ep != NULL) {
         ui_text(FONT_BODY, NEXT_AT_PX, l->next_at.x, l->next_at.y, text.next_at, THEME_TEXT_SECONDARY, ALIGN_LEFT);
-        char countdown[16];
-        int64_t until = tn_ms_until(&a->tuner, ch->number, air, offset, text.next_ep);
-        gt_countdown((uint32_t)(until > 0xFFFFFFFFLL ? 0xFFFFFFFFu : until), countdown, sizeof countdown);
-        ui_text(FONT_BOLD, COUNTDOWN_PX, l->countdown.x + l->countdown.w, l->countdown.y, countdown, THEME_ACCENT, ALIGN_RIGHT);
+        ui_text(FONT_BOLD, COUNTDOWN_PX, l->countdown.x + l->countdown.w, l->countdown.y, countdown_text, THEME_ACCENT, ALIGN_RIGHT);
     }
 }
 

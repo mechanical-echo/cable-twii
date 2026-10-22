@@ -25,6 +25,7 @@ typedef struct {
 } sysbar_layout;
 
 sysbar_layout sysbar_layout_for(float pixel_x);
+sysbar_layout sysbar_layout_shift(const sysbar_layout *l, float dy);
 sysbar_btn sysbar_hit(const sysbar_layout *l, float x, float y, bool channels);
 float sysbar_top_at(const sysbar_layout *l, float x);
 

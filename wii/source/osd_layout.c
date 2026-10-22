@@ -13,7 +13,7 @@
 #define NAME_H 18.0f
 #define NUMBER_GAP 5.3f
 #define NUMBER_Y 24.3f
-#define NUMBER_W 20.0f
+#define NUMBER_MIN_W 20.0f
 #define NUMBER_H 16.0f
 #define LINE_Y 47.2f
 #define LINE_H 16.0f
@@ -40,7 +40,8 @@
 #define NEXT_RIGHT 515.7f
 #define COUNTDOWN_RIGHT 574.0f
 #define COUNTDOWN_Y 40.0f
-#define COUNTDOWN_W 50.2f
+#define COUNTDOWN_MIN_W 50.2f
+#define COUNTDOWN_GAP 6.0f
 #define COUNTDOWN_H 28.0f
 #define SEGMENT_GAP 3.0f
 #define VOL_PANEL_W 260.0f
@@ -78,7 +79,7 @@ static asp_rect rect(float x, float y, float w, float h)
     return r;
 }
 
-osd_layout osd_layout_for(float offset_y, float pixel_x, float name_w, float start_w)
+osd_layout osd_layout_for(float offset_y, float pixel_x, float name_w, float number_w, float start_w, float countdown_w)
 {
     osd_layout l;
     float px = MARGIN_X;
@@ -88,7 +89,7 @@ osd_layout osd_layout_for(float offset_y, float pixel_x, float name_w, float sta
     l.icon = rect(px + ICON_X, py + ICON_Y, ICON_PX * pixel_x, ICON_PX);
     float tx = px + TEXT_X;
     l.name = rect(tx, py + NAME_Y, name_w, NAME_H);
-    l.number = rect(tx + name_w + NUMBER_GAP, py + NUMBER_Y, NUMBER_W, NUMBER_H);
+    l.number = rect(tx + name_w + NUMBER_GAP, py + NUMBER_Y, number_w < NUMBER_MIN_W ? NUMBER_MIN_W : number_w, NUMBER_H);
     l.line = rect(tx, py + LINE_Y, px + DIVIDER_X - NEXT_TEXT_GAP - tx, LINE_H);
     l.start = rect(tx, py + TIMES_Y, start_w, TIMES_H);
     float bx = tx + start_w + BAR_GAP;
@@ -96,12 +97,15 @@ osd_layout osd_layout_for(float offset_y, float pixel_x, float name_w, float sta
     l.end = rect(px + END_RIGHT - start_w, py + TIMES_Y, start_w, TIMES_H);
     l.divider = rect(px + DIVIDER_X, py + DIVIDER_Y, 1.0f, DIVIDER_H);
     l.next_icon = rect(px + NEXT_ICON_X, py + NEXT_ICON_Y, NEXT_ICON_PX * pixel_x, NEXT_ICON_PX);
+    float cw = countdown_w < COUNTDOWN_MIN_W ? COUNTDOWN_MIN_W : countdown_w;
+    l.countdown = rect(px + COUNTDOWN_RIGHT - cw, py + COUNTDOWN_Y, cw, COUNTDOWN_H);
     float nx = l.next_icon.x + l.next_icon.w + NEXT_TEXT_GAP;
     float nw = px + NEXT_RIGHT - nx;
+    float room = l.countdown.x - COUNTDOWN_GAP - nx;
+    if (nw > room) nw = room;
     l.next_label = rect(nx, py + NEXT_LABEL_Y, nw, NEXT_LABEL_H);
     l.next_title = rect(nx, py + NEXT_TITLE_Y, nw, NEXT_TITLE_H);
     l.next_at = rect(nx, py + NEXT_AT_Y, nw, NEXT_AT_H);
-    l.countdown = rect(px + COUNTDOWN_RIGHT - COUNTDOWN_W, py + COUNTDOWN_Y, COUNTDOWN_W, COUNTDOWN_H);
 
     float vx = (SCREEN_W - VOL_PANEL_W) / 2.0f;
     l.vol_label = rect(vx, VOL_LABEL_Y, VOL_PANEL_W, VOL_LABEL_H);

@@ -236,7 +236,7 @@ static void draw_body(app *a, float progress)
     float fade = 1.0f - progress;
 
     header_bloom();
-    header_draw(a, progress >= 1.0f);
+    header_draw(a, progress >= 1.0f, -slide);
 
     asp_rect list = shifted(layout.list, -slide);
     int tuned = live_on(a->current_channel) ? a->current_channel : 0;
@@ -247,7 +247,8 @@ static void draw_body(app *a, float progress)
     if (mode == G_IDLE) ginfo_draw_preview(a, preview, 0.0f);
     ginfo_draw_info(a, highlight >= 0 && (size_t)highlight < row_count ? rows[highlight].channel : NULL, info);
 
-    sysbar_draw(a, &sysbar, row_count > 0, &press);
+    sysbar_layout bar = sysbar_layout_shift(&sysbar, slide);
+    sysbar_draw(a, &bar, row_count > 0, &press);
     if (fade > 0.0f) ui_stripes_rect(0.0f, 0.0f, 640.0f, 480.0f, fade);
 }
 
@@ -274,7 +275,7 @@ static void draw_transition(app *a)
 static void draw_empty(app *a)
 {
     header_bloom();
-    header_draw(a, true);
+    header_draw(a, true, 0.0f);
     empty_draw(a, &empty_press);
     sysbar_draw(a, &sysbar, false, &press);
 }

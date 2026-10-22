@@ -57,7 +57,7 @@ static void change_volume(app *a, int dir)
 
 static float slide_offset(const app *a)
 {
-    osd_layout rest = osd_layout_for(0.0f, ui_pixel_x(), 0.0f, 0.0f);
+    osd_layout rest = osd_layout_for(0.0f, ui_pixel_x(), 0.0f, 0.0f, 0.0f, 0.0f);
     return (1.0f - osd_slide(&g_osd, a->now_ms)) * (480.0f - rest.panel.y);
 }
 

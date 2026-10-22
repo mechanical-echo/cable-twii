@@ -45,6 +45,27 @@ sysbar_layout sysbar_layout_for(float pixel_x)
     return l;
 }
 
+static asp_rect moved(asp_rect r, float dy)
+{
+    r.y += dy;
+    return r;
+}
+
+sysbar_layout sysbar_layout_shift(const sysbar_layout *l, float dy)
+{
+    sysbar_layout s = *l;
+    s.body = moved(l->body, dy);
+    s.hump = moved(l->hump, dy);
+    s.clock = moved(l->clock, dy);
+    s.date = moved(l->date, dy);
+    s.home_disc = moved(l->home_disc, dy);
+    s.home_label = moved(l->home_label, dy);
+    s.home_hit = moved(l->home_hit, dy);
+    s.prev = moved(l->prev, dy);
+    s.next = moved(l->next, dy);
+    return s;
+}
+
 static bool inside(asp_rect r, float x, float y)
 {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
