@@ -3,16 +3,37 @@
 #define SCREEN_W 640.0f
 #define SCREEN_H 480.0f
 #define BAR_H 72.0f
+#define BADGE_X 26.0f
+#define BADGE_Y 16.9f
+#define BADGE_H 37.0f
+#define TITLE_GAP 8.0f
+#define TITLE_Y 22.4f
+#define TITLE_H 24.0f
+#define PLAYING_RIGHT 614.0f
+#define PLAYING_Y 27.6f
+#define PLAYING_W 240.0f
+#define PLAYING_H 13.3f
+#define BIG_X 150.0f
 #define BIG_W 340.0f
 #define BIG_H 60.0f
-#define BIG_GAP 28.0f
+#define WII_MENU_Y 133.3f
+#define HBC_Y 221.3f
+#define RESUME_X 225.0f
+#define RESUME_Y 311.1f
 #define RESUME_W 190.0f
 #define RESUME_H 40.0f
-#define BATTERY_X 520.0f
-#define BATTERY_BAR_W 12.0f
-#define BATTERY_GAP 5.0f
-#define BATTERY_BAR_MIN_H 10.0f
-#define BATTERY_BAR_STEP 6.0f
+#define VOL_LABEL_X 26.0f
+#define VOL_LABEL_Y 436.4f
+#define VOL_LABEL_W 36.0f
+#define VOL_LABEL_H 16.0f
+#define VOL_BAR_X 68.2f
+#define VOL_BAR_H 16.0f
+#define BATTERY_LABEL_X 554.1f
+#define BATTERY_LABEL_W 13.0f
+#define BATTERY_X 572.3f
+#define BATTERY_Y 431.1f
+#define BATTERY_W 41.7f
+#define BATTERY_H 26.7f
 
 static asp_rect rect(float x, float y, float w, float h)
 {
@@ -20,26 +41,23 @@ static asp_rect rect(float x, float y, float w, float h)
     return r;
 }
 
-home_layout home_layout_make(void)
+home_layout home_layout_make(float pixel_x)
 {
     home_layout l;
     l.top = rect(0.0f, 0.0f, SCREEN_W, BAR_H);
     l.bottom = rect(0.0f, SCREEN_H - BAR_H, SCREEN_W, BAR_H);
-    l.title = rect(0.0f, 20.0f, SCREEN_W, 32.0f);
-
-    float bx = (SCREEN_W - BIG_W) / 2.0f;
-    float by = (SCREEN_H - (2.0f * BIG_H + BIG_GAP)) / 2.0f;
-    l.wii_menu = rect(bx, by, BIG_W, BIG_H);
-    l.hbc = rect(bx, by + BIG_H + BIG_GAP, BIG_W, BIG_H);
-
-    float ry = l.bottom.y + (BAR_H - RESUME_H) / 2.0f;
-    l.resume = rect((SCREEN_W - RESUME_W) / 2.0f, ry, RESUME_W, RESUME_H);
-
-    float base = l.bottom.y + (BAR_H + BATTERY_BAR_MIN_H + BATTERY_BAR_STEP * (float)(HOME_BATTERY_BARS - 1)) / 2.0f;
-    for (int i = 0; i < HOME_BATTERY_BARS; i++) {
-        float h = BATTERY_BAR_MIN_H + BATTERY_BAR_STEP * (float)i;
-        l.battery[i] = rect(BATTERY_X + (BATTERY_BAR_W + BATTERY_GAP) * (float)i, base - h, BATTERY_BAR_W, h);
-    }
+    l.badge = rect(BADGE_X, BADGE_Y, BADGE_H * pixel_x, BADGE_H);
+    float title_x = l.badge.x + l.badge.w + TITLE_GAP;
+    l.title = rect(title_x, TITLE_Y, PLAYING_RIGHT - PLAYING_W - TITLE_GAP - title_x, TITLE_H);
+    l.playing = rect(PLAYING_RIGHT - PLAYING_W, PLAYING_Y, PLAYING_W, PLAYING_H);
+    l.wii_menu = rect(BIG_X, WII_MENU_Y, BIG_W, BIG_H);
+    l.hbc = rect(BIG_X, HBC_Y, BIG_W, BIG_H);
+    l.resume = rect(RESUME_X, RESUME_Y, RESUME_W, RESUME_H);
+    l.vol_label = rect(VOL_LABEL_X, VOL_LABEL_Y, VOL_LABEL_W, VOL_LABEL_H);
+    float bar_w = HOME_SEGMENT_W * (float)HOME_SEGMENTS + HOME_SEGMENT_GAP * (float)(HOME_SEGMENTS - 1);
+    l.vol_bar = rect(VOL_BAR_X, VOL_LABEL_Y, bar_w, VOL_BAR_H);
+    l.battery_label = rect(BATTERY_LABEL_X, VOL_LABEL_Y, BATTERY_LABEL_W, VOL_LABEL_H);
+    l.battery = rect(BATTERY_X, BATTERY_Y, BATTERY_W, BATTERY_H);
     return l;
 }
 
