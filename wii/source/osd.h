@@ -19,7 +19,10 @@ bool osd_visible(const osd_state *s, uint32_t now_ms);
 void osd_activity(osd_state *s, uint32_t now_ms);
 float osd_slide(const osd_state *s, uint32_t now_ms);
 void osd_volume_changed(osd_state *s, uint32_t now_ms);
-bool osd_volume_alone(const osd_state *s, uint32_t now_ms);
+bool osd_volume_visible(const osd_state *s, uint32_t now_ms);
+bool osd_panel_visible(const osd_state *s, uint32_t now_ms);
+float osd_chip_glow(const osd_state *s, uint32_t now_ms);
+float osd_chip_name_drop(const osd_state *s, uint32_t now_ms);
 int osd_volume_step(int volume, int dir);
 
 #endif

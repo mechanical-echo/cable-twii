@@ -60,7 +60,7 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 | 5 | Steady playback (debug build) | Watch one channel for 10 minutes. Look closely at motion (pans, scrolling credits) and at the first second after each channel change. | Overlay shows `video` about 30.0 fps and `UI` about 60 fps (50 on a 50 Hz TV); `audio underruns` stays 0; `dropped` does not rise while watching. Motion is smooth with no judder, and frames are not shown early (picture ahead of the sound). Suspected: `pl_draw` may take a queued frame whose time is still in the future; note any judder or picture running ahead. | | |
 | 6 | Lip sync | Watch a scene with speech or the sample beep-and-flash file. | Sound and picture line up by eye. | | |
 | 7 | Short file | Use an episode whose `.mpg` is shorter than `library.toml` says (cut a copy short). Watch it end. | Black screen until the next airing starts on time. It never loops, freezes on the last frame, or shows an error. | | |
-| 8 | Up-next card | Open a timed channel during a gap. | Stripes background, white card with the channel icon, `Up next`, the show and episode title (ellipsized if long), `at HH:MM`, and a countdown that ticks down. | | |
+| 8 | Up-next card | Open a timed channel during a gap. | Dark stripes with a faint blue bloom, the channel chip top-right, and a white glossy card with a ringed blue dot, `Up next`, the next episode as `SxxExx · title` (ellipsized if long) next to its icon, the show name under it, `at HH:MM`, a bar that fills toward air time and a large countdown that ticks down. When a commercial break comes before that episode, a faded pill `Up next: Commercial break` with a warm dot sits under the card. | | |
 | 9 | Up-next card at the end of the day | Open a timed channel in its last gap of the day (after its last airing). | Known gap: no title, only the countdown. Note what you see. | | |
 
 ### Guide, preview and fullscreen
@@ -74,10 +74,10 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 | 14 | Guide frame rate (debug build) | Leave the guide open with the preview playing. | `UI` stays about 60 fps (50 on a 50 Hz TV). | | |
 | 15 | Preview to fullscreen and back | Press A on a channel, then B. | The preview expands smoothly to fullscreen in about a third of a second without restarting the video; B shrinks it back the same way. | | |
 | 16 | Fullscreen D-pad flipping | In fullscreen press up, right, down and left. | Up and right go to the next channel, down and left to the previous, wrapping around at the ends, with the channel sound. | | |
-| 17 | Channel chip | Flip channels in fullscreen. | Top-right white pill with the 40×40 channel icon (grey rounded placeholder if the channel has none) and the number in blue, for 2 seconds. | | |
+| 17 | Channel chip | Flip channels in fullscreen. | Top-right white glossy pill holding the number in a blue tile and the 40-tall channel icon (grey rounded placeholder if the channel has none); a blue ring around it fades out over about half a second and the channel name drops in as a pill under it; both stay 2 seconds. | | |
 | 18 | OSD show and hide | In fullscreen, point at the screen and move; then hold still; then point away. | Moving shows the info panel sliding up; holding still for 3 s hides it; pointing away hides it at once. The cursor only shows with the panel. | | |
-| 19 | OSD buttons | With the panel open, click `◀ CH`, `CH ▶`, `Guide`, `−` and `+`. | Each works, with hover sound and rumble. | | |
-| 20 | Volume | Press `+` and `−` in fullscreen without pointing; then change channel. | The volume bar shows alone for 2 s; the volume moves in steps of 10 and stays the same after a channel change and after restarting the app. | | |
+| 19 | OSD panel and volume pills | Point at the screen to open the panel; then press `+` on the remote, point at the volume panel's `+` pill, hold A and release. | The panel is a glass card over a dark scrim with the channel, show, times, bar and an `Up next` column; it has no buttons. The volume panel replaces it for 2 s after `+`; its `+` pill rings blue when pointed, looks pressed while A is held, and the volume rises on release with the select sound. | | |
+| 20 | Volume | Press `+` and `−` in fullscreen without pointing; then change channel. | The glossy volume panel with `Volume` above it shows for 2 s, the newest lit segment ringed; the volume moves in steps of 10 and stays the same after a channel change and after restarting the app. | | |
 | 21 | Remote not pointed at the screen | Watch fullscreen for 55 minutes with the remote lying on the table, IR not seeing the sensor bar, no buttons pressed. | No OSD, no cursor, no rumble ever appears, and the remote stays connected. The idle timeout is exactly 60 minutes (`WPAD_SetIdleTimeout(3600)`), so a disconnect after more than 60 untouched minutes is by design. | | |
 | 22 | Long text | Use a channel, show and episode with 60+ character names and accents. | Every name ellipsizes with `…` inside its panel, row, chip and up-next card; nothing overflows. | | |
 | 23 | Text after expand | Expand a channel to fullscreen and return to the guide a dozen times, then scroll the whole list. | No text goes missing or blank anywhere (text cache). | | |
@@ -124,9 +124,19 @@ The text cache holds up to 256 rendered strings, and the overlay adds one or two
 |---|---|---|---|---|---|
 | 45 | 4:3 TV setting | Set the Wii to 4:3. Watch a 4:3 and a 16:9 file. | 4:3 fills the width; 16:9 is letterboxed. Guide and chip look right. | | |
 | 46 | 16:9 TV setting | Set the Wii to 16:9. Watch a 4:3 and a 16:9 file. | 4:3 is pillarboxed; 16:9 fills the screen (a few black pixels at the edges are a known gap). Corners and cursor are not stretched. | | |
-| 47 | 16:9 text stretch | On 16:9, look at guide text and the chip number. | Known: text is stretched horizontally with the layout. Note whether it looks acceptable. | | |
+| 47 | 16:9 text | On 16:9, look at guide text, the clock and the chip number. | Letters have the same shape as on 4:3 (text is narrowed with the pixel width); nothing looks squashed or stretched, and long names still ellipsize. | | |
 | 48 | 60 Hz | Set the Wii to 60 Hz (EURGB60 on a PAL Wii, or any NTSC Wii). | The picture fills the screen top to bottom; debug overlay shows `UI` about 60 fps. | | |
 | 49 | 50 Hz | On a PAL Wii, set 50 Hz. | The picture is centred with thin, even bands at the top and bottom (about 24 lines each on a 576-line TV), nothing is cut off, and the picture is only slightly squashed vertically: rounded corners and the cursor still look round. Debug overlay shows `UI` about 50 fps; video still plays smoothly with 0 underruns. If the bands bother you, note it (a full-height mode is a possible follow-up). | | |
+
+### Redesign
+
+| # | Item | Steps | Expected | Result | Notes |
+|---|---|---|---|---|---|
+| 51 | System bar | In the guide, point at the HOME disc, then at `◀ CH` and `CH ▶`; hold A on each and release. | The curved bar carries the clock and date; pointed parts ring blue with the hover sound and rumble; a pill looks pressed while A is held; on release `◀ CH` moves the highlight up, `CH ▶` down, and the HOME disc opens the HOME menu, each with the select sound. | | |
+| 52 | Pressed pills | In the HOME menu and the error dialog, hold A on a pill, drag off it and release; then press and release on it. | Dragging off never fires; releasing on the pill fires once. | | |
+| 53 | Empty library | Use a `config.toml` with no channels. | Header and system bar without channel pills, a card with a dashed placeholder, `No channels yet`, the Studio hint and `Back to Homebrew Channel`, which quits to the Homebrew Channel. | | |
+| 54 | Intro | Start the app. | A glossy panel with a blue ring fades and scales in with the wordmark, a diagonal shine crosses it, three dots pulse under it, then the wordmark shrinks into the header while the panel fades and the guide slides into place; A skips it. | | |
+| 55 | HOME menu | Press HOME while watching. | Glossy top and bottom bars over the dimmed video: a blue HOME badge, `HOME Menu`, what is playing on the right, three pills (`Wii Menu`, `Back to Homebrew Channel`, `Resume`), and `Volume` with the segments and the remote battery in the bottom bar. | | |
 
 ### Soak
 
