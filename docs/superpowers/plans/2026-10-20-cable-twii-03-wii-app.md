@@ -34,13 +34,14 @@
 
 ## Progress (2026-10-21/22)
 
-Tasks 1–5 are implemented, host-tested (20/20 `make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory).
+Tasks 1–5 are mostly implemented, host-tested (`make -C wii/tests`), and verified visually in Dolphin — including once with real converted video+audio from the owner's USB flash drive (Studio → engine → Wii app, full pipeline). **Not yet run on a real Wii** — every "Verify on the real Wii" step so far was done in Dolphin only; treat Tasks 1–5 as provisionally correct until confirmed on hardware (Task 11 territory). Steps that still miss a deliverable (`wii/icon.png`, the debug overlay, chip/up-next icons, the disconnect dialog, 16:9) or need a real-Wii run are unticked.
+
+The review fixes on branch `wii-review-fixes` added: the 256-entry LRU text cache (text is rasterised once into a texture with our own UTF-8 decoder), error dialog line wrapping, the up-next card across midnight (`tn_next`), `tuner_spans_midnight`, and the drive search over every USB FAT partition (read-only) then the SD card. `st_find_root` now also fills an `st_volume` (`app.drive`) naming the chosen partition, for Task 10's `state.toml` write.
 
 Known, deliberate deviations from the plan text:
 - `full_update`'s B button goes to `SCR_LOGO`, not `SCR_GUIDE` — the guide screen doesn't exist yet (Task 7). Swap this once Task 7 lands.
 - `boot()` in `main.c` auto-tunes into the first channel and jumps straight to `SCR_FULL` (per Task 5 Step 3's own instruction to temporarily boot straight into fullscreen) rather than stopping at the Task 1–4 "logo placeholder". Task 7 should replace this with logo → guide.
-- `tuner_spans_midnight` (the exact test named in Task 3) wasn't written as specified — the `root_basic` engine fixture happens to align every airing exactly on the day boundary (no episode actually straddles 23:59→00:01 with that seed), so the literal scenario doesn't occur. Added `tuner_rebuilds_on_day_change` instead, which exercises the same cache-invalidation path by cross-checking against an independently-computed `ctw_lineup_at` call. The engine's own midnight-rollover correctness is already covered by the engine's own test suite.
-- Task 2's temporary demo panel/pill is still in `main.c`'s dead code path (unreachable now that `boot()` always jumps to `SCR_FULL`/`SCR_ERROR`); harmless, will get cleaned up naturally in Task 7.
+- Task 2's temporary demo (panel, hot pill, rumble, ellipsized string) was never added to `main.c`; the UI kit was only checked through the screens that use it.
 
 **This environment is Windows, not macOS** — the plan (and roadmap Task 0) assume a Mac. What actually got installed/built here, for whoever picks this up next:
 - devkitPro via its Windows GUI installer (`devkitProUpdater`) — **requires a human to click through it (UAC + component picker)**, can't be scripted. Installed to `C:\devkitPro`.
@@ -48,7 +49,7 @@ Known, deliberate deviations from the plan text:
 - **Critical gotcha:** MSYS2's `make.exe` silently drops Windows-style env vars (anything with a `C:\...` value, not just `TMP`/`TEMP`) when they're inherited from a non-MSYS2 parent process (regular `cmd`/PowerShell/git-bash). Two workarounds, both needed: (a) run builds through devkitPro's *own* bundled MSYS2 shell (`C:\devkitPro\msys2\usr\bin\bash.exe -lc "..."`), where `DEVKITPRO`/`DEVKITPPC`/`TMP` are set natively and survive; or (b) pass them as `make VAR=value` command-line args instead of environment exports, which always survive regardless of shell.
 - Real GX bug (not Windows-specific, just worth flagging): mixing raw `GX_*` calls (needed for the YUV→RGB TEV conversion in `media/yuvgx.c`) with GRRLIB's own drawing corrupts everything GRRLIB draws afterward unless you restore **`GX_SetTevOrder` for TEVSTAGE0 back to `GX_COLOR0A0`** (not just `GX_SetTevOp`/`GX_SetNumTevStages`) — GRRLIB's `PASSCLR` mode depends on that specific order binding for its vertex-color input. Getting this wrong doesn't crash; it just makes every GRRLIB draw after the first video frame render invisible/black while the video itself (which doesn't need vertex color) keeps working fine.
 - Dolphin's Wii SD-card folder sync: ini keys are split across two sections — `WiiSDCardEnableFolderSync` under `[Core]`, but `WiiSDCardSyncFolder` under `[General]` (easy to put both in `[Core]` and get a silent no-op).
-- Studio itself was also ported to Windows this session (see `studio/` commits `a1433ee`, `a64a687` on `master` — drive detection, native folder pickers, Windows ffmpeg concurrency fix); unrelated to this plan but same session, same machine.
+- Studio itself was also ported to Windows this session (`studio/` commit `a1433ee` on `master` — drive detection, native folder pickers, Windows ffmpeg concurrency fix); unrelated to this plan but same session, same machine. (`a64a687` is this plan's Wii UI kit commit.)
 
 ---
 
@@ -65,6 +66,7 @@ wii/
 │   ├── main.c                  init, main loop, screen state machine
 │   ├── app.h                   app struct shared by screens
 │   ├── storage.c/.h            mounting and root search
+│   ├── volume.c/.h             boot sector/MBR parsing and root choice               [host-tested]
 │   ├── clock.c/.h              Wii time → (date, ms_of_day)
 │   ├── tuner.c/.h              lineup cache + current/next airing per channel        [host-tested]
 │   ├── nav.c/.h                channel order and wrap-around                         [host-tested]
@@ -77,7 +79,9 @@ wii/
 │   ├── media/audio.c/.h        ASND streaming ring buffer, volume
 │   ├── ui/theme.h              colours, sizes, timings from Global Constraints
 │   ├── ui/tween.c/.h           easing and tweens                                     [host-tested]
-│   ├── ui/textfit.c/.h         ellipsizing with a width callback                     [host-tested]
+│   ├── ui/textfit.c/.h         ellipsizing and line wrapping with a width callback   [host-tested]
+│   ├── ui/textcache.c/.h       256-entry LRU text cache                              [host-tested]
+│   ├── ui/utf8.c/.h            UTF-8 decoding                                        [host-tested]
 │   ├── ui/draw.c/.h            stripes, rounded panels, pills, glow, images
 │   ├── ui/text.c/.h            FreeType text with a texture cache
 │   ├── ui/cursor.c/.h          pointer, tilt, shadow
@@ -140,7 +144,7 @@ TEST tween_progress(void)     { tween t = tw_make(10, 20, 1000, 100); ASSERT_IN_
 
 - [x] **Step 2: Run** `make -C wii/tests` → FAIL (missing `tw_ease_out`).
 
-- [x] **Step 3: Implement `tween.c`**, the host test Makefile (compiles `../source/ui/tween.c` etc. plus engine sources with the host compiler), and a `main.c` that initialises video (GRRLIB), WPAD (`WPAD_SetDataFormat(WPAD_CHAN_ALL, WPAD_FMT_BTNS_ACC_IR)`, `WPAD_SetIdleTimeout(3600)`), draws the striped background and exits to the Homebrew Channel on HOME.
+- [ ] **Step 3: Implement `tween.c`** (done except `wii/icon.png`, still missing), the host test Makefile (compiles `../source/ui/tween.c` etc. plus engine sources with the host compiler), and a `main.c` that initialises video (GRRLIB), WPAD (`WPAD_SetDataFormat(WPAD_CHAN_ALL, WPAD_FMT_BTNS_ACC_IR)`, `WPAD_SetIdleTimeout(3600)`), draws the striped background and exits to the Homebrew Channel on HOME.
 
 - [x] **Step 4: Verify**
 
@@ -193,7 +197,7 @@ TEST text_fit_utf8_boundary(void) { char o[64]; tf_fit("Pokémon Indigo League",
 
 - [x] **Step 3: Implement** the UI kit.
 
-- [x] **Step 4: Verify** — host tests PASS; temporary demo in `main.c` (removed in Task 7) draws a panel, a pill that turns hot under the cursor with `SFX_HOVER` and a 30 ms rumble pulse, and a long ellipsized string. Check in Dolphin and on the Wii via `wiiload`.
+- [ ] **Step 4: Verify** — host tests PASS; temporary demo in `main.c` (removed in Task 7) draws a panel, a pill that turns hot under the cursor with `SFX_HOVER` and a 30 ms rumble pulse, and a long ellipsized string. Check in Dolphin and on the Wii via `wiiload`. (Dolphin only — real Wii pending, Task 11; the demo was never added to `main.c`)
 
 - [x] **Step 5: Commit**
 
@@ -211,7 +215,7 @@ git add wii tools/make-sfx.sh && git commit -m "wip | wii ui kit"
 **Interfaces:**
 - Consumes: engine `ctw_db_load`, `ctw_lineup_build`, `ctw_lineup_at`, `ctw_lineup_next`, `ctw_lineup_free`.
 - Produces:
-  - `int st_find_root(char *out, size_t out_size);` (0 found / -1 none; mounts per `docs/decisions/0002-drive-setup.md`; never opens a file for writing)
+  - `int st_find_root(char *out, size_t out_size, st_volume *vol);` (0 found / -1 none; `vol` names the chosen partition; mounts per `docs/decisions/0002-drive-setup.md`; never opens a file for writing)
   - `void clk_split(int64_t seconds, ctw_date *day, uint32_t *ms_of_day);` (pure; treats `seconds` as local time since 1970-01-01 00:00, uses `gmtime_r`) and `void clk_now(ctw_date *day, uint32_t *ms_of_day);` (`time(NULL)`)
   - `typedef struct { int channel; ctw_date day; ctw_lineup today; ctw_lineup yesterday; bool valid; } tuner_entry;`
   - `typedef struct { const ctw_db *db; tuner_entry *entries; size_t count; } tuner;`
@@ -271,7 +275,7 @@ git add wii && git commit -m "wip | wii boot loading, clock and tuner"
 
 - [x] **Step 2: Temporary harness in `main.c`** (removed in Task 5): A opens `Cartoon Network/Gumball/Season 1/S01E01 - Test One.mpg` at offset 0; 1 reopens at offset 20 000; +/− volume.
 
-- [x] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive:
+- [ ] **Step 3: Verify on the real Wii** (`wiiload wii/cable-twii.dol`), sample library at full length (not `--short`) on the flash drive: (Dolphin only — real Wii pending, Task 11; the `CTW_DEBUG_OVERLAY` fps/underrun overlay, 16:9 handling and the "The drive was disconnected" screen are not built yet)
   - fps overlay (debug build flag `-DCTW_DEBUG_OVERLAY`) shows 30.0 average, 0 underruns over 10 minutes;
   - reopen at 20 000 ms shows burned-in timecode within 00:00:19.5–00:00:20.5, in under 1.5 s;
   - 4:3 Ben 10 file is pillarboxed on a 16:9 TV setting and fills the width on 4:3;
@@ -319,9 +323,9 @@ TEST osd_still_pointer_times_out(void) { osd_state s = {0}; osd_pointer(&s, true
 
 - [x] **Step 2: Run** `make -C wii/tests` → FAIL.
 
-- [x] **Step 3: Implement**; temporarily boot straight into fullscreen on the last/first channel.
+- [ ] **Step 3: Implement**; temporarily boot straight into fullscreen on the last/first channel. (done except the channel icons on the chip and the up-next card)
 
-- [x] **Step 4: Verify on the real Wii** with the sample library and a schedule from Studio:
+- [ ] **Step 4: Verify on the real Wii** with the sample library and a schedule from Studio: (Dolphin only — real Wii pending, Task 11)
   - tune-in lands mid-episode at the time Studio's Preview shows (compare burned-in timecode);
   - flipping away and back after 1 minute lands 1 minute further;
   - an episode ends and the next airing starts within one second of its scheduled time;
