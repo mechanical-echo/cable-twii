@@ -24,6 +24,7 @@ SUITE_EXTERN(home_layout_suite);
 SUITE_EXTERN(state_suite);
 SUITE_EXTERN(dbgstats_suite);
 SUITE_EXTERN(vmode_suite);
+SUITE_EXTERN(press_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -54,5 +55,6 @@ int main(int argc, char **argv)
     RUN_SUITE(state_suite);
     RUN_SUITE(dbgstats_suite);
     RUN_SUITE(vmode_suite);
+    RUN_SUITE(press_suite);
     GREATEST_MAIN_END();
 }

@@ -8,6 +8,7 @@ void in_init(void);
 void in_poll(void);
 bool in_pressed(uint32_t wpad_button);
 bool in_held(uint32_t wpad_button);
+bool in_released(uint32_t wpad_button);
 bool in_ir(float *x, float *y, float *angle);
 void in_rumble_pulse(uint32_t ms);
 void in_block(bool on);

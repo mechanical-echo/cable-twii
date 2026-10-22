@@ -84,6 +84,12 @@ bool in_held(uint32_t wpad_button)
     return (WPAD_ButtonsHeld(WPAD_CHAN_0) & wpad_button) != 0;
 }
 
+bool in_released(uint32_t wpad_button)
+{
+    if (blocked) return false;
+    return (WPAD_ButtonsUp(WPAD_CHAN_0) & wpad_button) != 0;
+}
+
 bool in_ir(float *x, float *y, float *angle)
 {
     ir_t ir;
