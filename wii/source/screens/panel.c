@@ -32,6 +32,7 @@ typedef struct {
     bool valid;
     int channel;
     int64_t start;
+    const ctw_airing *air;
     char name[TF_LINE_BYTES];
     float name_w;
     char number[8];
@@ -54,6 +55,7 @@ static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_
     text.valid = true;
     text.channel = ch->number;
     text.start = start;
+    text.air = air;
     ui_text_fit(FONT_BOLD, NAME_PX, ch->name, NAME_MAX_W, text.name, sizeof text.name);
     text.name_w = ui_text_width(FONT_BOLD, NAME_PX, text.name);
     gt_number(ch->number, text.number, sizeof text.number);
@@ -81,7 +83,7 @@ static const ctw_airing *current(app *a, const ctw_channel **ch, uint32_t *offse
     if (*ch == NULL) return NULL;
     const ctw_airing *air = tn_current(&a->tuner, (*ch)->number, a->today, a->ms_of_day, offset);
     int64_t start = air != NULL ? tn_airing_start(&a->tuner, (*ch)->number, air) : -1;
-    if (!text.valid || text.channel != (*ch)->number || text.start != start) refresh(a, *ch, air, start);
+    if (!text.valid || text.channel != (*ch)->number || text.start != start || text.air != air) refresh(a, *ch, air, start);
     return air;
 }
 

@@ -293,8 +293,34 @@ TEST ms_until_next_episode(void)
     PASS();
 }
 
+TEST rebuild_keeps_the_next_episode_start_across_midnight(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ctw_date day = { 2026, 10, 20 };
+    ctw_date next_day = { 2026, 10, 21 };
+    uint32_t offset = 0;
+    const ctw_airing *before = tn_current(&t, 1, day, 23u * 3600000u + 50u * 60000u, &offset);
+    ASSERT(before != NULL);
+    const ctw_airing *ep_before = tn_next_episode(&t, 1, before);
+    ASSERT(ep_before != NULL);
+    int64_t ep_start = tn_airing_start(&t, 1, ep_before);
+    ASSERT(ep_start > 0);
+    const ctw_airing *after = tn_current(&t, 1, next_day, 5u * 60000u, &offset);
+    ASSERT(after != NULL);
+    ASSERT_EQ(CTW_AIR_EPISODE, after->kind);
+    ASSERT_EQ(ep_start, tn_airing_start(&t, 1, after));
+    ASSERT((size_t)before != (size_t)after);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
 SUITE(tuner_suite)
 {
+    RUN_TEST(rebuild_keeps_the_next_episode_start_across_midnight);
     RUN_TEST(next_episode_skips_ads);
     RUN_TEST(next_episode_none_at_end);
     RUN_TEST(ms_until_next_episode);

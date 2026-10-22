@@ -142,7 +142,7 @@ void ui_polyline(const float *xs, const float *ys, int n, float thickness, uint3
     }
 }
 
-static void corner(float cx, float cy, float rx, float ry, int q, uint32_t color)
+static void corner_colored(float cx, float cy, float rx, float ry, int q, const ui_stop *stops, int n, float gy, float gh, uint32_t flat)
 {
     ensure_corners();
     guVector v[CORNER_STEPS + 2];
@@ -152,14 +152,19 @@ static void corner(float cx, float cy, float rx, float ry, int q, uint32_t color
     v[0].x = cx;
     v[0].y = cy;
     v[0].z = 0.0f;
-    c[0] = color;
+    c[0] = stops != NULL ? grad_at(stops, n, (cy - gy) / gh) : flat;
     for (int i = 0; i <= CORNER_STEPS; i++) {
         v[i + 1].x = cx + sx * rx * corner_cos[i];
         v[i + 1].y = cy + sy * ry * corner_sin[i];
         v[i + 1].z = 0.0f;
-        c[i + 1] = color;
+        c[i + 1] = stops != NULL ? grad_at(stops, n, (v[i + 1].y - gy) / gh) : flat;
     }
     GRRLIB_GXEngine(v, c, CORNER_STEPS + 2, GX_TRIANGLEFAN);
+}
+
+static void corner(float cx, float cy, float rx, float ry, int q, uint32_t color)
+{
+    corner_colored(cx, cy, rx, ry, q, NULL, 0, 0.0f, 1.0f, color);
 }
 
 static void clamp_radii(float radius, float w, float h, float *rx, float *ry)
@@ -267,11 +272,10 @@ void ui_rounded_gradient(float x, float y, float w, float h, float radius, const
     grad_bands(x + rx, w - 2 * rx, y, h, y, y + h, stops, n);
     grad_bands(x, rx, y, h, y + ry, y + h - ry, stops, n);
     grad_bands(x + w - rx, rx, y, h, y + ry, y + h - ry, stops, n);
-    uint32_t top = grad_at(stops, n, ry / h), bottom = grad_at(stops, n, 1.0f - ry / h);
-    corner(x + rx, y + ry, rx, ry, 0, top);
-    corner(x + w - rx, y + ry, rx, ry, 1, top);
-    corner(x + w - rx, y + h - ry, rx, ry, 2, bottom);
-    corner(x + rx, y + h - ry, rx, ry, 3, bottom);
+    corner_colored(x + rx, y + ry, rx, ry, 0, stops, n, y, h, 0);
+    corner_colored(x + w - rx, y + ry, rx, ry, 1, stops, n, y, h, 0);
+    corner_colored(x + w - rx, y + h - ry, rx, ry, 2, stops, n, y, h, 0);
+    corner_colored(x + rx, y + h - ry, rx, ry, 3, stops, n, y, h, 0);
 }
 
 void ui_shadow(float x, float y, float w, float h, float radius, uint32_t color, float dy, float blur)

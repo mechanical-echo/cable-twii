@@ -29,6 +29,7 @@
 #define BAR_SHADOW_DY 2.7f
 #define BAR_SHADOW_BLUR 9.0f
 #define BADGE_RING_SPREAD 2.0f
+#define BADGE_HIGHLIGHT 0xFFFFFF80u
 
 static const ui_stop TOP_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 0.6f, THEME_PANEL_FILL }, { 1.0f, THEME_GLOSS_COOL } };
 static const ui_stop BOTTOM_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 0.5f, THEME_PANEL_FILL }, { 1.0f, THEME_GLOSS_DEEP } };
@@ -129,6 +130,7 @@ static void badge(const home_layout *l)
     asp_rect b = l->badge;
     ui_ring(b.x, b.y, b.w, b.h, b.h / 2.0f, THEME_RING, BADGE_RING_SPREAD);
     ui_accent_tile(b.x, b.y, b.w, b.h, b.h / 2.0f);
+    ui_outline(b.x, b.y, b.w, b.h, b.h / 2.0f, 1.0f, BADGE_HIGHLIGHT);
     float gw = BADGE_GLYPH_H * ui_pixel_x();
     ui_glyph_draw(GLYPH_HOME, b.x + (b.w - gw) / 2.0f, b.y + (b.h - BADGE_GLYPH_H) / 2.0f, BADGE_GLYPH_H, THEME_PANEL_FILL);
 }

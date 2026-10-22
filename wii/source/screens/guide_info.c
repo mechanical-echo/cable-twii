@@ -58,6 +58,7 @@ typedef struct {
     bool valid;
     int channel;
     int64_t start;
+    const ctw_airing *air;
     char name[TF_LINE_BYTES];
     char line[TF_LINE_BYTES];
     char times[32];
@@ -129,6 +130,7 @@ static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_
     info.valid = true;
     info.channel = ch->number;
     info.start = start;
+    info.air = air;
     float left_w = r.x + DIVIDER_X - DIVIDER_GAP - text_x(r);
     ui_text_fit(FONT_BOLD, NAME_PX, ch->name, left_w, info.name, sizeof info.name);
     if (air == NULL) return;
@@ -156,7 +158,7 @@ void ginfo_draw_info(app *a, const ctw_channel *ch, asp_rect r)
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, ch->number, a->today, a->ms_of_day, &offset);
     int64_t start = air != NULL ? tn_airing_start(&a->tuner, ch->number, air) : -1;
-    if (!info.valid || info.channel != ch->number || info.start != start) refresh(a, ch, air, start, r);
+    if (!info.valid || info.channel != ch->number || info.start != start || info.air != air) refresh(a, ch, air, start, r);
 
     char path[320];
     gt_icon_path(a->root, ch, info.icon_show, path, sizeof path);
