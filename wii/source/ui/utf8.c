@@ -1,10 +1,5 @@
 #include "utf8.h"
 
-static int is_cont(unsigned char b)
-{
-    return (b & 0xC0) == 0x80;
-}
-
 static size_t decode_one(const unsigned char *p, size_t len, uint32_t *cp)
 {
     unsigned char b = p[0];
@@ -68,11 +63,13 @@ size_t u8_decode(const char *s, size_t len, uint32_t *out, size_t cap)
 size_t u8_prefix_bytes(const char *s, size_t cp)
 {
     const unsigned char *p = (const unsigned char *)s;
-    size_t seen = 0;
-    while (*p && seen < cp) {
-        p++;
-        while (*p && is_cont(*p)) p++;
+    size_t len = 0;
+    while (p[len] != '\0') len++;
+    size_t pos = 0, seen = 0;
+    while (pos < len && seen < cp) {
+        uint32_t ignored;
+        pos += decode_one(p + pos, len - pos, &ignored);
         seen++;
     }
-    return (size_t)((const char *)p - s);
+    return pos;
 }

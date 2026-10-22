@@ -92,12 +92,28 @@ TEST utf8_prefix_bytes(void)
     PASS();
 }
 
+TEST utf8_prefix_bytes_stray_continuations(void)
+{
+    const char *s = "a\x80\x80" "b\xE2\x80" "c";
+    ASSERT_EQ(1u, u8_prefix_bytes(s, 1));
+    ASSERT_EQ(2u, u8_prefix_bytes(s, 2));
+    ASSERT_EQ(3u, u8_prefix_bytes(s, 3));
+    ASSERT_EQ(4u, u8_prefix_bytes(s, 4));
+    ASSERT_EQ(6u, u8_prefix_bytes(s, 5));
+    uint32_t cp[16];
+    for (size_t k = 0; k <= 6; k++) {
+        ASSERT_EQ(k, u8_decode(s, u8_prefix_bytes(s, k), cp, 16));
+    }
+    PASS();
+}
+
 SUITE(utf8_suite)
 {
     RUN_TEST(utf8_ascii);
     RUN_TEST(utf8_multibyte);
     RUN_TEST(utf8_ellipsis);
     RUN_TEST(utf8_invalid_bytes);
+    RUN_TEST(utf8_prefix_bytes_stray_continuations);
     RUN_TEST(utf8_truncated_sequence);
     RUN_TEST(utf8_overlong_and_surrogate);
     RUN_TEST(utf8_respects_capacity);
