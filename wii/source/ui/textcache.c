@@ -82,3 +82,8 @@ void tc_clear(tc_cache *c)
     for (size_t i = 0; i < c->capacity; i++) release(c, &c->entries[i]);
     c->tick = 0;
 }
+
+bool tc_cacheable(bool needs_texture, bool has_texture)
+{
+    return !needs_texture || has_texture;
+}

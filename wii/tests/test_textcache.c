@@ -107,6 +107,14 @@ TEST cache_capacity_is_clamped(void)
     PASS();
 }
 
+TEST cache_skips_failed_renders(void)
+{
+    ASSERT(tc_cacheable(true, true));
+    ASSERT_FALSE(tc_cacheable(true, false));
+    ASSERT(tc_cacheable(false, false));
+    PASS();
+}
+
 SUITE(textcache_suite)
 {
     RUN_TEST(cache_miss_then_hit);
@@ -115,4 +123,5 @@ SUITE(textcache_suite)
     RUN_TEST(cache_capacity_is_256);
     RUN_TEST(cache_capacity_bounds_icon_cache);
     RUN_TEST(cache_capacity_is_clamped);
+    RUN_TEST(cache_skips_failed_renders);
 }

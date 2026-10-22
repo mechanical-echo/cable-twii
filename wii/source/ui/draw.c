@@ -94,6 +94,7 @@ static void ensure_corner_mask(void)
         }
     }
     GRRLIB_FlushTex(corner_mask);
+    GX_InvalidateTexAll();
 }
 
 void ui_corner_mask(float x, float y, float w, float h, float radius, uint32_t color)
@@ -193,9 +194,11 @@ GRRLIB_texImg *ui_load_png_file(const char *path)
     }
     GRRLIB_texImg *tex = GRRLIB_LoadTexturePNG(buf);
     free(buf);
-    if (tex != NULL && (tex->w > 128 || tex->h > 128)) {
+    if (tex == NULL) return NULL;
+    if (tex->data == NULL || tex->w == 0 || tex->h == 0 || tex->w > 128 || tex->h > 128) {
         GRRLIB_FreeTexture(tex);
         return NULL;
     }
+    GX_InvalidateTexAll();
     return tex;
 }

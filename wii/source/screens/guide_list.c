@@ -20,6 +20,7 @@
 #define SMALL_PX 12
 #define HEADER_PX 14
 #define BAR_H 4.0f
+#define HEADER_INSET 6.0f
 
 typedef struct {
     bool valid;
@@ -75,9 +76,13 @@ static void refresh(app *a, row_text *t, const ctw_channel *ch, const ctw_airing
     t->times_w = ui_text_width(FONT_BODY, SMALL_PX, t->times);
 }
 
-static void draw_header(const gm_row *r, float x, float y)
+static void draw_header(row_text *t, const gm_row *r, float x, float y, float w)
 {
-    ui_text(FONT_BOLD, HEADER_PX, x + 6.0f, y + 7.0f, r->category != NULL ? r->category : "", THEME_TEXT_SECONDARY, ALIGN_LEFT);
+    if (!t->valid) {
+        t->valid = true;
+        ui_text_fit(FONT_BOLD, HEADER_PX, r->category != NULL ? r->category : "", w - 2.0f * HEADER_INSET, t->name, sizeof t->name);
+    }
+    ui_text(FONT_BOLD, HEADER_PX, x + HEADER_INSET, y + 7.0f, t->name, THEME_TEXT_SECONDARY, ALIGN_LEFT);
 }
 
 static void draw_channel(app *a, row_text *t, const gm_row *r, bool hot, float x, float y, float w)
@@ -133,9 +138,10 @@ void glist_draw(app *a, const gm_row *rows, size_t n, int highlight, float scrol
         const gm_row *r = &rows[i];
         if (r->y + r->h < scroll - GLIST_PAD || r->y > scroll + view_h + GLIST_PAD) continue;
         float y = top + r->y - scroll;
+        if (i >= text_count) continue;
         if (r->kind == GM_HEADER) {
-            draw_header(r, x, y);
-        } else if (i < text_count) {
+            draw_header(&texts[i], r, x, y, w);
+        } else {
             draw_channel(a, &texts[i], r, (int)i == highlight, x, y, w);
         }
     }

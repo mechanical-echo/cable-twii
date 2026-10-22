@@ -20,6 +20,7 @@ typedef struct {
     int ox;
     int oy;
     float width;
+    bool needs_texture;
 } text_img;
 
 typedef struct {
@@ -171,6 +172,7 @@ static text_img *render(ui_font f, int px, uint32_t rgba, const uint32_t *cps, s
     }
     img->width = (float)pen;
     if (!any) return img;
+    img->needs_texture = true;
 
     int tw = round_up4(max_x - min_x);
     int th = round_up4(max_y - min_y);
@@ -211,6 +213,10 @@ static const text_img *lookup(ui_font f, int px, uint32_t rgba, const char *utf8
     size_t n = decode(utf8, strlen(utf8), &cps);
     text_img *img = render(f, px, rgba, cps, n);
     if (img == NULL) return NULL;
+    if (!tc_cacheable(img->needs_texture, img->tex != NULL)) {
+        free_img(img);
+        return NULL;
+    }
     e = tc_insert(&cache, (int)f, px, rgba, utf8, img);
     if (e == NULL) {
         free_img(img);

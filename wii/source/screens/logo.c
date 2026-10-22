@@ -84,8 +84,7 @@ static void shine_band(float center, float width, float alpha)
         if (v1 <= v0) continue;
         float ph = v1 - v0;
         float dx = frame.x + u * sx, dy = frame.y + v0 * sy;
-        GRRLIB_DrawPart(dx - pw * (1.0f - sx) / 2.0f, dy - ph * (1.0f - sy) / 2.0f,
-                        u, v0, pw, ph, tex_shine, 0.0f, sx, sy, color);
+        GRRLIB_DrawPart(dx, dy, u, v0, pw, ph, tex_shine, 0.0f, sx, sy, color);
     }
 }
 
