@@ -48,7 +48,7 @@ static void append_issue_line(char *out, size_t out_size, const ctw_issue *iss)
 
 static void boot(app *a)
 {
-    if (st_find_root(a->root, sizeof a->root) != 0) {
+    if (st_find_root(a->root, sizeof a->root, &a->drive) != 0) {
         app_fail(a, "No cable-twii drive found",
                   "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.");
         return;

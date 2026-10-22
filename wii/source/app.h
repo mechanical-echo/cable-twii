@@ -5,11 +5,13 @@
 #include <stdint.h>
 #include "ctw/ctw.h"
 #include "tuner.h"
+#include "storage.h"
 
 typedef enum { SCR_LOGO, SCR_GUIDE, SCR_FULL, SCR_ERROR } screen_id;
 
 typedef struct {
     char root[256];
+    st_volume drive;
     ctw_db *db;
     tuner tuner;
     screen_id screen;
