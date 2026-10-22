@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "textfit.h"
 
 typedef enum { FONT_BODY, FONT_BOLD } ui_font;
 typedef enum { ALIGN_LEFT, ALIGN_CENTER, ALIGN_RIGHT } ui_align;
@@ -11,5 +12,6 @@ void ui_text_init(void);
 void ui_text(ui_font f, int px, float x, float y, const char *utf8, uint32_t rgba, ui_align a);
 float ui_text_width(ui_font f, int px, const char *utf8);
 void ui_text_fit(ui_font f, int px, const char *utf8, float max_w, char *out, size_t out_size);
+size_t ui_text_wrap(ui_font f, int px, const char *utf8, float max_w, size_t max_lines, tf_line *lines);
 
 #endif
