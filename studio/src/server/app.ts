@@ -13,6 +13,7 @@ import { type DriveDeps, type DriveInfo, type ScanResult, dotClean, initRoot, in
 import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
+import { isAllowedSource, listImports, resolveImportsDir } from "./imports.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
 import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
@@ -77,6 +78,7 @@ const DATE_QUERY = /^\d{4}-\d{2}-\d{2}$/;
 const RESERVED = new Set(["ads"]);
 const ALREADY_CONVERTED = "already on the drive";
 const ALREADY_UPLOADED = "already on the server";
+const OUTSIDE_SOURCES = "Videos must come from the imports folder or an upload.";
 const UPLOAD_FILES = 50;
 const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
@@ -147,6 +149,16 @@ function inside(root: string, ...parts: string[]): string {
   const rel = path.relative(root, full);
   if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw bad("That path is outside the cable-twii folder.");
   return full;
+}
+
+async function inImports<T>(task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") throw new HttpError(404, "That folder does not exist.");
+    throw err;
+  }
 }
 
 function uploadPlan(sent: string, kept: ReadonlyMap<string, string>): { name: string } | { reason: string } {
@@ -393,6 +405,13 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
   }
 
+  async function requireImportable(sources: string[]): Promise<void> {
+    if (!server || !uploads) return;
+    for (const source of sources) {
+      if (!(await isAllowedSource(server.imports, uploads, source))) throw bad(OUTSIDE_SOURCES);
+    }
+  }
+
   async function sourceRecords(root: string): Promise<SourceRecord[]> {
     try {
       return await readSources(root);
@@ -636,6 +655,22 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     });
   }
 
+  if (server) {
+    app.get("/api/imports", async (request) => {
+      const dir = (request.query as Record<string, unknown>).dir ?? "";
+      if (typeof dir !== "string") throw bad("dir must be a string.");
+      return inImports(() => listImports(server.imports, dir));
+    });
+
+    app.post("/api/import/scan", async (request) => {
+      const rel = stringField(objectBody(request.body), "dir");
+      return inImports(async () => {
+        const dir = await resolveImportsDir(server.imports, rel);
+        return { dir, files: await scanSource(dir, probeFn) };
+      });
+    });
+  }
+
   app.post("/api/import/show", async (request) => {
     const body = objectBody(request.body);
     const channelFolder = folderName(body.channelFolder, "channelFolder");
@@ -653,6 +688,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         aspect: aspectField(e),
       };
     });
+    await requireImportable(episodes.map((e) => e.source));
     const root = await requireRoot();
     const queue = queueFor(root);
     const taken = takenNames(root, queue);
@@ -704,6 +740,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const f = objectBody(raw);
       return { source: sourceField(f), aspect: aspectField(f) };
     });
+    await requireImportable(files.map((f) => f.source));
     const root = await requireRoot();
     const queue = queueFor(root);
     const dirRel = channelFolder === "" ? "ads" : `${channelFolder}/ads`;
