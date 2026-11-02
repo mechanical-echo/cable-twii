@@ -21,6 +21,7 @@ export async function resolveImportsDir(imports: string, rel: string): Promise<s
   if (rel === "") return realRoot;
   if (wiiFilePath(rel) === null) throw new ContainmentError(OUTSIDE);
   const real = await realpath(path.join(realRoot, ...rel.split("/")));
+  // aliases such as Windows 8.3 short names and symlinks get past the string check, so the dot rule runs again on the real path
   if (!contained(realRoot, real) || wiiFilePath(path.relative(realRoot, real).split(path.sep).join("/")) === null) throw new ContainmentError(OUTSIDE);
   return real;
 }

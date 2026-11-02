@@ -9,12 +9,12 @@ import { promisify } from "node:util";
 import { gunzipSync } from "node:zlib";
 import { parse } from "smol-toml";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import type { FastifyInstance, InjectOptions } from "fastify";
+import Fastify, { type FastifyInstance, type InjectOptions } from "fastify";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary } from "../src/server/serverSettings.js";
-import { infoToml, libraryRevision, openWiiFile, parseRange, wiiFilePath } from "../src/server/wiiApi.js";
+import { infoToml, libraryRevision, openWiiFile, parseRange, registerWiiApi, wiiFilePath } from "../src/server/wiiApi.js";
 import { fakeConvert, fakeProbe, waitFor } from "./helpers.js";
 
 const run = promisify(execFile);
@@ -452,5 +452,24 @@ test("wii responses always carry a Content-Length and are never chunked", async 
     expect(res.status, url).toBe(status);
     expect(res.headers["transfer-encoding"], url).toBeUndefined();
     expect(res.headers["content-length"], url).toBe(String(res.length));
+  }
+});
+
+test("wii requests that succeed leave no info log lines", async () => {
+  await put(EPISODE, ALPHABET);
+  const lines: { level: number; req?: { url: string } }[] = [];
+  const logged = Fastify({ logger: { level: "info", stream: { write: (line: string) => lines.push(JSON.parse(line)) } } });
+  registerWiiApi(logged, root, "Home PC");
+  logged.get("/other", async () => "ok");
+  try {
+    for (const url of ["/wii/v1/info", fileUrl(EPISODE)]) {
+      const res = await logged.inject({ method: "GET", url, headers: { host: LAN_HOST, range: "bytes=0-9" } });
+      expect(res.statusCode, url).toBeLessThan(300);
+    }
+    expect(lines.filter((line) => line.level === 30)).toEqual([]);
+    await logged.inject({ method: "GET", url: "/other", headers: { host: LAN_HOST } });
+    expect(lines.filter((line) => line.level === 30).map((line) => line.req?.url).filter((url) => url !== undefined)).toEqual(["/other"]);
+  } finally {
+    await logged.close();
   }
 });

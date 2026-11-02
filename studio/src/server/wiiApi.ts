@@ -68,6 +68,7 @@ export async function openWiiFile(root: string, rel: string): Promise<{ handle: 
   try {
     const realRoot = await realpath(root);
     const real = await realpath(path.join(realRoot, ...rel.split("/")));
+    // aliases such as Windows 8.3 short names and symlinks get past the string check, so the dot rule runs again on the real path
     if (!contained(realRoot, real) || wiiFilePath(path.relative(realRoot, real).split(path.sep).join("/")) === null) return null;
     // open() on a FIFO or device would block, so only regular files get that far
     if (!(await stat(real)).isFile()) return null;
@@ -85,9 +86,9 @@ export async function openWiiFile(root: string, rel: string): Promise<{ handle: 
 }
 
 export function registerWiiApi(app: FastifyInstance, root: string, name: string): void {
-  app.get("/wii/v1/info", async (_request, reply) => reply.type("application/toml").header("cache-control", "no-cache").send(infoToml(name, await libraryRevision(root))));
+  app.get("/wii/v1/info", { logLevel: "warn" }, async (_request, reply) => reply.type("application/toml").header("cache-control", "no-cache").send(infoToml(name, await libraryRevision(root))));
 
-  app.get("/wii/v1/files/*", async (request, reply) => {
+  app.get("/wii/v1/files/*", { logLevel: "warn" }, async (request, reply) => {
     const notFound = () => reply.code(404).send({ error: "Not found" });
     const rel = wiiFilePath((request.params as { "*"?: string })["*"] ?? "");
     if (rel === null) return notFound();
