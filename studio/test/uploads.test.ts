@@ -1,12 +1,13 @@
-import { mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { ContainmentError } from "../src/server/contain.js";
-import type { convert } from "../src/server/ffmpeg.js";
+import { MIN_DURATION_MS, type convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary, uploadsDir } from "../src/server/serverSettings.js";
@@ -15,7 +16,13 @@ import type { Job } from "../src/server/types.js";
 import { UPLOAD_LIMIT, isUploadPath, saveUpload, uploadName, uploadSource } from "../src/server/uploads.js";
 import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
 
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:crypto")>();
+  return { ...actual, randomUUID: vi.fn(actual.randomUUID) };
+});
+
 const LAN_HOST = "192.168.1.20:4747";
+const FIXED_BATCH = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -160,6 +167,101 @@ test("upload keeps one of two files with the same name", async () => {
   expect(await readFile(body.files[0].source, "utf8")).toBe("first");
 });
 
+test("upload stores an unsafe name under a safe one", async () => {
+  const res = await upload({ name: "Ep 1: Pilot?.mp4", data: Buffer.from("video") });
+  expect(res.statusCode).toBe(200);
+  const body = res.json();
+  expect(body.rejected).toEqual([]);
+  expect(body.files).toHaveLength(1);
+  expect(path.basename(body.files[0].source)).toBe("Ep 1- Pilot.mp4");
+  expect(await readdir(body.dir)).toEqual(["Ep 1- Pilot.mp4"]);
+});
+
+test.each([
+  ["con.mp4", "con_.mp4"],
+  ["NUL.mkv", "NUL_.mkv"],
+  ["COM1.mp4", "COM1_.mp4"],
+])("upload makes the device name %s safe", async (sent, stored) => {
+  const res = await upload({ name: sent, data: Buffer.from("video") });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().rejected).toEqual([]);
+  expect(await readdir(res.json().dir)).toEqual([stored]);
+});
+
+test("upload rejects a name that is too long and keeps the rest of the batch", async () => {
+  const long = `${"a".repeat(296)}.mp4`;
+  const res = await uploadMany([
+    { name: long, data: Buffer.from("video") },
+    { name: "one.mp4", data: Buffer.from("video") },
+  ]);
+  expect(res.statusCode).toBe(200);
+  const body = res.json();
+  expect(body.rejected).toEqual([{ name: long, reason: "not a usable file name" }]);
+  expect(body.files.map((f: { source: string }) => path.basename(f.source))).toEqual(["one.mp4"]);
+  expect(await readdir(body.dir)).toEqual(["one.mp4"]);
+});
+
+test("upload rejects a name with nothing usable left", async () => {
+  const res = await upload({ name: "???.mp4", data: Buffer.from("video") });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().files).toEqual([]);
+  expect(res.json().rejected).toEqual([{ name: "???.mp4", reason: "not a usable file name" }]);
+  expect(await uploadsEmpty()).toBe(true);
+});
+
+test("upload keeps one of two names that become the same", async () => {
+  const res = await uploadMany([
+    { name: "a:b.mp4", data: Buffer.from("first") },
+    { name: "a-b.mp4", data: Buffer.from("second") },
+  ]);
+  expect(res.statusCode).toBe(200);
+  const body = res.json();
+  expect(body.files).toHaveLength(1);
+  expect(body.rejected).toEqual([{ name: "a-b.mp4", reason: "already in this upload" }]);
+  expect(await readFile(body.files[0].source, "utf8")).toBe("first");
+});
+
+test("a file that cannot be written is rejected and the rest of the batch is kept", async () => {
+  await mkdir(path.join(uploads, FIXED_BATCH, "ep.mp4.part"), { recursive: true });
+  vi.mocked(randomUUID).mockReturnValueOnce(FIXED_BATCH);
+  const res = await uploadMany([
+    { name: "ep.mp4", data: Buffer.from("first") },
+    { name: "two.mp4", data: Buffer.from("second") },
+  ]);
+  expect(res.statusCode).toBe(200);
+  const body = res.json();
+  expect(body.rejected).toEqual([{ name: "ep.mp4", reason: "could not be saved" }]);
+  expect(body.files.map((f: { source: string }) => path.basename(f.source))).toEqual(["two.mp4"]);
+  expect(await readFile(path.join(uploads, FIXED_BATCH, "two.mp4"), "utf8")).toBe("second");
+});
+
+test("upload deletes files that cannot be read or are too short", async () => {
+  const res = await uploadMany([
+    { name: "broken.mp4", data: Buffer.from("video") },
+    { name: "one.mp4", data: Buffer.from("video") },
+    { name: "short.mp4", data: Buffer.from("video") },
+  ]);
+  expect(res.statusCode).toBe(200);
+  const body = res.json();
+  expect(body.files.map((f: { source: string }) => path.basename(f.source))).toEqual(["one.mp4"]);
+  expect(body.rejected).toEqual([
+    { name: "broken.mp4", reason: "could not read the video: no video stream" },
+    { name: "short.mp4", reason: `too short (500 ms, needs at least ${MIN_DURATION_MS} ms)` },
+  ]);
+  expect(await readdir(body.dir)).toEqual(["one.mp4"]);
+});
+
+test("upload leaves no folder when every file is refused after the scan", async () => {
+  const res = await uploadMany([
+    { name: "broken.mp4", data: Buffer.from("video") },
+    { name: "short.mp4", data: Buffer.from("video") },
+  ]);
+  expect(res.statusCode).toBe(200);
+  expect(res.json().files).toEqual([]);
+  expect(res.json().rejected.map((r: { name: string }) => r.name)).toEqual(["broken.mp4", "short.mp4"]);
+  expect(await uploadsEmpty()).toBe(true);
+});
+
 test("upload needs a session", async () => {
   const { payload, headers } = multipart({}, { name: "ep.mp4", data: Buffer.from("video") });
   const res = await anonymous({ method: "POST", url: "/api/upload", payload, headers });
@@ -225,6 +327,17 @@ test("an upload imported twice stays until its last conversion", async () => {
   }
 });
 
+test("a converted upload is recorded and recognised under its stored name", async () => {
+  const first = await upload({ name: "Ep 1: Pilot?.mp4", data: Buffer.from("video") });
+  expect((await importShow(first.json().files[0].source)).statusCode).toBe(200);
+  await waitFor(uploadsEmpty);
+  expect((await readSources(root)).map((r) => r.source)).toEqual(["upload:Ep 1- Pilot.mp4"]);
+  const again = await upload({ name: "Ep 1: Pilot?.mp4", data: Buffer.from("video") });
+  expect(again.json().files).toEqual([]);
+  expect(again.json().rejected).toEqual([{ name: "Ep 1: Pilot?.mp4", reason: "already on the server" }]);
+  expect(await uploadsEmpty()).toBe(true);
+});
+
 test("same upload again is rejected", async () => {
   const first = await upload({ name: "ep.mp4", data: Buffer.from("video") });
   expect((await importShow(first.json().files[0].source)).statusCode).toBe(200);
@@ -270,6 +383,26 @@ test("a file over the limit takes the whole batch with it", async () => {
 
 test("the upload limit is 20 GiB", () => {
   expect(UPLOAD_LIMIT).toBe(21474836480);
+});
+
+test("uploadName makes a name safe for the file system", () => {
+  expect(uploadName("Ep 1: Pilot?.mp4")).toBe("Ep 1- Pilot.mp4");
+  expect(uploadName('a*b"c<d>e|f.mkv')).toBe("abcde-f.mkv");
+  expect(uploadName("con.mp4")).toBe("con_.mp4");
+  expect(uploadName("NUL.mkv")).toBe("NUL_.mkv");
+  expect(uploadName("lpt1.mp4")).toBe("lpt1_.mp4");
+  expect(uploadName("a\u0001b.mp4")).toBe("ab.mp4");
+  expect(uploadName("ep .mp4")).toBe("ep.mp4");
+  expect(uploadName("  ep  1.mp4")).toBe("ep 1.mp4");
+});
+
+test("uploadName refuses what is still unusable", () => {
+  expect(uploadName("???.mp4")).toBeNull();
+  expect(uploadName("?.hidden.mp4")).toBeNull();
+  expect(uploadName(`${"a".repeat(246)}.mp4`)).not.toBeNull();
+  expect(uploadName(`${"a".repeat(247)}.mp4`)).toBeNull();
+  expect(uploadName(`${"é".repeat(123)}.mp4`)).not.toBeNull();
+  expect(uploadName(`${"é".repeat(124)}.mp4`)).toBeNull();
 });
 
 test("uploadName", () => {
@@ -324,6 +457,9 @@ test.each([
   ["b1", "../ep.mp4"],
   ["b1", "sub/ep.mp4"],
   ["b1", ".hidden.mp4"],
+  ["b1", "ep?.mp4"],
+  ["b1", "a:b.mp4"],
+  ["b1", "con.mp4"],
   ["b1", ""],
   ["..", "ep.mp4"],
   ["", "ep.mp4"],
@@ -333,4 +469,20 @@ test.each([
   await expect(saveUpload(uploads, batch, name, stream)).rejects.toBeInstanceOf(ContainmentError);
   expect(await readdir(uploads)).toEqual([]);
   expect(await readdir(dir)).not.toContain("ep.mp4");
+});
+
+test("starting the server sweeps part files and empty batch folders but keeps complete uploads", async () => {
+  await mkdir(path.join(uploads, "b1"));
+  await writeFile(path.join(uploads, "b1", "x.mp4.part"), "half");
+  await mkdir(path.join(uploads, "b2"));
+  await mkdir(path.join(uploads, "b3"));
+  await writeFile(path.join(uploads, "b3", "y.mp4"), "whole");
+  await mkdir(path.join(uploads, "b4"));
+  await writeFile(path.join(uploads, "b4", "z.mp4.part"), "half");
+  await writeFile(path.join(uploads, "b4", "w.mp4"), "whole");
+  await initServerLibrary({ library: dir, password: "correct horse", imports: path.join(dir, "imports"), port: 4747, name: "Home PC" });
+  expect((await readdir(uploads)).sort()).toEqual(["b3", "b4"]);
+  expect(await readdir(path.join(uploads, "b3"))).toEqual(["y.mp4"]);
+  expect(await readdir(path.join(uploads, "b4"))).toEqual(["w.mp4"]);
+  expect(await readFile(path.join(uploads, "b3", "y.mp4"), "utf8")).toBe("whole");
 });

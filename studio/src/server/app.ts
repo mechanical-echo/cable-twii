@@ -9,7 +9,7 @@ import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ConfigConflictError, ConfigShapeError, configMtime, randomSeed, readConfig, toConfig, writeConfig } from "./config.js";
-import { type DriveDeps, type DriveInfo, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
+import { type DriveDeps, type DriveInfo, type ScanResult, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
 import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
@@ -149,11 +149,25 @@ function inside(root: string, ...parts: string[]): string {
   return full;
 }
 
-function uploadRefusal(name: string, kept: ReadonlySet<string>): string | null {
-  if (!isVideoFile(name)) return "not a video";
-  if (uploadName(name) === null) return "not a usable file name";
-  if (kept.has(name.toLowerCase())) return "already in this upload";
-  return null;
+function uploadPlan(sent: string, kept: ReadonlyMap<string, string>): { name: string } | { reason: string } {
+  if (!isVideoFile(sent)) return { reason: "not a video" };
+  const name = uploadName(sent);
+  if (name === null) return { reason: "not a usable file name" };
+  if (kept.has(name.toLowerCase())) return { reason: "already in this upload" };
+  return { name };
+}
+
+function tooShortReason(durationMs: number): string {
+  return `too short (${durationMs} ms, needs at least ${MIN_DURATION_MS} ms)`;
+}
+
+function unreadableReason(message: string): string {
+  return `could not read the video: ${message}`;
+}
+
+function scanProblem(entry: ScanResult): string | null {
+  if (entry.error !== undefined) return unreadableReason(entry.error);
+  return entry.tooShort ? tooShortReason(entry.durationMs) : null;
 }
 
 function two(n: number): string {
@@ -373,10 +387,9 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   async function checkSource(source: string): Promise<string | null> {
     try {
       const { durationMs } = await probeFn(source);
-      if (isTooShort(durationMs)) return `too short (${durationMs} ms, needs at least ${MIN_DURATION_MS} ms)`;
-      return null;
+      return isTooShort(durationMs) ? tooShortReason(durationMs) : null;
     } catch (err) {
-      return `could not read the video: ${errorText(err)}`;
+      return unreadableReason(errorText(err));
     }
   }
 
@@ -572,36 +585,54 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const batch = randomUUID();
       const dir = path.join(uploads, batch);
       const records = await sourceRecords(root);
-      const kept = new Set<string>();
+      const kept = new Map<string, string>();
       const rejected: UploadRejected[] = [];
+      const files: ScanResult[] = [];
       try {
         for await (const part of request.parts({ limits: { fileSize: uploadLimit, files: UPLOAD_FILES } })) {
           if (part.type !== "file") continue;
-          const name = part.filename;
-          const refusal = uploadRefusal(name, kept);
-          if (refusal !== null) {
-            rejected.push({ name, reason: refusal });
+          const sent = part.filename;
+          const plan = uploadPlan(sent, kept);
+          if ("reason" in plan) {
+            rejected.push({ name: sent, reason: plan.reason });
             part.file.resume();
             continue;
           }
-          const file = await saveUpload(uploads, batch, name, part.file);
-          if (part.file.truncated) throw new HttpError(413, `${name} is larger than the upload limit.`);
-          if (await convertedUpload(root, records, name, (await stat(file)).size)) {
-            await rm(file);
-            rejected.push({ name, reason: ALREADY_UPLOADED });
+          const { name } = plan;
+          let file: string;
+          try {
+            file = await saveUpload(uploads, batch, name, part.file);
+          } catch (err) {
+            // a destroyed part stream ends the whole multipart parse, so only an untouched or finished one can be skipped
+            if (part.file.destroyed && !part.file.readableEnded) throw err;
+            request.log.warn(err);
+            rejected.push({ name: sent, reason: "could not be saved" });
+            part.file.resume();
             continue;
           }
-          kept.add(name.toLowerCase());
+          if (part.file.truncated) throw new HttpError(413, `${sent} is larger than the upload limit.`);
+          if (await convertedUpload(root, records, name, (await stat(file)).size)) {
+            await rm(file);
+            rejected.push({ name: sent, reason: ALREADY_UPLOADED });
+            continue;
+          }
+          kept.set(name.toLowerCase(), sent);
         }
+        for (const entry of kept.size === 0 ? [] : await scanSource(dir, probeFn)) {
+          const problem = scanProblem(entry);
+          if (problem === null) {
+            files.push(entry);
+            continue;
+          }
+          await rm(entry.source);
+          rejected.push({ name: kept.get(path.basename(entry.source).toLowerCase()) ?? path.basename(entry.source), reason: problem });
+        }
+        if (files.length === 0) await rm(dir, { recursive: true, force: true });
       } catch (err) {
         await rm(dir, { recursive: true, force: true }).catch(() => undefined);
         throw err;
       }
-      if (kept.size === 0) {
-        await rm(dir, { recursive: true, force: true });
-        return { dir, files: [], rejected };
-      }
-      return { dir, files: await scanSource(dir, probeFn), rejected };
+      return { dir, files, rejected };
     });
   }
 

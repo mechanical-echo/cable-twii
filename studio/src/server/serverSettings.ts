@@ -2,6 +2,7 @@ import { mkdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "smol-toml";
+import { sweepUploads } from "./uploads.js";
 
 export interface ServerSettings {
   library: string;
@@ -79,4 +80,5 @@ export async function initServerLibrary(s: ServerSettings): Promise<void> {
   for (const dir of [root, path.join(root, "ads"), path.join(root, ".studio"), s.imports, uploadsDir(s.library)]) {
     await mkdir(dir, { recursive: true });
   }
+  await sweepUploads(uploadsDir(s.library));
 }
