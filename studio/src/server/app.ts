@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createReadStream, existsSync } from "node:fs";
-import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath, stat, statfs } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +21,13 @@ import { readShowMeta, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
 
+export interface ServerModeOptions {
+  library: string;
+  password: string;
+  imports: string;
+  name: string;
+}
+
 export interface AppOptions {
   schedBin: string;
   queueFactory?: (root: string) => ConversionQueue;
@@ -32,6 +39,7 @@ export interface AppOptions {
   webDir?: string;
   logger?: boolean;
   port?: number;
+  server?: ServerModeOptions;
 }
 
 type Aspect = "16:9" | "4:3";
@@ -176,6 +184,28 @@ function sendNull(reply: FastifyReply): FastifyReply {
   return reply.type("application/json; charset=utf-8").send("null");
 }
 
+async function freeBytesIn(dir: string): Promise<number> {
+  try {
+    const s = await statfs(dir);
+    return Number(s.bavail) * Number(s.bsize);
+  } catch {
+    return 0;
+  }
+}
+
+async function serverDrive(library: string): Promise<DriveInfo> {
+  return {
+    path: library,
+    rootPath: path.join(library, "cable-twii"),
+    isVolumeRoot: false,
+    fsType: null,
+    freeBytes: await freeBytesIn(library),
+    hasRoot: true,
+    hasWbfs: false,
+    usable: true,
+  };
+}
+
 export function buildApp(opts: AppOptions): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: BODY_LIMIT });
   const settingsPath = opts.settingsPath ?? DEFAULT_SETTINGS;
@@ -209,6 +239,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   async function currentDrive(): Promise<DriveInfo | null> {
+    if (opts.server) return serverDrive(opts.server.library);
     const { drive } = await readSettings();
     if (drive === undefined) return null;
     return inspectDrive(drive, deps);
@@ -385,13 +416,15 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   app.addHook("onRequest", async (request, reply) => {
-    const hosts = allowedHosts();
     const host = request.headers.host?.toLowerCase();
-    if (host === undefined || !hosts.has(host)) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
+    if (!opts.server && (host === undefined || !allowedHosts().has(host))) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
     if (SAFE_METHODS.has(request.method)) return;
     if (request.headers[API_HEADER] !== "1") return reply.code(403).send({ error: "This request did not come from cable-twii Studio." });
     const origin = request.headers.origin;
-    if (origin !== undefined && !hosts.has(originHost(origin) ?? "")) return reply.code(403).send({ error: "This request came from another site." });
+    if (origin === undefined) return;
+    const from = originHost(origin);
+    const sameSite = opts.server ? from === host : from !== null && allowedHosts().has(from);
+    if (!sameSite) return reply.code(403).send({ error: "This request came from another site." });
   });
 
   app.register(multipart, { limits: { fileSize: ICON_LIMIT, files: 1, fields: 10 } });
@@ -413,50 +446,54 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await Promise.allSettled([...rebuildChains.values()]);
   });
 
+  app.get("/api/mode", async () => ({ mode: opts.server ? "server" : "drive", name: opts.server?.name ?? null }));
+
   app.get("/api/drive", async (_request, reply) => {
     const info = await currentDrive();
     return info ?? sendNull(reply);
   });
 
-  app.post("/api/drive", async (request) => {
-    const input = stringField(objectBody(request.body), "path");
-    if (input === "" || !path.isAbsolute(input)) throw bad("path must be an absolute path.");
-    return rememberDrive(input);
-  });
+  if (!opts.server) {
+    app.post("/api/drive", async (request) => {
+      const input = stringField(objectBody(request.body), "path");
+      if (input === "" || !path.isAbsolute(input)) throw bad("path must be an absolute path.");
+      return rememberDrive(input);
+    });
 
-  app.post("/api/drive/pick", async (_request, reply) => {
-    const picked = await pick("Choose your cable-twii drive");
-    if (picked === null) return sendNull(reply);
-    return rememberDrive(picked);
-  });
+    app.post("/api/drive/pick", async (_request, reply) => {
+      const picked = await pick("Choose your cable-twii drive");
+      if (picked === null) return sendNull(reply);
+      return rememberDrive(picked);
+    });
 
-  app.post("/api/drive/init", async () => {
-    const info = await requireDrive();
-    if (!info.usable) throw bad(info.reason ?? "This drive cannot be used.");
-    try {
-      await initRoot(info, deps);
-    } catch (err) {
-      throw bad(errorText(err));
-    }
-    return inspectDrive(info.path, deps);
-  });
+    app.post("/api/drive/init", async () => {
+      const info = await requireDrive();
+      if (!info.usable) throw bad(info.reason ?? "This drive cannot be used.");
+      try {
+        await initRoot(info, deps);
+      } catch (err) {
+        throw bad(errorText(err));
+      }
+      return inspectDrive(info.path, deps);
+    });
 
-  app.post("/api/drive/done", async () => {
-    const info = await requireDrive();
-    await resumeIfReady(info);
-    const pending = (queues.get(info.rootPath)?.list() ?? []).filter((j) => j.state === "queued" || j.state === "running").length;
-    if (pending > 0) throw new HttpError(409, `${pending} ${pending === 1 ? "conversion" : "conversions"} still running`);
-    if (info.usable && info.hasRoot) await flushRebuild(info.rootPath);
-    if (!(info.usable && info.isVolumeRoot && info.fsType !== null)) return { ok: true, skipped: true };
-    await dotClean(info.path, deps);
-    return { ok: true };
-  });
+    app.post("/api/drive/done", async () => {
+      const info = await requireDrive();
+      await resumeIfReady(info);
+      const pending = (queues.get(info.rootPath)?.list() ?? []).filter((j) => j.state === "queued" || j.state === "running").length;
+      if (pending > 0) throw new HttpError(409, `${pending} ${pending === 1 ? "conversion" : "conversions"} still running`);
+      if (info.usable && info.hasRoot) await flushRebuild(info.rootPath);
+      if (!(info.usable && info.isVolumeRoot && info.fsType !== null)) return { ok: true, skipped: true };
+      await dotClean(info.path, deps);
+      return { ok: true };
+    });
 
-  app.post("/api/import/pick-source", async (_request, reply) => {
-    const dir = await pick("Choose a folder with videos");
-    if (dir === null) return sendNull(reply);
-    return { dir, files: await scanSource(dir) };
-  });
+    app.post("/api/import/pick-source", async (_request, reply) => {
+      const dir = await pick("Choose a folder with videos");
+      if (dir === null) return sendNull(reply);
+      return { dir, files: await scanSource(dir) };
+    });
+  }
 
   app.post("/api/import/show", async (request) => {
     const body = objectBody(request.body);

@@ -6,11 +6,12 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { parseConfig } from "../src/server/config.js";
-import type { convert, probe } from "../src/server/ffmpeg.js";
+import type { convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
+import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
 
 const FIXTURE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_basic");
 
@@ -20,18 +21,6 @@ let root: string;
 let app: FastifyInstance;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const fakeProbe: typeof probe = async (file) => {
-  const base = path.basename(file);
-  if (base.startsWith("broken")) throw new Error("no video stream");
-  const durationMs = base.startsWith("short") ? 500 : 60000;
-  return { durationMs, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0 };
-};
-
-const fakeConvert: typeof convert = async (_src, dst) => {
-  await sleep(5);
-  await writeFile(dst, "converted");
-};
 
 function bare(extra: Partial<AppOptions> = {}): FastifyInstance {
   return buildApp({
@@ -82,31 +71,8 @@ async function getConfig(): Promise<{ config: ReturnType<typeof parseConfig>; mt
   return res.json();
 }
 
-function multipart(fields: Record<string, string>, file?: { name: string; data: Buffer; type?: string }) {
-  const boundary = "----ctwboundary" + Math.random().toString(16).slice(2);
-  const chunks: Buffer[] = [];
-  for (const [k, v] of Object.entries(fields)) {
-    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`));
-  }
-  if (file) {
-    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: ${file.type ?? "application/octet-stream"}\r\n\r\n`));
-    chunks.push(file.data, Buffer.from("\r\n"));
-  }
-  chunks.push(Buffer.from(`--${boundary}--\r\n`));
-  return { payload: Buffer.concat(chunks), headers: { "content-type": `multipart/form-data; boundary=${boundary}` } };
-}
-
 async function png(width: number, height: number): Promise<Buffer> {
   return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 128, b: 255, alpha: 1 } } }).png().toBuffer();
-}
-
-async function waitFor(check: () => Promise<boolean>, ms = 3000): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    if (await check()) return;
-    await sleep(20);
-  }
-  throw new Error("condition not met in time");
 }
 
 test("requests with a foreign Host are refused", async () => {

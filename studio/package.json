@@ -9,6 +9,8 @@
   "scripts": {
     "prestart": "node scripts/check-node.mjs",
     "start": "node scripts/build-web.mjs && tsx src/server/main.ts",
+    "preserve": "node scripts/check-node.mjs",
+    "serve": "node scripts/build-web.mjs && tsx src/server/serve.ts",
     "predev": "node scripts/check-node.mjs",
     "dev": "vite",
     "pretest": "node scripts/check-node.mjs",
