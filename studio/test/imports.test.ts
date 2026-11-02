@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { ContainmentError } from "../src/server/contain.js";
-import { listImports } from "../src/server/imports.js";
+import { isAllowedSource, listImports } from "../src/server/imports.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary, uploadsDir } from "../src/server/serverSettings.js";
@@ -442,6 +442,59 @@ test("import takes a file from an upload", async () => {
   expect(res.json().jobs).toHaveLength(1);
   await converted();
   await waitFor(async () => !(await stat(file).then(() => true, () => false)));
+});
+
+test("isAllowedSource takes folders given through a link", async () => {
+  const linkDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "studio-imports-link-")));
+  const importsLink = path.join(linkDir, "imports");
+  const uploadsLink = path.join(linkDir, "uploads");
+  await symlink(imports, importsLink);
+  await symlink(uploadsDir(dir), uploadsLink);
+  try {
+    await put(imports, "x.mp4");
+    await put(uploadsDir(dir), "batch-1/x.mp4");
+    const outside = await put(dir, "outside.mp4");
+    await symlink(outside, path.join(imports, "escape.mp4"));
+    expect(await isAllowedSource(importsLink, uploadsLink, path.join(importsLink, "x.mp4"))).toBe(true);
+    expect(await isAllowedSource(importsLink, uploadsLink, path.join(uploadsLink, "batch-1", "x.mp4"))).toBe(true);
+    expect(await isAllowedSource(importsLink, uploadsLink, path.join(importsLink, "escape.mp4"))).toBe(false);
+    expect(await isAllowedSource(importsLink, uploadsLink, outside)).toBe(false);
+  } finally {
+    await rm(linkDir, { recursive: true, force: true });
+  }
+});
+
+test("isAllowedSource still takes imports when the uploads folder is gone", async () => {
+  const file = await put(imports, "x.mp4");
+  expect(await isAllowedSource(imports, path.join(dir, "no-uploads"), file)).toBe(true);
+});
+
+test("isAllowedSource refuses a relative path", async () => {
+  expect(await isAllowedSource(imports, uploadsDir(dir), path.relative(process.cwd(), path.join(imports, "x.mp4")))).toBe(false);
+});
+
+test("a library given through a link scans and imports its own files", async () => {
+  const linkDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "studio-imports-link-")));
+  const link = path.join(linkDir, "tv");
+  await symlink(dir, link);
+  await put(imports, "Gumball/ep.mp4");
+  const linked = build({ server: { library: link, password: "correct horse", imports: path.join(link, "imports"), name: "Home PC" } });
+  try {
+    const headers = { host: LAN_HOST, "x-cable-twii": "1", cookie: await signIn(linked) };
+    const scanned = await linked.inject({ method: "POST", url: "/api/import/scan", headers, payload: { dir: "" } });
+    expect(scanned.statusCode).toBe(200);
+    expect(scanned.json().dir).toBe(imports);
+    const episodes = scanned.json().files.map((f: { source: string }, i: number) => ({ source: f.source, season: 1, episode: i + 1, title: "Pilot", description: "", aspect: "4:3" }));
+    expect(episodes).toHaveLength(1);
+    const imported = await linked.inject({ method: "POST", url: "/api/import/show", headers, payload: { channelFolder: "Cartoon Network", showFolder: "Gumball", episodes } });
+    expect(imported.statusCode).toBe(200);
+    expect(imported.json().jobs).toHaveLength(1);
+    await waitFor(async () => ((await linked.inject({ method: "GET", url: "/api/jobs", headers })).json() as Job[]).every((j) => j.state === "done"));
+    await waitFor(async () => (await readSources(root)).length > 0);
+  } finally {
+    await linked.close();
+    await rm(linkDir, { recursive: true, force: true });
+  }
 });
 
 test("imports file is kept after conversion", async () => {

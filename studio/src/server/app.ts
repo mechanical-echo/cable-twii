@@ -259,7 +259,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const rebuildDelay = opts.rebuildDelayMs ?? REBUILD_DELAY_MS;
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
   const bin = opts.schedBin;
-  const server = opts.server && { ...opts.server, library: realpathSync(opts.server.library), imports: realpathSync(opts.server.imports) };
+  const server = opts.server && { ...opts.server, library: realpathSync.native(opts.server.library), imports: realpathSync.native(opts.server.imports) };
   const sessions = server && new Sessions(server.password, undefined, opts.now);
   const uploads = server && uploadsDir(server.library);
   const uploadLimit = opts.uploadLimit ?? UPLOAD_LIMIT;

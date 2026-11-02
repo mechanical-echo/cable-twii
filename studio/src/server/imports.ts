@@ -36,16 +36,28 @@ export async function listImports(imports: string, rel: string): Promise<{ dir: 
   return { dir: rel, entries: [...folders.sort(byName), ...videos.sort(byName)] };
 }
 
+function allowedIn(imports: string, uploads: string, file: string): boolean {
+  return path.isAbsolute(file) && (contained(imports, file) || isUploadPath(uploads, file));
+}
+
+async function resolved(dir: string): Promise<string> {
+  try {
+    return await realpath(dir);
+  } catch {
+    return dir;
+  }
+}
+
 export async function isAllowedSource(imports: string, uploads: string, source: string): Promise<boolean> {
-  const allowed = (file: string) => contained(imports, file) || isUploadPath(uploads, file);
-  if (!allowed(source)) return false;
+  if (!allowedIn(imports, uploads, source)) return false;
   try {
     await lstat(source);
   } catch {
     return true;
   }
   try {
-    return allowed(await realpath(source));
+    const [realImports, realUploads] = await Promise.all([resolved(imports), resolved(uploads)]);
+    return allowedIn(realImports, realUploads, await realpath(source));
   } catch {
     return false;
   }
