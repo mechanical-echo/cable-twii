@@ -229,7 +229,7 @@ test("the web files and the Wii interface stay open", async () => {
     expect(page.statusCode).toBe(200);
     expect(page.body).toBe("<h1>Studio</h1>");
     const wii = await web.inject({ method: "GET", url: "/wii/v1/info", headers: { host: LAN_HOST } });
-    expect(wii.statusCode).not.toBe(401);
+    expect(wii.statusCode).toBe(200);
   } finally {
     await web.close();
   }

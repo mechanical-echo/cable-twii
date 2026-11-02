@@ -10,7 +10,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ConfigConflictError, ConfigShapeError, configMtime, randomSeed, readConfig, toConfig, writeConfig } from "./config.js";
 import { type DriveDeps, type DriveInfo, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
 import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
-import { ContainmentError, assertContained } from "./contain.js";
+import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
 import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
@@ -21,6 +21,7 @@ import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { readShowMeta, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { registerWiiApi } from "./wiiApi.js";
 
 export interface ServerModeOptions {
   library: string;
@@ -135,11 +136,6 @@ function inside(root: string, ...parts: string[]): string {
   const rel = path.relative(root, full);
   if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw bad("That path is outside the cable-twii folder.");
   return full;
-}
-
-function contained(root: string, full: string): boolean {
-  const rel = path.relative(root, full);
-  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
 
 function two(n: number): string {
@@ -765,6 +761,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
     return reply.type("image/png").header("cache-control", "no-cache").send(createReadStream(real));
   });
+
+  if (server) registerWiiApi(app, path.join(server.library, "cable-twii"), server.name);
 
   return app;
 }

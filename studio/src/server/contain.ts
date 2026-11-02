@@ -14,6 +14,11 @@ function within(base: string, full: string): boolean {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
+export function contained(root: string, full: string): boolean {
+  const rel = path.relative(root, full);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+
 function exists(full: string): boolean {
   try {
     lstatSync(full);
