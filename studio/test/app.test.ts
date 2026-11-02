@@ -71,6 +71,12 @@ async function getConfig(): Promise<{ config: ReturnType<typeof parseConfig>; mt
   return res.json();
 }
 
+async function getShowMeta(showFolder: string): Promise<{ meta: { name?: string; episodes: Record<string, string> }; mtimeMs: number }> {
+  const res = await app.inject({ method: "GET", url: "/api/show-meta", query: { channelFolder: "Cartoon Network", showFolder } });
+  expect(res.statusCode).toBe(200);
+  return res.json();
+}
+
 async function png(width: number, height: number): Promise<Buffer> {
   return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 128, b: 255, alpha: 1 } } }).png().toBuffer();
 }
@@ -665,21 +671,71 @@ test("POST /api/library/rebuild returns the build result", async () => {
   expect(Array.isArray(body.warnings)).toBe(true);
 });
 
+test("GET /api/show-meta returns meta and mtime", async () => {
+  await useFixture();
+  expect(await getShowMeta("Ben 10")).toEqual({ meta: { episodes: {} }, mtimeMs: 0 });
+  const { mtimeMs } = await getShowMeta("Ben 10");
+  const put = await app.inject({
+    method: "PUT",
+    url: "/api/show-meta",
+    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" }, mtimeMs },
+  });
+  expect(put.statusCode).toBe(200);
+  const saved = await getShowMeta("Ben 10");
+  expect(saved.meta).toEqual({ name: "Ben Ten!", episodes: { S01E05: "Aliens" } });
+  expect(saved.mtimeMs).toBe(Math.trunc((await stat(path.join(root, "Cartoon Network", "Ben 10", "show.toml"))).mtimeMs));
+  const missing = await app.inject({ method: "GET", url: "/api/show-meta", query: { channelFolder: "Cartoon Network", showFolder: "Nope" } });
+  expect(missing.statusCode).toBe(404);
+  const noFolder = await app.inject({ method: "GET", url: "/api/show-meta", query: { channelFolder: "Cartoon Network" } });
+  expect(noFolder.statusCode).toBe(400);
+});
+
 test("PUT /api/show-meta writes show.toml and returns the rebuilt library", async () => {
   await useFixture();
+  const { mtimeMs } = await getShowMeta("Ben 10");
   const res = await app.inject({
     method: "PUT",
     url: "/api/show-meta",
-    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" } },
+    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" }, mtimeMs },
   });
   expect(res.statusCode).toBe(200);
   const show = (res.json() as { show: { folder: string; name: string; episode: { description: string }[] }[] }).show.find((s) => s.folder === "Ben 10");
   expect(show?.name).toBe("Ben Ten!");
   expect(show?.episode[0]!.description).toBe("Aliens");
-  const missing = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Nope", name: "", episodes: {} } });
+  const missing = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Nope", name: "", episodes: {}, mtimeMs: 0 } });
   expect(missing.statusCode).toBe(404);
-  const bad = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: { S01E05: 3 } } });
+  const bad = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: { S01E05: 3 }, mtimeMs: 0 } });
   expect(bad.statusCode).toBe(400);
+  const noMtime = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: {} } });
+  expect(noMtime.statusCode).toBe(400);
+});
+
+test("show-meta conflict keeps the first save", async () => {
+  await useFixture();
+  const first = await getShowMeta("Ben 10");
+  const second = await getShowMeta("Ben 10");
+  const target = { channelFolder: "Cartoon Network", showFolder: "Ben 10" };
+  const a = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name A", episodes: {}, mtimeMs: first.mtimeMs } });
+  expect(a.statusCode).toBe(200);
+  const b = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name B", episodes: {}, mtimeMs: second.mtimeMs } });
+  expect(b.statusCode).toBe(409);
+  expect(b.json()).toEqual({ error: "show.toml was changed somewhere else. Reload it and try again." });
+  expect((await getShowMeta("Ben 10")).meta.name).toBe("Name A");
+  expect(await readFile(path.join(root, "Cartoon Network", "Ben 10", "show.toml"), "utf8")).toContain('name = "Name A"');
+});
+
+test("show-meta conflict also catches an edit made outside Studio", async () => {
+  await useFixture();
+  const target = { channelFolder: "Cartoon Network", showFolder: "Ben 10" };
+  const first = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name A", episodes: {}, mtimeMs: 0 } });
+  expect(first.statusCode).toBe(200);
+  const { mtimeMs } = await getShowMeta("Ben 10");
+  const later = new Date(mtimeMs + 5000);
+  await utimes(path.join(root, "Cartoon Network", "Ben 10", "show.toml"), later, later);
+  const stale = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name B", episodes: {}, mtimeMs } });
+  expect(stale.statusCode).toBe(409);
+  const fresh = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name B", episodes: {}, mtimeMs: (await getShowMeta("Ben 10")).mtimeMs } });
+  expect(fresh.statusCode).toBe(200);
 });
 
 test("POST /api/jobs/retry requeues failed conversions", async () => {
@@ -883,7 +939,7 @@ test("import show into a symlinked channel or show folder is refused and writes 
 test("PUT /api/show-meta on a symlinked show folder is 400 and writes nothing outside", async () => {
   await useFixture();
   const outside = await symlinkedOutside(path.join(root, "Cartoon Network", "LinkedShow"));
-  const res = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "LinkedShow", name: "N", episodes: { S01E01: "d" } } });
+  const res = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "LinkedShow", name: "N", episodes: { S01E01: "d" }, mtimeMs: 0 } });
   expect(res.statusCode).toBe(400);
   expect(await readdir(outside)).toEqual([]);
 });

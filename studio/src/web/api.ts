@@ -1,6 +1,7 @@
 import type { DriveInfo, ScanResult } from "../server/drive.js";
 import type { BuildResult } from "../server/library.js";
 import type { ValidateResult } from "../server/sched.js";
+import type { ShowMeta } from "../server/showMeta.js";
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
 import type { WebLibrary } from "./tree.js";
 
@@ -46,6 +47,7 @@ export interface ShowMetaRequest {
   showFolder: string;
   name: string;
   episodes: Record<string, string>;
+  mtimeMs: number;
 }
 
 export class ApiError extends Error {
@@ -103,6 +105,8 @@ export const reshuffle = (mtimeMs: number) => send<{ mtimeMs: number; seed: numb
 export const validate = () => send<ValidateResult>("POST", "/api/validate");
 export const getPreview = (channel: number, date: string) =>
   send<LineupResult>("GET", `/api/preview?channel=${channel}&date=${encodeURIComponent(date)}`);
+export const getShowMeta = (channelFolder: string, showFolder: string) =>
+  send<{ meta: ShowMeta; mtimeMs: number }>("GET", `/api/show-meta?channelFolder=${encodeURIComponent(channelFolder)}&showFolder=${encodeURIComponent(showFolder)}`);
 export const putShowMeta = (req: ShowMetaRequest) => send<WebLibrary>("PUT", "/api/show-meta", req);
 
 export function uploadIcon(kind: "channel" | "show", channelFolder: string, showFolder: string | null, file: Blob): Promise<{ path: string }> {

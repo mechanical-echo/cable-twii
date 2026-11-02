@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 import { atomicWriteContained } from "./contain.js";
@@ -9,6 +9,22 @@ export interface ShowMeta {
 }
 
 const SHOW_FILE = "show.toml";
+
+export class ShowMetaConflictError extends Error {
+  constructor() {
+    super("show.toml was changed somewhere else. Reload it and try again.");
+    this.name = "ShowMetaConflictError";
+  }
+}
+
+export async function showMetaMtime(showDir: string): Promise<number> {
+  try {
+    return Math.trunc((await stat(path.join(showDir, SHOW_FILE))).mtimeMs);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
+}
 
 export async function readShowMeta(showDir: string): Promise<ShowMeta> {
   const file = path.join(showDir, SHOW_FILE);

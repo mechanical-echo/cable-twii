@@ -18,7 +18,7 @@ import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
-import { readShowMeta, writeShowMeta } from "./showMeta.js";
+import { ShowMetaConflictError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
 import { registerWiiApi } from "./wiiApi.js";
@@ -394,6 +394,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.setErrorHandler((error: unknown, request, reply) => {
     if (error instanceof ConfigConflictError) return reply.code(409).send({ error: error.message });
+    if (error instanceof ShowMetaConflictError) return reply.code(409).send({ error: error.message });
     if (error instanceof ConfigShapeError) return reply.code(422).send({ error: error.message });
     if (error instanceof ContainmentError) return reply.code(400).send({ error: error.message });
     if (error instanceof NotImageError) return reply.code(400).send({ error: error.message });
@@ -574,9 +575,11 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
     if (jobs.length > 0) {
       const showDir = inside(root, channelFolder, showFolder);
-      const meta = await readShowMeta(showDir);
-      const name = showName.trim() !== "" ? showName.trim() : meta.name;
-      await writeShowMeta(root, showDir, { ...(name !== undefined ? { name } : {}), episodes: { ...meta.episodes, ...descriptions } });
+      await withConfigLock(async () => {
+        const meta = await readShowMeta(showDir);
+        const name = showName.trim() !== "" ? showName.trim() : meta.name;
+        await writeShowMeta(root, showDir, { ...(name !== undefined ? { name } : {}), episodes: { ...meta.episodes, ...descriptions } });
+      });
       scheduleRebuild(root);
     }
     return { jobs, rejected };
@@ -657,10 +660,22 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.post("/api/library/rebuild", async () => rebuildNow(await requireRoot()));
 
+  app.get("/api/show-meta", async (request) => {
+    const query = request.query as Record<string, unknown>;
+    const channelFolder = folderName(query.channelFolder, "channelFolder");
+    const showFolder = folderName(query.showFolder, "showFolder");
+    const root = await requireRoot();
+    const showDir = inside(root, channelFolder, showFolder);
+    if (!(await isDirectory(showDir))) throw new HttpError(404, "That show folder does not exist.");
+    const mtimeMs = await showMetaMtime(showDir);
+    return { meta: await readShowMeta(showDir), mtimeMs };
+  });
+
   app.put("/api/show-meta", async (request) => {
     const body = objectBody(request.body);
     const channelFolder = folderName(body.channelFolder, "channelFolder");
     const showFolder = folderName(body.showFolder, "showFolder");
+    const mtimeMs = mtimeField(body);
     const name = body.name === undefined ? "" : stringField(body, "name");
     const rawEpisodes = body.episodes === undefined ? {} : objectBody(body.episodes);
     const episodes: Record<string, string> = {};
@@ -671,7 +686,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const root = await requireRoot();
     const showDir = inside(root, channelFolder, showFolder);
     if (!(await isDirectory(showDir))) throw new HttpError(404, "That show folder does not exist.");
-    await writeShowMeta(root, showDir, { ...(name.trim() !== "" ? { name: name.trim() } : {}), episodes });
+    await withConfigLock(async () => {
+      if ((await showMetaMtime(showDir)) !== mtimeMs) throw new ShowMetaConflictError();
+      await writeShowMeta(root, showDir, { ...(name.trim() !== "" ? { name: name.trim() } : {}), episodes });
+    });
     return (await rebuildNow(root)).library;
   });
 
