@@ -1,15 +1,18 @@
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
+import { stringify } from "smol-toml";
 import { buildApp, type AppOptions } from "../src/server/app.js";
+import { readLibrary } from "../src/server/library.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary } from "../src/server/serverSettings.js";
-import { fakeConvert, fakeProbe } from "./helpers.js";
+import { fakeConvert, fakeProbe, waitFor } from "./helpers.js";
 
 const LAN_HOST = "192.168.1.20:4747";
+const EPISODE = "Cartoon Network/Gumball/Season 1/S01E01 - Pilot.mpg";
 
 let dir: string;
 let imports: string;
@@ -45,6 +48,22 @@ async function signIn(target: FastifyInstance): Promise<string> {
   const res = await login(target, "correct horse");
   expect(res.statusCode).toBe(200);
   return String(res.headers["set-cookie"]).split(";")[0] as string;
+}
+
+async function queueEpisode(): Promise<string> {
+  const source = path.join(imports, "pilot.mkv");
+  await writeFile(source, "video");
+  const job = { id: "j-0001", source, target: EPISODE, aspect: "4:3" };
+  await writeFile(path.join(dir, "cable-twii", ".studio", "queue.toml"), stringify({ version: 1, job: [job] }));
+  return path.join(dir, "cable-twii", ...EPISODE.split("/"));
+}
+
+async function converted(file: string): Promise<boolean> {
+  try {
+    return (await readFile(file, "utf8")) === "converted";
+  } catch {
+    return false;
+  }
 }
 
 beforeEach(async () => {
@@ -270,4 +289,30 @@ test("the lock covers every client, not one address", async () => {
   }
   const res = await anonymous({ method: "POST", url: "/api/login", remoteAddress: "192.168.1.99", payload: { password: "correct horse" } });
   expect(res.statusCode).toBe(429);
+});
+
+test("a job left in queue.toml converts when the server starts, with no request", async () => {
+  const target = await queueEpisode();
+  const started = build();
+  try {
+    await started.ready();
+    await waitFor(() => converted(target));
+  } finally {
+    await started.close();
+  }
+});
+
+test("closing right after a conversion still writes it to library.toml", async () => {
+  const target = await queueEpisode();
+  let queue: ConversionQueue | undefined;
+  const started = build({
+    rebuildDelayMs: 60_000,
+    queueFactory: (r) => (queue = new ConversionQueue(r, { convertFn: fakeConvert, probeFn: fakeProbe, concurrency: 1 })),
+  });
+  await started.ready();
+  await waitFor(async () => queue?.list()[0]?.state === "done");
+  expect(await converted(target)).toBe(true);
+  await started.close();
+  const library = await readLibrary(path.join(dir, "cable-twii"));
+  expect(library?.show.flatMap((show) => show.episode.map((ep) => ep.path))).toEqual([EPISODE]);
 });
