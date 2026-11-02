@@ -515,7 +515,6 @@ For both routes:
 
 - Plain HTTP/1.1, `GET` (and `HEAD`, which returns the same headers without a body). No password and no cookie. Nothing can be changed through it.
 - Every response has a `Content-Length`. The server never uses chunked encoding.
-- Connections are kept alive. The server closes one that has been idle for 72 seconds, so a client must be ready to open a new one.
 - The `v1` in the path is the interface version. Any change to this interface changes the path (`/wii/v2/`) and the `version` in `info`.
 
 ### `GET /wii/v1/info`

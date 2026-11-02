@@ -3,6 +3,7 @@
 cable-twii is a Homebrew Channel app that turns a modded Wii into your own cable TV. It plays custom channels, schedules and ads from a USB drive. The Mac tool, cable-twii Studio, converts videos and builds the schedules.
 
 - [Design spec](docs/superpowers/specs/2026-10-20-cable-twii-design.md)
+- [Server source spec](docs/superpowers/specs/2026-11-02-server-source-design.md)
 - Plans:
   - [00 Roadmap](docs/superpowers/plans/2026-10-20-cable-twii-00-roadmap.md)
   - [01 Engine](docs/superpowers/plans/2026-10-20-cable-twii-01-engine.md)
@@ -10,6 +11,9 @@ cable-twii is a Homebrew Channel app that turns a modded Wii into your own cable
   - [03 Wii app](docs/superpowers/plans/2026-10-20-cable-twii-03-wii-app.md)
   - [04 Release](docs/superpowers/plans/2026-10-20-cable-twii-04-release.md)
   - [05 Wii redesign](docs/superpowers/plans/2026-10-22-cable-twii-05-wii-redesign.md) (spec: [Wii redesign](docs/superpowers/specs/2026-10-22-wii-redesign-design.md))
+  - [06 Streaming test](docs/superpowers/plans/2026-11-02-cable-twii-06-streaming-test.md) (spec: [Server source](docs/superpowers/specs/2026-11-02-server-source-design.md))
+  - [07 Studio server](docs/superpowers/plans/2026-11-02-cable-twii-07-studio-server.md)
+  - [08 Wii server source](docs/superpowers/plans/2026-11-02-cable-twii-08-wii-server-source.md)
 - [File formats](docs/formats.md)
 - [Engine C API](docs/engine-api.md)
 - [Mac setup](docs/setup.md)
