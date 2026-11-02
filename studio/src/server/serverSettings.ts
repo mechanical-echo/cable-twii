@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "smol-toml";
@@ -65,7 +65,16 @@ export function uploadsDir(library: string): string {
   return path.join(library, ".uploads");
 }
 
+async function isDirectory(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function initServerLibrary(s: ServerSettings): Promise<void> {
+  if (!(await isDirectory(s.library))) throw new Error(`library ${s.library} must be an existing folder`);
   const root = path.join(s.library, "cable-twii");
   for (const dir of [root, path.join(root, "ads"), path.join(root, ".studio"), s.imports, uploadsDir(s.library)]) {
     await mkdir(dir, { recursive: true });

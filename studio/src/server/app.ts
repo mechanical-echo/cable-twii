@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, realpathSync } from "node:fs";
 import { lstat, readFile, readdir, realpath, stat, statfs } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
@@ -215,6 +215,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const rebuildDelay = opts.rebuildDelayMs ?? REBUILD_DELAY_MS;
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
   const bin = opts.schedBin;
+  const server = opts.server && { ...opts.server, library: realpathSync(opts.server.library), imports: realpathSync(opts.server.imports) };
 
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
@@ -239,7 +240,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   async function currentDrive(): Promise<DriveInfo | null> {
-    if (opts.server) return serverDrive(opts.server.library);
+    if (server) return serverDrive(server.library);
     const { drive } = await readSettings();
     if (drive === undefined) return null;
     return inspectDrive(drive, deps);
@@ -417,13 +418,13 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.addHook("onRequest", async (request, reply) => {
     const host = request.headers.host?.toLowerCase();
-    if (!opts.server && (host === undefined || !allowedHosts().has(host))) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
+    if (!server && (host === undefined || !allowedHosts().has(host))) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
     if (SAFE_METHODS.has(request.method)) return;
     if (request.headers[API_HEADER] !== "1") return reply.code(403).send({ error: "This request did not come from cable-twii Studio." });
     const origin = request.headers.origin;
     if (origin === undefined) return;
     const from = originHost(origin);
-    const sameSite = opts.server ? from === host : from !== null && allowedHosts().has(from);
+    const sameSite = server ? from === host : from !== null && allowedHosts().has(from);
     if (!sameSite) return reply.code(403).send({ error: "This request came from another site." });
   });
 
@@ -446,14 +447,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await Promise.allSettled([...rebuildChains.values()]);
   });
 
-  app.get("/api/mode", async () => ({ mode: opts.server ? "server" : "drive", name: opts.server?.name ?? null }));
+  app.get("/api/mode", async () => ({ mode: server ? "server" : "drive", name: server?.name ?? null }));
 
   app.get("/api/drive", async (_request, reply) => {
     const info = await currentDrive();
     return info ?? sendNull(reply);
   });
 
-  if (!opts.server) {
+  if (!server) {
     app.post("/api/drive", async (request) => {
       const input = stringField(objectBody(request.body), "path");
       if (input === "" || !path.isAbsolute(input)) throw bad("path must be an absolute path.");

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -63,6 +63,7 @@ test("uploads live in a hidden folder of the library, outside the root", () => {
 
 test("initServerLibrary creates the folders and leaves existing files alone", async () => {
   const settings = { library: path.join(dir, "tv"), password: "correct horse", imports: path.join(dir, "incoming"), port: 4747, name: "Home PC" };
+  await mkdir(settings.library);
   await initServerLibrary(settings);
   for (const folder of ["cable-twii", "cable-twii/ads", "cable-twii/.studio", ".uploads"]) {
     expect((await stat(path.join(settings.library, ...folder.split("/")))).isDirectory()).toBe(true);
@@ -71,4 +72,17 @@ test("initServerLibrary creates the folders and leaves existing files alone", as
   await writeFile(path.join(settings.library, "cable-twii", "config.toml"), "kept");
   await initServerLibrary(settings);
   expect(await readFile(path.join(settings.library, "cable-twii", "config.toml"), "utf8")).toBe("kept");
+});
+
+test("initServerLibrary refuses a library that does not exist and creates nothing", async () => {
+  const settings = { library: path.join(dir, "missing"), password: "correct horse", imports: path.join(dir, "incoming"), port: 4747, name: "Home PC" };
+  await expect(initServerLibrary(settings)).rejects.toThrow(`library ${settings.library}`);
+  expect(await readdir(dir)).toEqual([]);
+});
+
+test("initServerLibrary refuses a library that is a file", async () => {
+  const library = path.join(dir, "tv");
+  await writeFile(library, "not a folder");
+  await expect(initServerLibrary({ library, password: "correct horse", imports: path.join(dir, "incoming"), port: 4747, name: "Home PC" })).rejects.toThrow(`library ${library}`);
+  expect(await readdir(dir)).toEqual(["tv"]);
 });

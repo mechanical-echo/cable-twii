@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -101,4 +101,23 @@ test("writes whose Origin matches the Host get past the guard", async () => {
 test("writes without the studio header are refused", async () => {
   const res = await app.inject({ method: "PUT", url: "/api/config", headers: { host: LAN_HOST }, payload: {} });
   expect(res.statusCode).toBe(403);
+});
+
+test("a library given through a symlink is resolved once", async () => {
+  const linkDir = await realpath(await mkdtemp(path.join(os.tmpdir(), "studio-server-link-")));
+  const link = path.join(linkDir, "tv");
+  await symlink(dir, link);
+  const linked = build({ server: { library: link, password: "correct horse", imports: path.join(link, "imports"), name: "Home PC" } });
+  try {
+    const drive = await linked.inject({ method: "GET", url: "/api/drive", headers: { host: LAN_HOST } });
+    expect(drive.statusCode).toBe(200);
+    expect(drive.json().usable).toBe(true);
+    expect(drive.json().path).toBe(dir);
+    expect(drive.json().rootPath).toBe(path.join(dir, "cable-twii"));
+    const config = await linked.inject({ method: "GET", url: "/api/config", headers: { host: LAN_HOST } });
+    expect(config.statusCode).toBe(200);
+  } finally {
+    await linked.close();
+    await rm(linkDir, { recursive: true, force: true });
+  }
 });

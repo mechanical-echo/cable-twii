@@ -1,4 +1,3 @@
-import { realpath } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { ensureSchedBin } from "./sched.js";
 import { initServerLibrary, readServerSettings, serverSettingsPath } from "./serverSettings.js";
@@ -9,8 +8,7 @@ async function main(): Promise<void> {
   const settings = await readServerSettings(serverSettingsPath());
   await initServerLibrary(settings);
   const schedBin = await ensureSchedBin();
-  const library = await realpath(settings.library);
-  const { password, imports, name, port } = settings;
+  const { library, password, imports, name, port } = settings;
   const app = buildApp({ schedBin, logger: true, port, server: { library, password, imports, name } });
   await app.listen({ host: HOST, port });
   let closing = false;
