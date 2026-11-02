@@ -244,7 +244,7 @@ test("parallel successes all recorded in sources.toml", async () => {
   expect((await readSources(dir)).map((r) => r.target)).toEqual(["t0.mpg", "t1.mpg", "t2.mpg", "t3.mpg", "t4.mpg"]);
 });
 
-test("queue write failure emits error and continues", async () => {
+test.skipIf(process.getuid?.() === 0)("queue write failure emits error and continues", async () => {
   const q = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
   const errors: Error[] = [];
   q.on("error", (e: Error) => errors.push(e));

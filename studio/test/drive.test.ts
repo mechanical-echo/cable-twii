@@ -464,7 +464,7 @@ test("initRoot refuses a pick on a games drive subfolder", async () => {
   expect(existsSync(path.join(dir, "sub", "cable-twii"))).toBe(false);
 });
 
-test("scan skips unreadable subfolders", async () => {
+test.skipIf(process.getuid?.() === 0)("scan skips unreadable subfolders", async () => {
   makeVideo("good.mkv", 1);
   const locked = path.join(dir, "locked");
   await mkdir(locked);

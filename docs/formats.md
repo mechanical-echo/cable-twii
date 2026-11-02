@@ -560,9 +560,9 @@ Every answer for an existing file has `Accept-Ranges: bytes` and a `Content-Leng
 
 | Request | Answer |
 |---|---|
-| a range inside the file | `206` with `Content-Range: bytes <first>-<last>/<size>` and the `Content-Length` of the part. A `<last>` past the end is cut to the last byte. |
-| `bytes=<first>-` with `<first>` at or past the end, or `bytes=-0` | `416` with `Content-Range: bytes */<size>` and a small JSON body |
-| no `Range`, several ranges, another unit, `<last>` before `<first>`, or anything malformed | the range is ignored and the whole file comes back with `200` |
+| `<first>-<last>` or `<first>-` with `<first>` inside the file, or `bytes=-<count>` with a `<count>` of at least 1 on a file that is not empty | `206` with `Content-Range: bytes <first>-<last>/<size>` and the `Content-Length` of the part. A `<last>` past the end is cut to the last byte, and `bytes=-<count>` with a `<count>` larger than the file gives the whole file. |
+| `<first>` at or past the end of the file (with or without `<last>`), `bytes=-0`, or `bytes=-<count>` on an empty file | `416` with `Content-Range: bytes */<size>` and a small JSON body |
+| no `Range`, several ranges, another unit, `<last>` before `<first>` (with `<first>` inside the file), or anything else malformed, such as `bytes=-` | the range is ignored and the whole file comes back with `200` |
 
 **Compression.** If the file's extension is `.toml` and the request has `Accept-Encoding` with `gzip`, the whole file comes back gzip-compressed with `Content-Encoding: gzip`, and `Content-Length` is the compressed size. `Range` is ignored then. Other files are never compressed.
 

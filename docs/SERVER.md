@@ -78,7 +78,14 @@ Do the steps in order. Windows commands go in **Terminal** (PowerShell) unless a
    ```
 
    `node --version` should start with `v22`.
-4. Open **MSYS2 UCRT64** from the Start menu and install the compiler and `make`. Answer `Y` when it asks:
+4. Let PowerShell run `npm`. PowerShell does not run script files by default, and `npm` is one (`npm.ps1`), so without this step the first `npm` command stops with "running scripts is disabled on this system". This allows scripts that are on your PC, for your user only. Answer `Y` if it asks:
+
+   ```powershell
+   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+   npm --version
+   ```
+
+5. Open **MSYS2 UCRT64** from the Start menu and install the compiler and `make`. Answer `Y` when it asks:
 
    ```bash
    pacman -S --needed make mingw-w64-ucrt-x86_64-gcc
