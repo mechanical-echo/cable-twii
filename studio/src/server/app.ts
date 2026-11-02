@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createReadStream, existsSync, realpathSync } from "node:fs";
-import { lstat, readFile, readdir, realpath, stat, statfs } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath, rm, rmdir, stat, statfs } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -13,14 +14,16 @@ import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
-import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
+import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
+import { uploadsDir } from "./serverSettings.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { ShowMetaConflictError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
-import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
+import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, uploadName, uploadSource } from "./uploads.js";
 import { registerWiiApi } from "./wiiApi.js";
 
 export interface ServerModeOptions {
@@ -42,6 +45,7 @@ export interface AppOptions {
   logger?: boolean;
   port?: number;
   server?: ServerModeOptions;
+  uploadLimit?: number;
   now?: () => number;
 }
 
@@ -49,6 +53,11 @@ type Aspect = "16:9" | "4:3";
 
 interface Rejected {
   source: string;
+  reason: string;
+}
+
+interface UploadRejected {
+  name: string;
   reason: string;
 }
 
@@ -67,6 +76,8 @@ const CHANNEL_QUERY = /^[1-9][0-9]*$/;
 const DATE_QUERY = /^\d{4}-\d{2}-\d{2}$/;
 const RESERVED = new Set(["ads"]);
 const ALREADY_CONVERTED = "already on the drive";
+const ALREADY_UPLOADED = "already on the server";
+const UPLOAD_FILES = 50;
 const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
 const API_HEADER = "x-cable-twii";
@@ -136,6 +147,13 @@ function inside(root: string, ...parts: string[]): string {
   const rel = path.relative(root, full);
   if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw bad("That path is outside the cable-twii folder.");
   return full;
+}
+
+function uploadRefusal(name: string, kept: ReadonlySet<string>): string | null {
+  if (!isVideoFile(name)) return "not a video";
+  if (uploadName(name) === null) return "not a usable file name";
+  if (kept.has(name.toLowerCase())) return "already in this upload";
+  return null;
 }
 
 function two(n: number): string {
@@ -217,6 +235,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const bin = opts.schedBin;
   const server = opts.server && { ...opts.server, library: realpathSync(opts.server.library), imports: realpathSync(opts.server.imports) };
   const sessions = server && new Sessions(server.password, undefined, opts.now);
+  const uploads = server && uploadsDir(server.library);
+  const uploadLimit = opts.uploadLimit ?? UPLOAD_LIMIT;
 
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
@@ -224,6 +244,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const rebuildTimers = new Map<string, NodeJS.Timeout>();
   const rebuildChains = new Map<string, Promise<unknown>>();
   const streams = new Set<{ raw: ServerResponse; cleanup: () => void }>();
+  const retiring = new Set<Promise<void>>();
   let configChain: Promise<unknown> = Promise.resolve();
 
   async function readSettings(): Promise<Settings> {
@@ -304,12 +325,30 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await rebuildChains.get(root);
   }
 
+  function retireUpload(root: string, rec: SourceRecord): void {
+    if (!uploads || !isUploadPath(uploads, rec.source)) return;
+    const stillNeeded = queues.get(root)?.list().some((j) => j.source === rec.source && (j.state === "queued" || j.state === "running"));
+    const task: Promise<void> = (async () => {
+      assertContained(uploads, rec.source);
+      await upsertSource(root, { ...rec, source: uploadSource(path.basename(rec.source)) });
+      if (stillNeeded) return;
+      await rm(rec.source, { force: true });
+      await rmdir(path.dirname(rec.source)).catch(() => undefined);
+    })()
+      .catch((err: unknown) => app.log.warn(err))
+      .finally(() => retiring.delete(task));
+    retiring.add(task);
+  }
+
   function queueFor(root: string): ConversionQueue {
     let queue = queues.get(root);
     if (queue) return queue;
     queue = opts.queueFactory ? opts.queueFactory(root) : new ConversionQueue(root);
     queue.on("change", (job: Job) => jobEvents.emit("change", job));
-    queue.on("converted", () => scheduleRebuild(root));
+    queue.on("converted", (rec: SourceRecord) => {
+      scheduleRebuild(root);
+      retireUpload(root, rec);
+    });
     queue.on("error", (err: unknown) => app.log.warn(err));
     queue.start();
     queues.set(root, queue);
@@ -454,6 +493,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     for (const timer of rebuildTimers.values()) clearTimeout(timer);
     rebuildTimers.clear();
     await Promise.allSettled([...queues.values()].map((q) => q.stop()));
+    await Promise.allSettled([...retiring]);
     await Promise.allSettled([...rebuildChains.values()]);
   });
 
@@ -522,7 +562,46 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     app.post("/api/import/pick-source", async (_request, reply) => {
       const dir = await pick("Choose a folder with videos");
       if (dir === null) return sendNull(reply);
-      return { dir, files: await scanSource(dir) };
+      return { dir, files: await scanSource(dir, probeFn) };
+    });
+  }
+
+  if (uploads) {
+    app.post("/api/upload", async (request) => {
+      const root = await requireRoot();
+      const batch = randomUUID();
+      const dir = path.join(uploads, batch);
+      const records = await sourceRecords(root);
+      const kept = new Set<string>();
+      const rejected: UploadRejected[] = [];
+      try {
+        for await (const part of request.parts({ limits: { fileSize: uploadLimit, files: UPLOAD_FILES } })) {
+          if (part.type !== "file") continue;
+          const name = part.filename;
+          const refusal = uploadRefusal(name, kept);
+          if (refusal !== null) {
+            rejected.push({ name, reason: refusal });
+            part.file.resume();
+            continue;
+          }
+          const file = await saveUpload(uploads, batch, name, part.file);
+          if (part.file.truncated) throw new HttpError(413, `${name} is larger than the upload limit.`);
+          if (await convertedUpload(root, records, name, (await stat(file)).size)) {
+            await rm(file);
+            rejected.push({ name, reason: ALREADY_UPLOADED });
+            continue;
+          }
+          kept.add(name.toLowerCase());
+        }
+      } catch (err) {
+        await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+        throw err;
+      }
+      if (kept.size === 0) {
+        await rm(dir, { recursive: true, force: true });
+        return { dir, files: [], rejected };
+      }
+      return { dir, files: await scanSource(dir, probeFn), rejected };
     });
   }
 

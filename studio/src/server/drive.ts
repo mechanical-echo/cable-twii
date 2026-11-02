@@ -407,10 +407,10 @@ async function collectVideos(dir: string, out: string[], isTop: boolean): Promis
   }
 }
 
-async function scanOne(source: string): Promise<ScanResult> {
+async function scanOne(source: string, probeFn: typeof probe): Promise<ScanResult> {
   const guess = guessEpisode(path.basename(source));
   try {
-    const result = await probe(source);
+    const result = await probeFn(source);
     return { source, guess, durationMs: result.durationMs, aspect: aspectFor(result.displayAspect), tooShort: isTooShort(result.durationMs) };
   } catch (error) {
     return { source, guess, durationMs: 0, aspect: "4:3", tooShort: isTooShort(0), error: error instanceof Error ? error.message : String(error) };
@@ -424,7 +424,7 @@ function compareNullsLast(a: number | null, b: number | null): number {
   return a - b;
 }
 
-export async function scanSource(dir: string): Promise<ScanResult[]> {
+export async function scanSource(dir: string, probeFn: typeof probe = probe): Promise<ScanResult[]> {
   const files: string[] = [];
   await collectVideos(dir, files, true);
   const results: ScanResult[] = new Array(files.length);
@@ -432,7 +432,7 @@ export async function scanSource(dir: string): Promise<ScanResult[]> {
   const worker = async () => {
     while (next < files.length) {
       const i = next++;
-      results[i] = await scanOne(files[i]);
+      results[i] = await scanOne(files[i], probeFn);
     }
   };
   await Promise.all(Array.from({ length: Math.min(PROBE_CONCURRENCY, files.length) }, worker));
