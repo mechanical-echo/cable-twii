@@ -17,6 +17,7 @@ import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
+import { clearedSessionCookie, sessionCookie, sessionToken, Sessions } from "./session.js";
 import { readShowMeta, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
@@ -68,6 +69,8 @@ const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
 const API_HEADER = "x-cable-twii";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
+const SESSION_GUARDED = /^\/(?:api|media)\//;
+const SESSION_OPEN = new Set(["/api/mode", "/api/login"]);
 
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string, readonly issues?: Issue[]) {
@@ -216,6 +219,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
   const bin = opts.schedBin;
   const server = opts.server && { ...opts.server, library: realpathSync(opts.server.library), imports: realpathSync(opts.server.imports) };
+  const sessions = server && new Sessions(server.password);
 
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
@@ -428,6 +432,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     if (!sameSite) return reply.code(403).send({ error: "This request came from another site." });
   });
 
+  if (sessions) {
+    app.addHook("onRequest", async (request, reply) => {
+      const route = request.routeOptions.url;
+      if (route === undefined || !SESSION_GUARDED.test(route) || SESSION_OPEN.has(route)) return;
+      if (!sessions.isValid(sessionToken(request.headers.cookie))) return reply.code(401).send({ error: "Sign in first." });
+    });
+  }
+
   app.register(multipart, { limits: { fileSize: ICON_LIMIT, files: 1, fields: 10 } });
 
   if (existsSync(webDir)) app.register(fastifyStatic, { root: webDir, prefix: "/" });
@@ -447,7 +459,26 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await Promise.allSettled([...rebuildChains.values()]);
   });
 
-  app.get("/api/mode", async () => ({ mode: server ? "server" : "drive", name: server?.name ?? null }));
+  app.get("/api/mode", async (request) => ({
+    mode: server ? "server" : "drive",
+    name: server?.name ?? null,
+    signedIn: sessions?.isValid(sessionToken(request.headers.cookie)) ?? true,
+  }));
+
+  if (sessions) {
+    app.post("/api/login", async (request, reply) => {
+      const token = sessions.signIn(stringField(objectBody(request.body), "password"));
+      if (token === null) throw new HttpError(401, "Wrong password.");
+      reply.header("set-cookie", sessionCookie(token));
+      return { ok: true };
+    });
+
+    app.post("/api/logout", async (request, reply) => {
+      sessions.signOut(sessionToken(request.headers.cookie));
+      reply.header("set-cookie", clearedSessionCookie());
+      return { ok: true };
+    });
+  }
 
   app.get("/api/drive", async (_request, reply) => {
     const info = await currentDrive();

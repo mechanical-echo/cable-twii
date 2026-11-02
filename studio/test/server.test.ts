@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -14,6 +14,7 @@ const LAN_HOST = "192.168.1.20:4747";
 let dir: string;
 let imports: string;
 let app: FastifyInstance;
+let cookie: string;
 
 function build(extra: Partial<AppOptions> = {}): FastifyInstance {
   return buildApp({
@@ -28,8 +29,18 @@ function build(extra: Partial<AppOptions> = {}): FastifyInstance {
   });
 }
 
-function send(options: InjectOptions) {
+function anonymous(options: InjectOptions) {
   return app.inject({ ...options, headers: { host: LAN_HOST, "x-cable-twii": "1", ...options.headers } });
+}
+
+function send(options: InjectOptions) {
+  return anonymous({ ...options, headers: { cookie, ...options.headers } });
+}
+
+async function signIn(target: FastifyInstance): Promise<string> {
+  const res = await target.inject({ method: "POST", url: "/api/login", headers: { host: LAN_HOST, "x-cable-twii": "1" }, payload: { password: "correct horse" } });
+  expect(res.statusCode).toBe(200);
+  return String(res.headers["set-cookie"]).split(";")[0] as string;
 }
 
 beforeEach(async () => {
@@ -37,6 +48,7 @@ beforeEach(async () => {
   imports = path.join(dir, "imports");
   await initServerLibrary({ library: dir, password: "correct horse", imports, port: 4747, name: "Home PC" });
   app = build();
+  cookie = await signIn(app);
 });
 
 afterEach(async () => {
@@ -75,14 +87,22 @@ test.each([
 test("GET /api/mode names the server", async () => {
   const res = await send({ method: "GET", url: "/api/mode" });
   expect(res.statusCode).toBe(200);
-  expect(res.json()).toEqual({ mode: "server", name: "Home PC" });
+  expect(res.json()).toEqual({ mode: "server", name: "Home PC", signedIn: true });
 });
 
-test("a drive-mode app reports no server name", async () => {
+test("GET /api/mode works without a session and says so", async () => {
+  const res = await anonymous({ method: "GET", url: "/api/mode" });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ mode: "server", name: "Home PC", signedIn: false });
+});
+
+test("a drive-mode app reports no server name and needs no sign-in", async () => {
   const drive = build({ server: undefined });
   try {
     const res = await drive.inject({ method: "GET", url: "/api/mode", headers: { host: "127.0.0.1:4747" } });
-    expect(res.json()).toEqual({ mode: "drive", name: null });
+    expect(res.json()).toEqual({ mode: "drive", name: null, signedIn: true });
+    const login = await drive.inject({ method: "POST", url: "/api/login", headers: { host: "127.0.0.1:4747", "x-cable-twii": "1" }, payload: { password: "correct horse" } });
+    expect(login.statusCode).toBe(404);
   } finally {
     await drive.close();
   }
@@ -109,15 +129,104 @@ test("a library given through a symlink is resolved once", async () => {
   await symlink(dir, link);
   const linked = build({ server: { library: link, password: "correct horse", imports: path.join(link, "imports"), name: "Home PC" } });
   try {
-    const drive = await linked.inject({ method: "GET", url: "/api/drive", headers: { host: LAN_HOST } });
+    const linkedCookie = await signIn(linked);
+    const drive = await linked.inject({ method: "GET", url: "/api/drive", headers: { host: LAN_HOST, cookie: linkedCookie } });
     expect(drive.statusCode).toBe(200);
     expect(drive.json().usable).toBe(true);
     expect(drive.json().path).toBe(dir);
     expect(drive.json().rootPath).toBe(path.join(dir, "cable-twii"));
-    const config = await linked.inject({ method: "GET", url: "/api/config", headers: { host: LAN_HOST } });
+    const config = await linked.inject({ method: "GET", url: "/api/config", headers: { host: LAN_HOST, cookie: linkedCookie } });
     expect(config.statusCode).toBe(200);
   } finally {
     await linked.close();
     await rm(linkDir, { recursive: true, force: true });
+  }
+});
+
+test("the API needs a session", async () => {
+  const res = await anonymous({ method: "GET", url: "/api/config" });
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual({ error: "Sign in first." });
+});
+
+test("an unknown session is refused", async () => {
+  const res = await anonymous({ method: "GET", url: "/api/config", headers: { cookie: "ctw_session=made-up" } });
+  expect(res.statusCode).toBe(401);
+});
+
+test("media needs a session", async () => {
+  const res = await anonymous({ method: "GET", url: "/media/channel.png" });
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual({ error: "Sign in first." });
+});
+
+test("a percent-encoded path does not get around the session", async () => {
+  const res = await anonymous({ method: "GET", url: "/%61pi/config" });
+  expect(res.statusCode).toBe(401);
+});
+
+test("a wrong password is refused", async () => {
+  const res = await anonymous({ method: "POST", url: "/api/login", payload: { password: "wrong horse" } });
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual({ error: "Wrong password." });
+  expect(res.headers["set-cookie"]).toBeUndefined();
+});
+
+test("a login without a password is refused", async () => {
+  const res = await anonymous({ method: "POST", url: "/api/login", payload: {} });
+  expect(res.statusCode).toBe(400);
+  expect(res.json()).toEqual({ error: "password must be a string." });
+});
+
+test("logging in sets a host-only session cookie", async () => {
+  const res = await anonymous({ method: "POST", url: "/api/login", payload: { password: "correct horse" } });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ ok: true });
+  expect(res.headers["set-cookie"]).toMatch(/^ctw_session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Strict; Max-Age=2592000$/);
+});
+
+test("a signed-in cookie opens the API", async () => {
+  const mode = await anonymous({ method: "GET", url: "/api/mode", headers: { cookie } });
+  expect(mode.json().signedIn).toBe(true);
+  const res = await anonymous({ method: "GET", url: "/api/config", headers: { cookie } });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().config.version).toBe(1);
+});
+
+test("signing out ends the session", async () => {
+  const out = await send({ method: "POST", url: "/api/logout" });
+  expect(out.statusCode).toBe(200);
+  expect(out.json()).toEqual({ ok: true });
+  expect(out.headers["set-cookie"]).toBe("ctw_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+  const res = await anonymous({ method: "GET", url: "/api/config", headers: { cookie } });
+  expect(res.statusCode).toBe(401);
+  const mode = await anonymous({ method: "GET", url: "/api/mode", headers: { cookie } });
+  expect(mode.json().signedIn).toBe(false);
+});
+
+test("a rebound host with a matching Origin still needs a session", async () => {
+  const res = await anonymous({
+    method: "PUT",
+    url: "/api/config",
+    headers: { host: "evil.example:4747", origin: "http://evil.example:4747" },
+    payload: {},
+  });
+  expect(res.statusCode).toBe(401);
+  expect(res.json()).toEqual({ error: "Sign in first." });
+});
+
+test("the web files and the Wii interface stay open", async () => {
+  const webDir = path.join(dir, "web");
+  await mkdir(webDir);
+  await writeFile(path.join(webDir, "index.html"), "<h1>Studio</h1>");
+  const web = build({ webDir });
+  try {
+    const page = await web.inject({ method: "GET", url: "/", headers: { host: LAN_HOST } });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toBe("<h1>Studio</h1>");
+    const wii = await web.inject({ method: "GET", url: "/wii/v1/info", headers: { host: LAN_HOST } });
+    expect(wii.statusCode).not.toBe(401);
+  } finally {
+    await web.close();
   }
 });
