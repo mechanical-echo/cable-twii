@@ -17,6 +17,13 @@ export class ShowMetaConflictError extends Error {
   }
 }
 
+export class ShowMetaDamagedError extends Error {
+  constructor(file: string, reason: string) {
+    super(`${file} is damaged: ${reason}`);
+    this.name = "ShowMetaDamagedError";
+  }
+}
+
 export async function showMetaMtime(showDir: string): Promise<number> {
   try {
     return Math.trunc((await stat(path.join(showDir, SHOW_FILE))).mtimeMs);
@@ -39,17 +46,17 @@ export async function readShowMeta(showDir: string): Promise<ShowMeta> {
   try {
     doc = parse(text);
   } catch (err) {
-    throw new Error(`${file} is damaged: ${(err as Error).message}`);
+    throw new ShowMetaDamagedError(file, (err as Error).message);
   }
   const meta: ShowMeta = { episodes: {} };
   if (typeof doc.name === "string" && doc.name !== "") meta.name = doc.name;
   const episodes = doc.episodes;
   if (episodes !== undefined) {
     if (typeof episodes !== "object" || episodes === null || Array.isArray(episodes)) {
-      throw new Error(`${file} is damaged: invalid [episodes] table`);
+      throw new ShowMetaDamagedError(file, "invalid [episodes] table");
     }
     for (const [key, value] of Object.entries(episodes)) {
-      if (typeof value !== "string") throw new Error(`${file} is damaged: description for "${key}" is not a string`);
+      if (typeof value !== "string") throw new ShowMetaDamagedError(file, `description for "${key}" is not a string`);
       meta.episodes[key] = value;
     }
   }

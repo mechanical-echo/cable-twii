@@ -9,6 +9,7 @@ import { parseConfig } from "../src/server/config.js";
 import type { convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
+import { readShowMeta } from "../src/server/showMeta.js";
 import { writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
 import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
@@ -708,6 +709,21 @@ test("PUT /api/show-meta writes show.toml and returns the rebuilt library", asyn
   expect(bad.statusCode).toBe(400);
   const noMtime = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: {} } });
   expect(noMtime.statusCode).toBe(400);
+});
+
+test("a damaged show.toml opens as empty meta and a save rewrites it", async () => {
+  await useFixture();
+  const file = path.join(root, "Cartoon Network", "Ben 10", "show.toml");
+  await writeFile(file, "name = [[[");
+  const loaded = await getShowMeta("Ben 10");
+  expect(loaded).toEqual({ meta: { episodes: {} }, mtimeMs: Math.trunc((await stat(file)).mtimeMs) });
+  const res = await app.inject({
+    method: "PUT",
+    url: "/api/show-meta",
+    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" }, mtimeMs: loaded.mtimeMs },
+  });
+  expect(res.statusCode).toBe(200);
+  expect(await readShowMeta(path.dirname(file))).toEqual({ name: "Ben Ten!", episodes: { S01E05: "Aliens" } });
 });
 
 test("show-meta conflict keeps the first save", async () => {

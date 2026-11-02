@@ -21,7 +21,7 @@ import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
 import { uploadsDir } from "./serverSettings.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
-import { ShowMetaConflictError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
+import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
 import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, uploadName, uploadSource } from "./uploads.js";
@@ -157,6 +157,15 @@ async function inImports<T>(task: () => Promise<T>): Promise<T> {
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR") throw new HttpError(404, "That folder does not exist.");
+    throw err;
+  }
+}
+
+async function editableShowMeta(showDir: string): Promise<ShowMeta> {
+  try {
+    return await readShowMeta(showDir);
+  } catch (err) {
+    if (err instanceof ShowMetaDamagedError) return { episodes: {} };
     throw err;
   }
 }
@@ -815,7 +824,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const showDir = inside(root, channelFolder, showFolder);
     if (!(await isDirectory(showDir))) throw new HttpError(404, "That show folder does not exist.");
     const mtimeMs = await showMetaMtime(showDir);
-    return { meta: await readShowMeta(showDir), mtimeMs };
+    return { meta: await editableShowMeta(showDir), mtimeMs };
   });
 
   app.put("/api/show-meta", async (request) => {
