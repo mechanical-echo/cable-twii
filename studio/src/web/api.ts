@@ -4,6 +4,7 @@ import type { BuildResult } from "../server/library.js";
 import type { ValidateResult } from "../server/sched.js";
 import type { ShowMeta } from "../server/showMeta.js";
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
+import { streamLost } from "./jobs.js";
 import type { WebLibrary } from "./tree.js";
 import { UPLOAD_BATCH_FILES, batches, uploadRatio } from "./uploading.js";
 
@@ -198,13 +199,13 @@ export async function uploadVideos(files: File[], onProgress: (ratio: number) =>
 
 export interface JobStreamHandlers {
   onOpen?: () => void;
-  onError?: () => void;
+  onError?: (closed: boolean) => void;
 }
 
 export function subscribeJobs(cb: (job: Job) => void, handlers: JobStreamHandlers = {}): () => void {
   const source = new EventSource("/api/jobs/stream");
   source.onopen = () => handlers.onOpen?.();
-  source.onerror = () => handlers.onError?.();
+  source.onerror = () => handlers.onError?.(streamLost(source.readyState, getJobs));
   source.onmessage = (event) => {
     try {
       cb(JSON.parse(event.data as string) as Job);

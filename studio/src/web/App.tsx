@@ -75,7 +75,7 @@ export function App() {
   else page = <PreviewPage />;
 
   return (
-    <div className="shell">
+    <div className={server ? "shell server" : "shell"}>
       <nav className="tabs">
         <h1>cable-twii Studio</h1>
         {TABS.map((name) => (

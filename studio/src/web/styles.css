@@ -760,11 +760,11 @@ button.entry:hover:not(:disabled) {
 }
 
 @media (max-width: 700px) {
-  .shell {
+  .shell.server {
     grid-template-columns: 1fr;
   }
 
-  .tabs {
+  .shell.server .tabs {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
@@ -773,25 +773,26 @@ button.entry:hover:not(:disabled) {
     border-bottom: 1px solid var(--border);
   }
 
-  .tabs h1 {
+  .shell.server .tabs h1 {
     width: 100%;
     margin: 0 0 4px;
   }
 
-  .content {
+  .shell.server .content {
     padding: 14px 12px;
   }
 
-  .facts {
+  .shell.server .facts {
     grid-template-columns: 110px 1fr;
   }
 
-  .facts dd {
+  .shell.server .facts dd {
     overflow-wrap: anywhere;
   }
 
-  input,
-  select {
+  .shell.server input,
+  .shell.server select,
+  .login input {
     font-size: 16px;
   }
 }
