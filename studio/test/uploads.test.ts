@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { type AddressInfo, createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
+import { stringify } from "smol-toml";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { ContainmentError } from "../src/server/contain.js";
 import { MIN_DURATION_MS, type convert } from "../src/server/ffmpeg.js";
@@ -13,7 +15,7 @@ import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary, uploadsDir } from "../src/server/serverSettings.js";
 import { readSources } from "../src/server/sources.js";
 import type { Job } from "../src/server/types.js";
-import { UPLOAD_LIMIT, isUploadPath, saveUpload, uploadName, uploadSource } from "../src/server/uploads.js";
+import { UPLOAD_LIMIT, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "../src/server/uploads.js";
 import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
 
 vi.mock("node:crypto", async (importOriginal) => {
@@ -23,6 +25,8 @@ vi.mock("node:crypto", async (importOriginal) => {
 
 const LAN_HOST = "192.168.1.20:4747";
 const FIXED_BATCH = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const T0 = Date.UTC(2026, 10, 1);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -90,6 +94,14 @@ async function jobs(): Promise<Job[]> {
 
 async function uploadsEmpty(): Promise<boolean> {
   return (await readdir(uploads)).length === 0;
+}
+
+async function stored(rel: string, mtimeMs: number, base = uploads): Promise<string> {
+  const file = path.join(base, ...rel.split("/"));
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, "whole");
+  await utimes(file, new Date(mtimeMs), new Date(mtimeMs));
+  return file;
 }
 
 beforeEach(async () => {
@@ -471,18 +483,105 @@ test.each([
   expect(await readdir(dir)).not.toContain("ep.mp4");
 });
 
-test("starting the server sweeps part files and empty batch folders but keeps complete uploads", async () => {
-  await mkdir(path.join(uploads, "b1"));
-  await writeFile(path.join(uploads, "b1", "x.mp4.part"), "half");
+test("the sweep removes part files and empty batch folders but keeps fresh uploads", async () => {
+  await stored("b1/x.mp4.part", T0);
   await mkdir(path.join(uploads, "b2"));
-  await mkdir(path.join(uploads, "b3"));
-  await writeFile(path.join(uploads, "b3", "y.mp4"), "whole");
-  await mkdir(path.join(uploads, "b4"));
-  await writeFile(path.join(uploads, "b4", "z.mp4.part"), "half");
-  await writeFile(path.join(uploads, "b4", "w.mp4"), "whole");
-  await initServerLibrary({ library: dir, password: "correct horse", imports: path.join(dir, "imports"), port: 4747, name: "Home PC" });
+  await stored("b3/y.mp4", T0);
+  await stored("b4/z.mp4.part", T0);
+  await stored("b4/w.mp4", T0);
+  await sweepUploads(uploads, new Set(), T0 + 60_000);
   expect((await readdir(uploads)).sort()).toEqual(["b3", "b4"]);
   expect(await readdir(path.join(uploads, "b3"))).toEqual(["y.mp4"]);
   expect(await readdir(path.join(uploads, "b4"))).toEqual(["w.mp4"]);
   expect(await readFile(path.join(uploads, "b3", "y.mp4"), "utf8")).toBe("whole");
+});
+
+test("the sweep removes an upload older than a day that no job needs", async () => {
+  await stored("b1/old.mp4", T0);
+  await sweepUploads(uploads, new Set(), T0 + DAY_MS + 1000);
+  expect(await readdir(uploads)).toEqual([]);
+});
+
+test("the sweep keeps an upload newer than a day", async () => {
+  const fresh = await stored("b1/fresh.mp4", T0);
+  await sweepUploads(uploads, new Set(), T0 + DAY_MS - 60_000);
+  expect(await readFile(fresh, "utf8")).toBe("whole");
+});
+
+test("the sweep keeps an old upload that a queued job needs", async () => {
+  const needed = await stored("b1/needed.mp4", T0);
+  await stored("b1/orphan.mp4", T0);
+  await sweepUploads(uploads, new Set([needed]), T0 + 2 * DAY_MS);
+  expect(await readdir(path.join(uploads, "b1"))).toEqual(["needed.mp4"]);
+});
+
+test("the sweep does not follow links out of the uploads folder", async () => {
+  const outside = path.join(dir, "outside");
+  const mine = await stored("keep.mp4", T0, outside);
+  await stored("keep.mp4.part", T0, outside);
+  await symlink(outside, path.join(uploads, "linked-batch"));
+  await mkdir(path.join(uploads, "b1"));
+  await symlink(mine, path.join(uploads, "b1", "linked.mp4"));
+  await sweepUploads(uploads, new Set(), T0 + 2 * DAY_MS);
+  expect((await readdir(outside)).sort()).toEqual(["keep.mp4", "keep.mp4.part"]);
+  expect((await lstat(path.join(uploads, "b1", "linked.mp4"))).isSymbolicLink()).toBe(true);
+});
+
+test("the sweep leaves an uploads folder that is a link alone", async () => {
+  const elsewhere = path.join(dir, "elsewhere");
+  await stored("b1/old.mp4", T0, elsewhere);
+  await stored("b1/x.mp4.part", T0, elsewhere);
+  await rm(uploads, { recursive: true });
+  await symlink(elsewhere, uploads);
+  await sweepUploads(uploads, new Set(), T0 + 2 * DAY_MS);
+  expect((await readdir(path.join(elsewhere, "b1"))).sort()).toEqual(["old.mp4", "x.mp4.part"]);
+});
+
+test("the server sweeps uploads only once it is listening, keeping what the queue needs", async () => {
+  const old = Date.now() - 2 * DAY_MS;
+  await stored("b1/x.mp4.part", Date.now());
+  await stored("b2/orphan.mp4", old);
+  const needed = await stored("b3/needed.mp4", old);
+  const job = { id: "j-0001", source: needed, target: "Cartoon Network/Gumball/Season 1/S01E01 - Pilot.mpg", aspect: "4:3" };
+  await writeFile(path.join(root, ".studio", "queue.toml"), stringify({ version: 1, job: [job] }));
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const convertFn: typeof convert = async (_src, dst) => {
+    await gate;
+    await writeFile(dst, "converted");
+  };
+  await app.close();
+  try {
+    await initServerLibrary({ library: dir, password: "correct horse", imports: path.join(dir, "imports"), port: 4747, name: "Home PC" });
+    app = build({ queueFactory: (r) => new ConversionQueue(r, { convertFn, probeFn: fakeProbe, concurrency: 1 }) });
+    await app.ready();
+    await sleep(50);
+    expect((await readdir(uploads)).sort()).toEqual(["b1", "b2", "b3"]);
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    await waitFor(async () => (await readdir(uploads)).length === 1);
+    expect(await readdir(uploads)).toEqual(["b3"]);
+    expect(await readdir(path.join(uploads, "b3"))).toEqual(["needed.mp4"]);
+  } finally {
+    release();
+  }
+});
+
+test("a server that cannot listen leaves uploads alone", async () => {
+  await stored("b1/x.mp4.part", Date.now());
+  await stored("b2/orphan.mp4", Date.now() - 2 * DAY_MS);
+  const blocker = createServer();
+  await new Promise<void>((resolve) => blocker.listen(0, "127.0.0.1", resolve));
+  const { port } = blocker.address() as AddressInfo;
+  const second = build();
+  try {
+    await expect(second.listen({ host: "127.0.0.1", port })).rejects.toThrow(/EADDRINUSE/);
+    await sleep(50);
+    expect((await readdir(uploads)).sort()).toEqual(["b1", "b2"]);
+    expect(await readdir(path.join(uploads, "b1"))).toEqual(["x.mp4.part"]);
+  } finally {
+    await second.close();
+    await new Promise((resolve) => blocker.close(resolve));
+  }
 });

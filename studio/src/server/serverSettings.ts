@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { parse } from "smol-toml";
 import { contained } from "./contain.js";
-import { sweepUploads } from "./uploads.js";
 
 export interface ServerSettings {
   library: string;
@@ -97,5 +96,4 @@ export async function initServerLibrary(s: ServerSettings): Promise<void> {
     if (imports === real || contained(real, imports)) throw new Error(`imports ${s.imports} must not be inside ${dir}`);
   }
   await mkdir(s.imports, { recursive: true });
-  await sweepUploads(uploadsDir(s.library));
 }

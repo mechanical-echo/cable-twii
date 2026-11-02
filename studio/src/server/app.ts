@@ -24,7 +24,7 @@ import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
-import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, uploadName, uploadSource } from "./uploads.js";
+import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
 import { registerWiiApi } from "./wiiApi.js";
 
 export interface ServerModeOptions {
@@ -537,6 +537,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       } catch (err) {
         app.log.warn(err);
       }
+    });
+  }
+
+  if (uploads) {
+    app.addHook("onListen", async () => {
+      const jobs = queueFor(await requireRoot()).list();
+      const queued = new Set(jobs.filter((j) => j.state === "queued" || j.state === "running").map((j) => path.resolve(j.source)));
+      await sweepUploads(uploads, queued, (opts.now ?? Date.now)());
     });
   }
 

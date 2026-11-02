@@ -10,6 +10,7 @@ export const UPLOAD_LIMIT = 20 * 1024 ** 3;
 
 const PART_SUFFIX = ".part";
 const MAX_NAME_BYTES = 250;
+const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000;
 
 export function uploadSource(name: string): string {
   return `upload:${name}`;
@@ -68,12 +69,32 @@ async function entriesOf(dir: string) {
   }
 }
 
-export async function sweepUploads(uploads: string): Promise<void> {
+async function isFolder(dir: string): Promise<boolean> {
+  try {
+    return (await lstat(dir)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function modifiedBefore(file: string, cutoff: number): Promise<boolean> {
+  try {
+    return (await lstat(file)).mtimeMs < cutoff;
+  } catch {
+    return false;
+  }
+}
+
+export async function sweepUploads(uploads: string, queued: ReadonlySet<string>, now: number): Promise<void> {
+  if (!(await isFolder(uploads))) return;
+  const cutoff = now - ORPHAN_AGE_MS;
   for (const batch of await entriesOf(uploads)) {
     if (!batch.isDirectory()) continue;
     const dir = path.join(uploads, batch.name);
     for (const entry of await entriesOf(dir)) {
-      if (entry.isFile() && entry.name.endsWith(PART_SUFFIX)) await rm(path.join(dir, entry.name), { force: true }).catch(() => undefined);
+      if (!entry.isFile()) continue;
+      const file = path.join(dir, entry.name);
+      if (entry.name.endsWith(PART_SUFFIX) || (!queued.has(file) && (await modifiedBefore(file, cutoff)))) await rm(file, { force: true }).catch(() => undefined);
     }
     await rmdir(dir).catch(() => undefined);
   }
