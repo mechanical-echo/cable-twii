@@ -13,6 +13,7 @@ cable-twii is a Homebrew Channel app that turns a modded Wii into your own cable
 - [File formats](docs/formats.md)
 - [Engine C API](docs/engine-api.md)
 - [Mac setup](docs/setup.md)
+- [Server guide](docs/SERVER.md) (Studio as a home server for the Wii)
 
 ## Try it in Dolphin (Mac)
 

@@ -12,6 +12,7 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 | 03 Wii app | Tasks 1-10 and the 50-item checklist | Task 11: run the checklist on a real Wii, fix failures | Owner and real hardware |
 | 05 Wii redesign | Tasks 1-11 on branch `wii-redesign` (kit, guide, system bar, OSD, chip, volume, up-next card, HOME menu, intro, empty state, error dialog, checklist items 51-55), reviewed and fixed; every screen checked in Dolphin with the scripted-input build (`make -C wii DEBUG_SCRIPT=1`); Design System artifact re-synced (tokens and component notes, main previews redrawn) | real-Wii run of checklist items 51-55 | Owner and real hardware |
 | 04 Release | `make dist`, `CHANGELOG.md`, owner's guide, decision 0003, forwarder source with host tests, banner assets and builder, `tools/build-wad.sh`, channel boot and missing-file message checked in Dolphin (merged to master 2026-10-22), channel install guide | Owner checks of both; banner, icon and sound check on Dolphin's Wii Menu (Task 4 Step 3); channel install by the owner; final acceptance; v1.0.0 tag | The banner check needs a Wii Menu in Dolphin (owner's NAND backup imported); Tasks 5-6 need the owner and the Wii |
+| 07 Studio server | Server mode on branch `studio-server`: `npm run serve` with a settings file, shared-password sign-in, the read-only Wii interface `/wii/v1/`, browser uploads and an imports folder, the two-editor save check and the web UI; Windows start script, install guide (`docs/SERVER.md`) and `docs/formats.md` sections | Owner's check of `docs/SERVER.md` on the Windows 11 PC: `curl` the server from the Mac and sign in from a phone | Owner (the PC at home) |
 
 ## Left that does not need hardware
 
@@ -36,11 +37,13 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 - Follow the owner's guide from a fresh flash drive (release Task 2, Step 2).
 - Install the channel and run the final acceptance (release Tasks 5-6).
 - Windows smoke test of Studio with a FAT32 stick, once on a drive letter and once on a mount folder.
+- Follow `docs/SERVER.md` on the Windows 11 PC, then run `curl http://<pc-ip>:4747/wii/v1/info` from the Mac and sign in from a phone (server plan Task 8 Step 3).
 
 ## Where things are
 
 - Owner's guide: `docs/USER-GUIDE.md`
 - Channel install guide: `docs/INSTALL-CHANNEL.md`
+- Server install guide: `docs/SERVER.md`
 - Hardware checklist: `docs/testing/wii-checklist.md`
 - File formats: `docs/formats.md`
 - Engine API: `docs/engine-api.md`
