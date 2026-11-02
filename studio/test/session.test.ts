@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { clearedSessionCookie, sessionCookie, sessionToken, Sessions } from "../src/server/session.js";
+import { clearedSessionCookie, sessionToken, Sessions } from "../src/server/session.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -72,6 +72,67 @@ test("sessionToken ignores other cookies", () => {
 });
 
 test("the cookies are host-only, http-only and strict", () => {
-  expect(sessionCookie("abc")).toBe("ctw_session=abc; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000");
+  expect(new Sessions("correct horse").cookieFor("abc")).toBe("ctw_session=abc; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000");
   expect(clearedSessionCookie()).toBe("ctw_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+});
+
+test("the cookie lives as long as the session does", () => {
+  expect(new Sessions("correct horse", 1000).cookieFor("abc")).toBe("ctw_session=abc; Path=/; HttpOnly; SameSite=Strict; Max-Age=1");
+  expect(new Sessions("correct horse", 90_500).cookieFor("abc")).toContain("; Max-Age=90");
+});
+
+test("four wrong passwords do not lock sign-in", () => {
+  const sessions = new Sessions("correct horse");
+  for (let i = 0; i < 4; i++) expect(sessions.signIn("wrong horse")).toBeNull();
+  expect(sessions.isLocked()).toBe(false);
+  expect(sessions.signIn("correct horse")).not.toBeNull();
+});
+
+test("five wrong passwords in a minute lock sign-in, even for the right password", () => {
+  let now = 0;
+  const sessions = new Sessions("correct horse", undefined, () => now);
+  for (let i = 0; i < 5; i++) {
+    expect(sessions.isLocked()).toBe(false);
+    expect(sessions.signIn("wrong horse")).toBeNull();
+    now += 1000;
+  }
+  expect(sessions.isLocked()).toBe(true);
+  expect(sessions.signIn("correct horse")).toBeNull();
+});
+
+test("the lock lifts once the oldest failure is more than 60 seconds old", () => {
+  let now = 0;
+  const sessions = new Sessions("correct horse", undefined, () => now);
+  for (let i = 0; i < 5; i++) {
+    sessions.signIn("wrong horse");
+    now += 1000;
+  }
+  now = 60_000;
+  expect(sessions.isLocked()).toBe(true);
+  now = 60_001;
+  expect(sessions.isLocked()).toBe(false);
+  expect(sessions.signIn("correct horse")).not.toBeNull();
+});
+
+test("attempts during the lock do not extend it", () => {
+  let now = 0;
+  const sessions = new Sessions("correct horse", undefined, () => now);
+  for (let i = 0; i < 5; i++) sessions.signIn("wrong horse");
+  now = 30_000;
+  expect(sessions.signIn("wrong horse")).toBeNull();
+  now = 60_001;
+  expect(sessions.isLocked()).toBe(false);
+});
+
+test("the window rolls: failures that are still recent lock again sooner", () => {
+  let now = 0;
+  const sessions = new Sessions("correct horse", undefined, () => now);
+  for (let i = 0; i < 5; i++) {
+    sessions.signIn("wrong horse");
+    now += 1000;
+  }
+  now = 60_001;
+  expect(sessions.isLocked()).toBe(false);
+  expect(sessions.signIn("wrong horse")).toBeNull();
+  expect(sessions.isLocked()).toBe(true);
 });

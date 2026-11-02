@@ -37,8 +37,12 @@ function send(options: InjectOptions) {
   return anonymous({ ...options, headers: { cookie, ...options.headers } });
 }
 
+function login(target: FastifyInstance, password: string) {
+  return target.inject({ method: "POST", url: "/api/login", headers: { host: LAN_HOST, "x-cable-twii": "1" }, payload: { password } });
+}
+
 async function signIn(target: FastifyInstance): Promise<string> {
-  const res = await target.inject({ method: "POST", url: "/api/login", headers: { host: LAN_HOST, "x-cable-twii": "1" }, payload: { password: "correct horse" } });
+  const res = await login(target, "correct horse");
   expect(res.statusCode).toBe(200);
   return String(res.headers["set-cookie"]).split(";")[0] as string;
 }
@@ -229,4 +233,41 @@ test("the web files and the Wii interface stay open", async () => {
   } finally {
     await web.close();
   }
+});
+
+test.each([
+  ["no cookie", {}],
+  ["an unknown token", { cookie: "ctw_session=made-up" }],
+])("signing out with %s still clears the cookie", async (_name, headers) => {
+  const res = await anonymous({ method: "POST", url: "/api/logout", headers });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ ok: true });
+  expect(res.headers["set-cookie"]).toBe("ctw_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+});
+
+test("five wrong passwords lock sign-in for a minute", async () => {
+  let now = 1_000_000;
+  const timed = build({ now: () => now });
+  try {
+    for (let i = 0; i < 5; i++) expect((await login(timed, "wrong horse")).statusCode).toBe(401);
+    const locked = await login(timed, "correct horse");
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json()).toEqual({ error: "Too many tries. Wait a minute and try again." });
+    expect(locked.headers["set-cookie"]).toBeUndefined();
+    now += 60_001;
+    const open = await login(timed, "correct horse");
+    expect(open.statusCode).toBe(200);
+    expect(open.headers["set-cookie"]).toMatch(/^ctw_session=/);
+  } finally {
+    await timed.close();
+  }
+});
+
+test("the lock covers every client, not one address", async () => {
+  for (let i = 0; i < 5; i++) {
+    const res = await anonymous({ method: "POST", url: "/api/login", remoteAddress: `192.168.1.${30 + i}`, payload: { password: "wrong horse" } });
+    expect(res.statusCode).toBe(401);
+  }
+  const res = await anonymous({ method: "POST", url: "/api/login", remoteAddress: "192.168.1.99", payload: { password: "correct horse" } });
+  expect(res.statusCode).toBe(429);
 });

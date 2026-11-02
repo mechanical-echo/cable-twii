@@ -3,6 +3,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 export const SESSION_COOKIE = "ctw_session";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_FAILURES = 5;
+const FAILURE_WINDOW_MS = 60 * 1000;
 const COOKIE_ATTRIBUTES = "Path=/; HttpOnly; SameSite=Strict";
 
 function digest(value: string): Buffer {
@@ -12,13 +14,24 @@ function digest(value: string): Buffer {
 export class Sessions {
   private readonly expected: Buffer;
   private readonly expiries = new Map<string, number>();
+  private failures: number[] = [];
 
   constructor(password: string, private readonly ttlMs: number = SESSION_TTL_MS, private readonly now: () => number = Date.now) {
     this.expected = digest(password);
   }
 
+  isLocked(): boolean {
+    const now = this.now();
+    this.failures = this.failures.filter((at) => now - at <= FAILURE_WINDOW_MS);
+    return this.failures.length >= MAX_FAILURES;
+  }
+
   signIn(password: string): string | null {
-    if (!timingSafeEqual(digest(password), this.expected)) return null;
+    if (this.isLocked()) return null;
+    if (!timingSafeEqual(digest(password), this.expected)) {
+      this.failures.push(this.now());
+      return null;
+    }
     const token = randomBytes(32).toString("base64url");
     this.expiries.set(token, this.now() + this.ttlMs);
     return token;
@@ -38,6 +51,10 @@ export class Sessions {
   signOut(token: string | undefined): void {
     if (token !== undefined) this.expiries.delete(token);
   }
+
+  cookieFor(token: string): string {
+    return `${SESSION_COOKIE}=${token}; ${COOKIE_ATTRIBUTES}; Max-Age=${Math.floor(this.ttlMs / 1000)}`;
+  }
 }
 
 export function sessionToken(cookieHeader: string | undefined): string | undefined {
@@ -49,10 +66,6 @@ export function sessionToken(cookieHeader: string | undefined): string | undefin
     return value === "" ? undefined : value;
   }
   return undefined;
-}
-
-export function sessionCookie(token: string): string {
-  return `${SESSION_COOKIE}=${token}; ${COOKIE_ATTRIBUTES}; Max-Age=${SESSION_TTL_MS / 1000}`;
 }
 
 export function clearedSessionCookie(): string {

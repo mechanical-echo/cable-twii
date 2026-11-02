@@ -17,7 +17,7 @@ import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
-import { clearedSessionCookie, sessionCookie, sessionToken, Sessions } from "./session.js";
+import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { readShowMeta, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
@@ -41,6 +41,7 @@ export interface AppOptions {
   logger?: boolean;
   port?: number;
   server?: ServerModeOptions;
+  now?: () => number;
 }
 
 type Aspect = "16:9" | "4:3";
@@ -70,7 +71,7 @@ const DEV_HOST = "localhost:5173";
 const API_HEADER = "x-cable-twii";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const SESSION_GUARDED = /^\/(?:api|media)\//;
-const SESSION_OPEN = new Set(["/api/mode", "/api/login"]);
+const SESSION_OPEN = new Set(["/api/mode", "/api/login", "/api/logout"]);
 
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string, readonly issues?: Issue[]) {
@@ -219,7 +220,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
   const bin = opts.schedBin;
   const server = opts.server && { ...opts.server, library: realpathSync(opts.server.library), imports: realpathSync(opts.server.imports) };
-  const sessions = server && new Sessions(server.password);
+  const sessions = server && new Sessions(server.password, undefined, opts.now);
 
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
@@ -467,9 +468,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   if (sessions) {
     app.post("/api/login", async (request, reply) => {
+      if (sessions.isLocked()) throw new HttpError(429, "Too many tries. Wait a minute and try again.");
       const token = sessions.signIn(stringField(objectBody(request.body), "password"));
       if (token === null) throw new HttpError(401, "Wrong password.");
-      reply.header("set-cookie", sessionCookie(token));
+      reply.header("set-cookie", sessions.cookieFor(token));
       return { ok: true };
     });
 
