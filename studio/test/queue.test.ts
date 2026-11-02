@@ -8,6 +8,7 @@ import { readSources, writeSources } from "../src/server/sources.js";
 import { convert as realConvert } from "../src/server/ffmpeg.js";
 import type { convert, probe } from "../src/server/ffmpeg.js";
 import type { Job, SourceRecord } from "../src/server/types.js";
+import { waitFor } from "./helpers.js";
 
 let dir: string;
 let srcFile: string;
@@ -159,11 +160,16 @@ function until(q: ConversionQueue, check: (jobs: Job[]) => boolean): Promise<voi
 
 // persist() queues atomic writes behind each other, so the file lags the in-memory jobs
 async function storedWith(file: string, count: number): Promise<string> {
-  for (;;) {
-    const text = await readFile(file, "utf8").catch(() => "");
-    if ((text.match(/\[\[job\]\]/g) ?? []).length === count) return text;
-    await sleep(5);
-  }
+  let text = "";
+  let seen = 0;
+  await waitFor(async () => {
+    text = await readFile(file, "utf8").catch(() => "");
+    seen = text.match(/\[\[job\]\]/g)?.length ?? 0;
+    return seen === count;
+  }).catch(() => {
+    throw new Error(`queue.toml never reached ${count} jobs, last saw ${seen}`);
+  });
+  return text;
 }
 
 test("queue pauses while the root is gone and resumes when it is back", async () => {
