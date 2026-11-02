@@ -188,11 +188,11 @@ TEST loop_known_lineup_pinned(void)
         {615000, 200000, CTW_AIR_EPISODE, 2, "mtv-00s/Music Videos/Artist 2 - Song 2.mpg"},
         {815000, 200000, CTW_AIR_EPISODE, 2, "mtv-00s/Music Videos/Artist 3 - Song 3.mpg"}
     };
-    ASSERT_EQ_FMT(0xe01c5a8802c50fe5ULL, ctw_lineup_hash(&l), "%016llx");
+    ASSERT_EQ_FMT((unsigned long long)(0xe01c5a8802c50fe5ULL), (unsigned long long)(ctw_lineup_hash(&l)), "%016llx");
     ASSERT_EQ(501u, l.count);
     for (size_t i = 0; i < 6; i++) {
         const ctw_airing *a = &l.items[i];
-        ASSERT_EQ_FMT(expected[i].start, a->start_ms, "%lld");
+        ASSERT_EQ_FMT((long long)(expected[i].start), (long long)(a->start_ms), "%lld");
         ASSERT_EQ(expected[i].duration, a->duration_ms);
         ASSERT_EQ(expected[i].kind, a->kind);
         ASSERT_EQ(-1, a->slot_index);

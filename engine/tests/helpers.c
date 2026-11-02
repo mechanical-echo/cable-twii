@@ -82,13 +82,12 @@ int build_lineup(const char *cfg, int channel, ctw_date day, ctw_lineup *l)
 enum greatest_test_res assert_contiguous(const ctw_lineup *l, int64_t from, int64_t to)
 {
     ASSERT(l->count > 0);
-    ASSERT_EQ_FMT(from, l->items[0].start_ms, "%lld");
+    ASSERT_EQ_FMT((long long)from, (long long)(l->items[0].start_ms), "%lld");
     for (size_t i = 1; i < l->count; i++) {
         int64_t prev_end = l->items[i - 1].start_ms + (int64_t)l->items[i - 1].duration_ms;
-        ASSERT_EQ_FMT(prev_end, l->items[i].start_ms, "%lld");
+        ASSERT_EQ_FMT((long long)prev_end, (long long)(l->items[i].start_ms), "%lld");
     }
-    ASSERT_EQ_FMT(to, l->items[l->count - 1].start_ms + (int64_t)l->items[l->count - 1].duration_ms,
-                  "%lld");
+    ASSERT_EQ_FMT((long long)to, (long long)(l->items[l->count - 1].start_ms + (int64_t)l->items[l->count - 1].duration_ms), "%lld");
     PASS();
 }
 
@@ -136,7 +135,7 @@ enum greatest_test_res assert_capped(const ctw_lineup *l, int channel, int64_t f
     ASSERT_EQ(CTW_AIR_UPNEXT, last->kind);
     ASSERT_EQ(-1, last->slot_index);
     ASSERT_EQ(-1, last->item_index);
-    ASSERT_EQ_FMT(to, last->start_ms + (int64_t)last->duration_ms, "%lld");
+    ASSERT_EQ_FMT((long long)to, (long long)(last->start_ms + (int64_t)last->duration_ms), "%lld");
     for (size_t i = 0; i + 1 < l->count; i++) ASSERT(l->items[i].kind != CTW_AIR_UPNEXT);
     PASS();
 }

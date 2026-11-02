@@ -304,7 +304,7 @@ TEST load_nul_byte(void)
         count = is.count;
         found = db_has_issue(&is, CTW_E_PARSE, "library", "library.toml contains a NUL byte");
         {
-            char dst[DB_TMP_PATH];
+            char dst[DB_TMP_PATH + 16];
             snprintf(dst, sizeof dst, "%s/library.toml", root);
             wrote = db_copy(DB_ROOT "/library.toml", dst);
         }

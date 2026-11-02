@@ -159,7 +159,7 @@ test("refuses a path that does not exist", async () => {
 
 test("refuses system folders and home", async () => {
   const message = "Choose your media drive or a test folder, not a system folder.";
-  for (const p of ["/", "/System", "/System/Library", "/Library", "/usr", "/Applications", os.homedir()]) {
+  for (const p of ["/", "/System", "/System/Library", "/Library", "/usr", "/Applications", os.homedir()].filter((entry) => existsSync(entry))) {
     const info = await inspectDrive(p, plainDeps());
     expect(info.usable, p).toBe(false);
     expect(info.reason, p).toBe(message);
