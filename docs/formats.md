@@ -340,6 +340,8 @@ Top level: `version` (integer, required, `1`) and `source` (array of tables `[[s
 
 A source needs converting again when there is no record, or the original's `size` or `mtimeMs` changed, or the target file is missing.
 
+In server mode `source` can also be `upload:<name>` for a video uploaded from a browser; see Uploads.
+
 ### Complete example
 
 ```toml
@@ -370,6 +372,8 @@ Top level: `version` (integer, required, `1`) and `job` (array of tables `[[job]
 | `aspect` | string | yes | none | `"16:9"` or `"4:3"` |
 
 `state`, `progress` and `error` are runtime only and not stored.
+
+In server mode `source` can also be the absolute path of an uploaded file in `<library>/.uploads/`; see Uploads.
 
 ### Complete example
 
@@ -487,8 +491,8 @@ Prints only the 16-digit hash (same encoding as above), for example `0123456789a
 Rules:
 
 - Paths must be absolute. On Windows write them as a TOML literal string (`'D:\library'`) or with forward slashes (`"D:/library"`), because a backslash starts an escape inside `"..."`.
-- Studio refuses to start, and says why, if the file is missing or not valid TOML, a required key is missing or wrong, or `library` is not an existing folder.
-- On start Studio creates what is missing inside `library`: `cable-twii/`, `cable-twii/ads/`, `cable-twii/.studio/` and `.uploads/`, and creates the `imports` folder. It also removes unfinished upload files left in `.uploads/` (see Uploads).
+- Studio refuses to start, and says why, if the file is missing or not valid TOML, a required key is missing or wrong, `library` is not an existing folder, or `imports` is inside `<library>/cable-twii/` or `<library>/.uploads/` (also when a link or another name for the same folder leads there).
+- On start Studio creates what is missing inside `library`: `cable-twii/`, `cable-twii/ads/`, `cable-twii/.studio/` and `.uploads/`, and creates the `imports` folder. Once the server is listening, it also cleans up `.uploads/` (see Uploads).
 - The server listens on every network address (`0.0.0.0`), on plain HTTP.
 - Unknown keys are ignored.
 
@@ -515,6 +519,8 @@ For both routes:
 
 - Plain HTTP/1.1, `GET` (and `HEAD`, which returns the same headers without a body). No password and no cookie. Nothing can be changed through it.
 - Every response has a `Content-Length`. The server never uses chunked encoding.
+- Requests must be HTTP/1.1 with a `Host` header. An HTTP/1.1 request without `Host` gets `400` from Node before Studio sees it.
+- Raw non-ASCII bytes in the path also get `400` from Node before Studio sees them. Percent-encode every path byte outside `A–Z a–z 0–9 - . _ ~ /`.
 - The `v1` in the path is the interface version. Any change to this interface changes the path (`/wii/v2/`) and the `version` in `info`.
 
 ### `GET /wii/v1/info`
@@ -574,7 +580,8 @@ Every answer for an existing file has `Accept-Ranges: bytes` and a `Content-Leng
 **Location:** `<library>/.uploads/<batch>/<name>`, next to the `cable-twii/` folder and not inside it, so the Wii interface never serves it. **Writer and reader:** Studio in server mode only.
 
 - `<batch>` is a random id, one per upload request. A request holds at most 50 files, and a file may be at most 20 GiB. The web page sends longer lists in several requests.
-- A file is written as `<name>.part` and renamed to `<name>` only when it has arrived completely. An upload that is cut off, or over the limit, leaves nothing behind. Studio removes any `.part` file and empty batch folder it finds in `.uploads/` when it starts.
+- A file is written as `<name>.part` and renamed to `<name>` only when it has arrived completely. An upload that is cut off, or over the limit, leaves nothing behind.
+- When it starts, once it is listening, Studio cleans up `.uploads/`: it removes every `.part` file, every stored file whose modified time is more than 24 hours old and that no queued or running job in `.studio/queue.toml` has as its `source`, and then every empty batch folder. It does not follow links, and leaves `.uploads/` alone if it is itself a link.
 - `<name>` is the uploaded file's name made safe for Windows and FAT: `:` and `|` become `-`; `* ? " < >` and control characters are removed; runs of spaces become one; spaces at the start and spaces and dots at the end are removed; a Windows device name (`CON`, `NUL`, `COM1` and the like) gets an underscore added; the name and the extension are each cut to 120 characters. A file is refused when its name is not a video file name (`.mkv`, `.mp4`, `.avi`, `.mov`, `.m4v`, `.mpg`, `.mpeg`, `.ts`, `.webm`, `.wmv` or `.flv`), has a `/`, a `\` or a NUL byte, starts with `.`, is longer than 250 bytes, or is empty once cleaned, and when its safe name equals an earlier file's in the same request, ignoring case.
 - While a conversion is waiting or running, `.studio/queue.toml` has the absolute path of the file in `.uploads/` as its `source`.
 - After a file is converted, its entry in `.studio/sources.toml` is rewritten with `source = "upload:<name>"` instead of a path, and the stored file and its batch folder are deleted. The entry's `size` is the size of the stored file in bytes. The uploader still has the original.

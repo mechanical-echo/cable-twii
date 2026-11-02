@@ -27,7 +27,7 @@ The server reads one small TOML file when it starts. By default it is `.cable-tw
 |---|---|---|---|
 | `library` | yes | none | The folder that holds the library. It must already exist. |
 | `password` | yes | none | The shared password, at least 8 characters. |
-| `imports` | no | `<library>/imports` | The folder for big batches of videos (see section 6). |
+| `imports` | no | `<library>/imports` | The folder for big batches of videos (see section 6). It must not be inside `cable-twii/` or `.uploads/`. |
 | `port` | no | `4747` | The port to listen on. |
 | `name` | no | the computer's name | Shown on the sign-in page and sent to the Wii. |
 
@@ -85,7 +85,13 @@ Do the steps in order. Windows commands go in **Terminal** (PowerShell) unless a
    npm --version
    ```
 
-5. Open **MSYS2 UCRT64** from the Start menu and install the compiler and `make`. Answer `Y` when it asks:
+5. Open **MSYS2 UCRT64** from the Start menu and update MSYS2 first. Answer `Y` when it asks. If it says it must close the window, open **MSYS2 UCRT64** again and run the same command once more:
+
+   ```bash
+   pacman -Syu
+   ```
+
+   Then install the compiler and `make`. Answer `Y` when it asks:
 
    ```bash
    pacman -S --needed make mingw-w64-ucrt-x86_64-gcc
@@ -155,7 +161,7 @@ cd C:\cable-twii\studio
 npm run serve
 ```
 
-The first start takes a little longer because Studio builds its web page. When it is ready it prints one line, for example:
+Every start first builds Studio's web page, which takes a few seconds. The server then prints log lines in JSON. Look for a line like this one, which says it is ready:
 
 ```
 cable-twii server "Home PC" on port 4747, library D:\cable-twii-library
@@ -191,7 +197,9 @@ schtasks /Run /TN "cable-twii server"
 
 A black window opens and stays open while the server runs. Minimise it. Closing it stops the server.
 
-The server starts when someone signs in to Windows. After the PC restarts, for example after Windows updates, sign in once so the server starts.
+Turn off QuickEdit for that window, or a click inside it can pause the server: right-click the window's title bar, choose **Properties**, untick **QuickEdit Mode** and click **OK**. If the server ever seems stuck, click its window and press Esc.
+
+The server starts when the Windows account that created the task signs in. After the PC restarts, for example after Windows updates, sign in to that account once so the server starts.
 
 To remove the task later: `schtasks /Delete /TN "cable-twii server" /F`.
 
@@ -350,7 +358,7 @@ Studio's normal drive mode (`npm start`) uses port 4747 as well. To run both at 
 
 Open `http://<server-address>:4747/` in a browser on any computer or phone at home and sign in.
 
-- You stay signed in for 30 days. You sign in again after the server restarts.
+- You stay signed in for 30 days. You sign in again after the server restarts. If a page is open then, the sign-in box opens over it and unsaved changes stay, so you can sign in and save again.
 - Five wrong passwords within a minute stop sign-in for up to a minute. The page says "Too many tries. Wait a minute and try again."
 - The first tab is called **Server**. It shows the server's name, the library folder and the free space, and has **Sign out**.
 - Library, Channels, Schedule and Preview work as in the owner's guide (`docs/USER-GUIDE.md`, sections 5 to 8). Everyone sees the same library, and the conversion queue is shared.
@@ -361,6 +369,8 @@ Open `http://<server-address>:4747/` in a browser on any computer or phone at ho
 - **Imports folder.** For big batches, copy the videos into the imports folder on the server (for example with `scp`, over a network share you have set up, or by hand), then pick them here. The folder is `imports` inside the library folder unless you set `imports` in the settings file. Files there are never changed or deleted, so you can convert them again later.
 
 Uploads can be up to 20 GB per file.
+
+An uploaded video that is not waiting to be converted, for example because the import window was closed or its conversion failed, is deleted when the server starts once it is more than a day old. To free the space sooner, stop the server and delete what is inside the `.uploads` folder in the library folder by hand.
 
 **Two people editing.** If someone saves a show or the schedule while you are editing it, your save is refused and the page asks you to reload. For a show it says "show.toml was changed somewhere else. Reload it and try again." The first person's changes are kept.
 
