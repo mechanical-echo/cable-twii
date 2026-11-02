@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { type DriveInfo, getDrive } from "./api";
+import { type DriveInfo, type ModeInfo, getDrive, getMode, onUnauthorized } from "./api";
+import { LoginPage } from "./LoginPage";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { LibraryPage } from "./pages/LibraryPage";
@@ -12,6 +13,7 @@ type Tab = (typeof TABS)[number];
 
 export function App() {
   const [tab, setTab] = useState<Tab>("Drive");
+  const [mode, setMode] = useState<ModeInfo | null>(null);
   const [drive, setDrive] = useState<DriveInfo | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -19,8 +21,11 @@ export function App() {
 
   const load = useCallback(() => {
     setLoadError(null);
-    getDrive()
-      .then((info) => {
+    getMode()
+      .then(async (next) => {
+        setMode(next);
+        if (!next.signedIn) return;
+        const info = await getDrive();
         setDrive(info);
         if (info?.usable && info.hasRoot) setTab("Library");
       })
@@ -30,7 +35,15 @@ export function App() {
 
   useEffect(load, [load]);
 
-  const ready = drive !== null && drive.usable && drive.hasRoot;
+  const signedOut = useCallback(() => {
+    setDirty(false);
+    setMode((current) => (current?.signedIn ? { ...current, signedIn: false } : current));
+  }, []);
+
+  useEffect(() => onUnauthorized(signedOut), [signedOut]);
+
+  const server = mode?.mode === "server";
+  const ready = server || (drive !== null && drive.usable && drive.hasRoot);
   const onDrive = useCallback((info: DriveInfo | null) => setDrive(info), []);
 
   function choose(name: Tab) {
@@ -39,11 +52,24 @@ export function App() {
     setTab(name);
   }
 
+  if (mode !== null && server && !mode.signedIn) {
+    return (
+      <LoginPage
+        name={mode.name}
+        onSignedIn={() => {
+          setMode({ ...mode, signedIn: true });
+          setLoaded(false);
+          load();
+        }}
+      />
+    );
+  }
+
   let page;
   if (!loaded) page = <p className="muted">Loading…</p>;
-  else if (tab === "Drive") page = <DrivePage drive={drive} onDrive={onDrive} />;
+  else if (tab === "Drive") page = <DrivePage drive={drive} onDrive={onDrive} server={server ? { name: mode.name, onSignedOut: signedOut } : null} />;
   else if (!ready) page = <div className="card">Choose and set up a drive on the Drive tab first.</div>;
-  else if (tab === "Library") page = <LibraryPage />;
+  else if (tab === "Library") page = <LibraryPage server={server} />;
   else if (tab === "Channels") page = <ChannelsPage />;
   else if (tab === "Schedule") page = <SchedulePage onDirty={setDirty} />;
   else page = <PreviewPage />;
@@ -54,7 +80,7 @@ export function App() {
         <h1>cable-twii Studio</h1>
         {TABS.map((name) => (
           <button key={name} className={name === tab ? "tab active" : "tab"} onClick={() => choose(name)}>
-            {name}
+            {name === "Drive" && server ? "Server" : name}
           </button>
         ))}
       </nav>

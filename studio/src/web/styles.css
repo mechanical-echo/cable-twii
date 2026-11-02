@@ -727,3 +727,71 @@ button.mini {
   margin: 10px 0 0;
   font-size: 12px;
 }
+
+.login {
+  max-width: 360px;
+  margin: 12vh auto 0;
+  padding: 0 16px;
+}
+
+.picker {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.entry {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+button.entry {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+button.entry:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+@media (max-width: 700px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tabs h1 {
+    width: 100%;
+    margin: 0 0 4px;
+  }
+
+  .content {
+    padding: 14px 12px;
+  }
+
+  .facts {
+    grid-template-columns: 110px 1fr;
+  }
+
+  .facts dd {
+    overflow-wrap: anywhere;
+  }
+
+  input,
+  select {
+    font-size: 16px;
+  }
+}

@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type ScanResult, type WebBuildResult, getLibrary, mediaUrl, pickSource, rebuildLibrary } from "../api";
+import { type WebBuildResult, getLibrary, mediaUrl, pickSource, rebuildLibrary } from "../api";
 import { baseName, formatDuration } from "../format";
+import { AddVideosDialog, type Picked } from "../library/AddVideosDialog";
 import { ImportAdsDialog } from "../library/ImportAdsDialog";
 import { ImportShowDialog } from "../library/ImportShowDialog";
 import { JobsPanel } from "../library/JobsPanel";
 import { ShowMetaDialog } from "../library/ShowMetaDialog";
 import { type ShowNode, type WebLibrary, buildTree, seasonLabel } from "../tree";
 
-type Picked = { dir: string; files: ScanResult[] };
-type Dialog = { kind: "show"; picked: Picked } | { kind: "ads"; picked: Picked } | { kind: "meta"; node: ShowNode } | null;
+type Target = "show" | "ads";
+type Dialog = { kind: "add"; target: Target } | { kind: Target; picked: Picked } | { kind: "meta"; node: ShowNode } | null;
 
 const REFRESH_DELAY_MS = 2600;
 
-export function LibraryPage() {
+interface Props {
+  server: boolean;
+}
+
+export function LibraryPage({ server }: Props) {
   const [library, setLibrary] = useState<WebLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -39,8 +44,12 @@ export function LibraryPage() {
   const tree = useMemo(() => (library ? buildTree(library) : []), [library]);
   const channels = tree.map((c) => c.channel).filter((c) => c !== "");
 
-  async function pick(kind: "show" | "ads") {
+  async function pick(kind: Target) {
     setError(null);
+    if (server) {
+      setDialog({ kind: "add", target: kind });
+      return;
+    }
     try {
       const picked = await pickSource();
       if (picked) setDialog({ kind, picked });
@@ -143,6 +152,9 @@ export function LibraryPage() {
           )}
         </div>
       ))}
+      {dialog?.kind === "add" && (
+        <AddVideosDialog onPicked={(picked) => setDialog({ kind: dialog.target, picked })} onClose={() => setDialog(null)} />
+      )}
       {dialog?.kind === "show" && (
         <ImportShowDialog dir={dialog.picked.dir} files={dialog.picked.files} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
       )}
