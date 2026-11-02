@@ -15,9 +15,10 @@ const REFRESH_DELAY_MS = 2600;
 
 interface Props {
   server: boolean;
+  session: number;
 }
 
-export function LibraryPage({ server }: Props) {
+export function LibraryPage({ server, session }: Props) {
   const [library, setLibrary] = useState<WebLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -100,7 +101,7 @@ export function LibraryPage({ server }: Props) {
           </ul>
         </div>
       )}
-      <JobsPanel onFinished={refreshSoon} />
+      <JobsPanel key={session} onFinished={refreshSoon} />
       {library !== null && tree.length === 0 && <p className="muted">The library is empty. Add a show to get started.</p>}
       {tree.map((ch) => (
         <div key={ch.channel} className="card">

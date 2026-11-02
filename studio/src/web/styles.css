@@ -257,6 +257,12 @@ ul.plain {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  z-index: 10;
+}
+
+.overlay > .card {
+  width: min(360px, 100%);
+  margin: 0;
 }
 
 .dialog {
