@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -85,4 +85,37 @@ test("initServerLibrary refuses a library that is a file", async () => {
   await writeFile(library, "not a folder");
   await expect(initServerLibrary({ library, password: "correct horse", imports: path.join(dir, "incoming"), port: 4747, name: "Home PC" })).rejects.toThrow(`library ${library}`);
   expect(await readdir(dir)).toEqual(["tv"]);
+});
+
+test.each([
+  [".uploads", ".uploads"],
+  [".uploads", ".uploads/incoming"],
+  ["cable-twii", "cable-twii"],
+  ["cable-twii", "cable-twii/incoming"],
+])("initServerLibrary refuses an imports folder inside %s (%s)", async (inside, rel) => {
+  const library = path.join(dir, "tv");
+  await mkdir(library);
+  const imports = path.join(library, ...rel.split("/"));
+  await expect(initServerLibrary({ library, password: "correct horse", imports, port: 4747, name: "Home PC" })).rejects.toThrow(
+    `imports ${imports} must not be inside ${path.join(library, inside)}`,
+  );
+  if (rel !== inside) await expect(stat(imports)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+test("initServerLibrary refuses an imports folder that reaches the library root through a link", async () => {
+  const library = await realpath(dir);
+  await mkdir(path.join(library, "cable-twii"));
+  const link = path.join(library, "incoming-link");
+  await symlink(path.join(library, "cable-twii"), link);
+  const imports = path.join(link, "incoming");
+  await expect(initServerLibrary({ library, password: "correct horse", imports, port: 4747, name: "Home PC" })).rejects.toThrow(`imports ${imports}`);
+  expect(await readdir(path.join(library, "cable-twii"))).not.toContain("incoming");
+});
+
+test("initServerLibrary takes an imports folder next to the library folders", async () => {
+  const library = path.join(dir, "tv");
+  await mkdir(library);
+  const imports = path.join(library, "cable-twii-imports");
+  await initServerLibrary({ library, password: "correct horse", imports, port: 4747, name: "Home PC" });
+  expect((await stat(imports)).isDirectory()).toBe(true);
 });

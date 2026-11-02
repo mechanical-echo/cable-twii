@@ -1,7 +1,8 @@
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, realpath, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "smol-toml";
+import { contained } from "./contain.js";
 import { sweepUploads } from "./uploads.js";
 
 export interface ServerSettings {
@@ -74,11 +75,27 @@ async function isDirectory(p: string): Promise<boolean> {
   }
 }
 
+async function resolvedPath(p: string): Promise<string> {
+  try {
+    return await realpath(p);
+  } catch {
+    const parent = path.dirname(p);
+    return parent === p ? p : path.join(await resolvedPath(parent), path.basename(p));
+  }
+}
+
 export async function initServerLibrary(s: ServerSettings): Promise<void> {
   if (!(await isDirectory(s.library))) throw new Error(`library ${s.library} must be an existing folder`);
   const root = path.join(s.library, "cable-twii");
-  for (const dir of [root, path.join(root, "ads"), path.join(root, ".studio"), s.imports, uploadsDir(s.library)]) {
+  const uploads = uploadsDir(s.library);
+  for (const dir of [root, path.join(root, "ads"), path.join(root, ".studio"), uploads]) {
     await mkdir(dir, { recursive: true });
   }
+  const imports = await resolvedPath(s.imports);
+  for (const dir of [uploads, root]) {
+    const real = await resolvedPath(dir);
+    if (imports === real || contained(real, imports)) throw new Error(`imports ${s.imports} must not be inside ${dir}`);
+  }
+  await mkdir(s.imports, { recursive: true });
   await sweepUploads(uploadsDir(s.library));
 }
