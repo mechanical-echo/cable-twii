@@ -1,5 +1,4 @@
-import { createReadStream } from "node:fs";
-import { readFile, realpath, stat } from "node:fs/promises";
+import { type FileHandle, open, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 import type { FastifyInstance } from "fastify";
@@ -64,14 +63,23 @@ export function infoToml(name: string, revision: string): string {
   return stringify({ version: WII_API_VERSION, name, revision });
 }
 
-async function regularFile(root: string, rel: string): Promise<{ real: string; size: number } | null> {
+export async function openWiiFile(root: string, rel: string): Promise<{ handle: FileHandle; size: number } | null> {
+  let handle: FileHandle | undefined;
   try {
     const realRoot = await realpath(root);
     const real = await realpath(path.join(realRoot, ...rel.split("/")));
-    if (!contained(realRoot, real)) return null;
-    const info = await stat(real);
-    return info.isFile() ? { real, size: info.size } : null;
+    if (!contained(realRoot, real) || wiiFilePath(path.relative(realRoot, real).split(path.sep).join("/")) === null) return null;
+    // open() on a FIFO or device would block, so only regular files get that far
+    if (!(await stat(real)).isFile()) return null;
+    handle = await open(real, "r");
+    const info = await handle.stat();
+    if (!info.isFile()) {
+      await handle.close();
+      return null;
+    }
+    return { handle, size: info.size };
   } catch {
+    await handle?.close().catch(() => undefined);
     return null;
   }
 }
@@ -83,22 +91,27 @@ export function registerWiiApi(app: FastifyInstance, root: string, name: string)
     const notFound = () => reply.code(404).send({ error: "Not found" });
     const rel = wiiFilePath((request.params as { "*"?: string })["*"] ?? "");
     if (rel === null) return notFound();
-    const file = await regularFile(root, rel);
+    const file = await openWiiFile(root, rel);
     if (file === null) return notFound();
+    const { handle, size } = file;
     const extension = path.extname(rel).toLowerCase();
     const type = CONTENT_TYPES[extension] ?? "application/octet-stream";
     reply.header("accept-ranges", "bytes");
     if (extension === ".toml" && request.headers["accept-encoding"]?.includes("gzip")) {
-      return reply.type(type).header("content-encoding", "gzip").send(gzipSync(await readFile(file.real)));
+      const body = await handle.readFile().finally(() => handle.close());
+      return reply.type(type).header("content-encoding", "gzip").send(gzipSync(body));
     }
-    const range = parseRange(request.headers.range, file.size);
-    if (range === "unsatisfiable") return reply.code(416).header("content-range", `bytes */${file.size}`).send({ error: "Range not satisfiable" });
+    const range = parseRange(request.headers.range, size);
+    if (range === "unsatisfiable") {
+      await handle.close();
+      return reply.code(416).header("content-range", `bytes */${size}`).send({ error: "Range not satisfiable" });
+    }
     reply.type(type);
-    if (range === null) return reply.header("content-length", file.size).send(createReadStream(file.real));
+    if (range === null) return reply.header("content-length", size).send(handle.createReadStream());
     return reply
       .code(206)
-      .header("content-range", `bytes ${range.start}-${range.end}/${file.size}`)
+      .header("content-range", `bytes ${range.start}-${range.end}/${size}`)
       .header("content-length", range.end - range.start + 1)
-      .send(createReadStream(file.real, range));
+      .send(handle.createReadStream(range));
   });
 }

@@ -1,8 +1,11 @@
+import { execFile } from "node:child_process";
+import { readdirSync } from "node:fs";
 import { get as httpGet } from "node:http";
 import type { AddressInfo } from "node:net";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { gunzipSync } from "node:zlib";
 import { parse } from "smol-toml";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -11,8 +14,10 @@ import { buildApp, type AppOptions } from "../src/server/app.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary } from "../src/server/serverSettings.js";
-import { infoToml, libraryRevision, parseRange, wiiFilePath } from "../src/server/wiiApi.js";
-import { fakeConvert, fakeProbe } from "./helpers.js";
+import { infoToml, libraryRevision, openWiiFile, parseRange, wiiFilePath } from "../src/server/wiiApi.js";
+import { fakeConvert, fakeProbe, waitFor } from "./helpers.js";
+
+const run = promisify(execFile);
 
 const FIXTURE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_basic");
 const FIXTURE_UNICODE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_unicode");
@@ -325,6 +330,80 @@ test("wii files refuse a folder that links out", async () => {
   const res = await wii({ method: "GET", url: fileUrl("Cartoon Network/escape/x.mpg") });
   expect(res.statusCode).toBe(404);
   expect(res.body).not.toContain("secret");
+});
+
+test.each([
+  ["a link to a file in a dot folder", ".studio/sources.toml", "x.mpg", "x.mpg"],
+  ["a link to a hidden file", "Cartoon Network/._hidden.mpg", "y.mpg", "y.mpg"],
+  ["a link to a dot folder", ".studio", "dotlink", "dotlink/sources.toml"],
+])("wii files refuse %s", async (_name, target, link, requested) => {
+  await put(".studio/sources.toml", "secret");
+  await put("Cartoon Network/._hidden.mpg", "secret");
+  await symlink(path.join(root, ...target.split("/")), path.join(root, link));
+  const res = await wii({ method: "GET", url: fileUrl(requested) });
+  expect(res.statusCode).toBe(404);
+  expect(res.body).not.toContain("secret");
+});
+
+test("wii files follow a link to a visible file in the root", async () => {
+  await put(EPISODE, ALPHABET);
+  await symlink(path.join(root, ...EPISODE.split("/")), path.join(root, "alias.mpg"));
+  const res = await wii({ method: "GET", url: fileUrl("alias.mpg") });
+  expect(res.statusCode).toBe(200);
+  expect(res.body).toBe(ALPHABET);
+});
+
+test("wii files refuse a link to nothing", async () => {
+  await symlink(path.join(root, "gone.mpg"), path.join(root, "dangling.mpg"));
+  const res = await wii({ method: "GET", url: fileUrl("dangling.mpg") });
+  expect(res.statusCode).toBe(404);
+});
+
+test.skipIf(process.platform === "win32")("wii files refuse a pipe without waiting on it", async () => {
+  await run("mkfifo", [path.join(root, "pipe.mpg")]);
+  const res = await wii({ method: "GET", url: fileUrl("pipe.mpg") });
+  expect(res.statusCode).toBe(404);
+});
+
+test("openWiiFile reads the size and the bytes from one handle", async () => {
+  await put(EPISODE, ALPHABET);
+  const file = await openWiiFile(root, EPISODE);
+  expect(file).not.toBeNull();
+  try {
+    await put("replacement.tmp", "0123456789".repeat(10));
+    await rename(path.join(root, "replacement.tmp"), path.join(root, ...EPISODE.split("/")));
+    expect((await stat(path.join(root, ...EPISODE.split("/")))).size).toBe(100);
+    expect(file!.size).toBe(26);
+    expect((await file!.handle.readFile()).toString()).toBe(ALPHABET);
+  } finally {
+    await file!.handle.close();
+  }
+});
+
+test("openWiiFile finds nothing for a missing file or a folder", async () => {
+  expect(await openWiiFile(root, "nothing.mpg")).toBeNull();
+  expect(await openWiiFile(root, "Cartoon Network")).toBeNull();
+  await rm(root, { recursive: true });
+  expect(await openWiiFile(root, "config.toml")).toBeNull();
+});
+
+test.skipIf(process.platform === "win32")("wii files close every file they open", async () => {
+  await put(EPISODE, ALPHABET);
+  const openFiles = () => readdirSync("/dev/fd").length;
+  const before = openFiles();
+  const requests: [string, Record<string, string>][] = [
+    [fileUrl(EPISODE), {}],
+    [fileUrl(EPISODE), { range: "bytes=0-9" }],
+    [fileUrl(EPISODE), { range: "bytes=26-" }],
+    ["/wii/v1/files/library.toml", { "accept-encoding": "gzip" }],
+    ["/wii/v1/files/library.toml", {}],
+    ["/wii/v1/files/nothing.mpg", {}],
+    ["/wii/v1/files/Cartoon%20Network", {}],
+  ];
+  for (let round = 0; round < 10; round++) {
+    for (const [url, headers] of requests) await wii({ method: "GET", url, headers });
+  }
+  await waitFor(async () => openFiles() <= before);
 });
 
 test("wii files refuse folders, empty paths and missing files", async () => {
