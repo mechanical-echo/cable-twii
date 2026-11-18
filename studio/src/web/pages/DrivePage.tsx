@@ -34,6 +34,7 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
   }
 
   const [shrinkable, setShrinkable] = useState(0);
+  const [queued, setQueued] = useState<number | null>(null);
 
   useEffect(() => {
     getShrinkCount()
@@ -45,7 +46,7 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
     setBusy(true);
     setError(null);
     try {
-      await startShrink();
+      setQueued((await startShrink()).queued);
       setShrinkable(0);
     } catch (err) {
       setError((err as Error).message);
@@ -70,6 +71,11 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
           Sign out
         </button>
       </div>
+      {queued !== null && shrinkable === 0 && (
+        <div className="banner">
+          {queued} {queued === 1 ? "video" : "videos"} queued. See Conversions on the Library page.
+        </div>
+      )}
       {shrinkable > 0 && (
         <div className="card">
           <h3>Make older videos smaller for Wi-Fi</h3>

@@ -689,10 +689,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   if (server) {
-    async function candidates(root: string, queue: ConversionQueue): Promise<{ target: string; aspect: Aspect }[]> {
+    async function candidates(root: string, queue: ConversionQueue): Promise<string[]> {
       const library = (await readLibrary(root)) ?? (await rebuildNow(root)).library;
       const busy = new Set(queue.list().filter((j) => j.state === "queued" || j.state === "running").map((j) => j.target));
-      return shrinkCandidates(root, library, busy, probeFn);
+      return shrinkCandidates(root, library, busy);
     }
 
     app.get("/api/library/shrink", async () => {
@@ -703,9 +703,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     app.post("/api/library/shrink", async () => {
       const root = await requireRoot();
       const queue = queueFor(root);
+      const known = new Set(queue.list().map((j) => j.id));
       const found = await candidates(root, queue);
-      for (const { target, aspect } of found) queue.enqueueShrink(target, aspect);
-      return { queued: found.length };
+      const created = found.map((target) => queue.enqueueShrink(target)).filter((job) => !known.has(job.id));
+      return { queued: created.length };
     });
 
     app.get("/api/imports", async (request) => {

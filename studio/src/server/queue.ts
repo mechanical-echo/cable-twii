@@ -1,17 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { readFileSync, realpathSync, renameSync, statSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 import { convert, probe } from "./ffmpeg.js";
 import { assertContained, atomicWriteContained, checkRename, mkdirContained, prepareScratchFile } from "./contain.js";
-import { DRIVE_PROFILE, type VideoProfile } from "./videoSettings.js";
+import { DRIVE_PROFILE, FRAME_SIZE, type VideoProfile } from "./videoSettings.js";
+import { needsShrink } from "./shrink.js";
 import { upsertSource } from "./sources.js";
 import type { Job, SourceRecord } from "./types.js";
 
 const PROGRESS_INTERVAL_MS = 250;
+const SHRINK_DURATION_TOLERANCE_MS = 1000;
 
 export interface QueueOptions {
   concurrency?: number;
@@ -108,7 +110,10 @@ export class ConversionQueue extends EventEmitter {
         }
         seenTargets.add(rel);
         const job: Job = { id: raw.id, source: raw.source, target: rel, aspect: raw.aspect, state: "queued", progress: 0 };
-        if (raw.kind === "shrink") job.kind = "shrink";
+        if (raw.kind === "shrink") {
+          job.kind = "shrink";
+          job.source = path.join(this.root, rel);
+        }
         this.jobs.set(raw.id, job);
       }
       if (dropped.length > 0) {
@@ -141,12 +146,12 @@ export class ConversionQueue extends EventEmitter {
     return { ...job };
   }
 
-  enqueueShrink(target: string, aspect: Aspect): Job {
+  enqueueShrink(target: string): Job {
     const rel = normaliseTarget(this.root, target);
     for (const existing of this.jobs.values()) {
       if (existing.target === rel && (existing.state === "queued" || existing.state === "running")) return { ...existing };
     }
-    const job: Job = { id: randomUUID(), kind: "shrink", source: path.join(this.root, rel), target: rel, aspect, state: "queued", progress: 0 };
+    const job: Job = { id: randomUUID(), kind: "shrink", source: path.join(this.root, rel), target: rel, aspect: "16:9", state: "queued", progress: 0 };
     this.jobs.set(job.id, job);
     this.persist();
     this.emitChange(job);
@@ -247,6 +252,18 @@ export class ConversionQueue extends EventEmitter {
     }
   }
 
+  private async verifyShrunk(part: string, sourceDurationMs: number): Promise<void> {
+    try {
+      const { durationMs } = await this.probeFn(part);
+      if (Math.abs(durationMs - sourceDurationMs) > SHRINK_DURATION_TOLERANCE_MS) {
+        throw new Error(`the smaller copy is ${durationMs} ms long, the original ${sourceDurationMs} ms; the original was kept`);
+      }
+    } catch (err) {
+      await rm(part, { force: true });
+      throw err;
+    }
+  }
+
   private async run(job: Job, controller: AbortController): Promise<void> {
     job.state = "running";
     job.progress = 0;
@@ -258,8 +275,24 @@ export class ConversionQueue extends EventEmitter {
       this.emitChange(job);
       mkdirContained(this.root, path.dirname(dst));
       if (controller.signal.aborted) throw new Error("conversion aborted");
+      const shrink = job.kind === "shrink";
+      let sourceDurationMs = 0;
+      if (shrink) {
+        const current = await this.probeFn(dst);
+        if (!needsShrink(current.bitRateKbps)) {
+          ended = true;
+          job.state = "done";
+          job.progress = 1;
+          this.persist();
+          this.emitChange(job);
+          return;
+        }
+        sourceDurationMs = current.durationMs;
+        // Frame size of the existing file decides the aspect; the stored one is only a placeholder.
+        job.aspect = current.width >= FRAME_SIZE["16:9"].width ? "16:9" : "4:3";
+      }
       await this.convertFn(
-        job.source,
+        shrink ? dst : job.source,
         dst,
         job.aspect,
         (ratio) => {
@@ -275,7 +308,10 @@ export class ConversionQueue extends EventEmitter {
         controller.signal,
         {
           beforeWrite: (part) => prepareScratchFile(this.root, part),
-          beforeRename: (part, final) => checkRename(this.root, part, final),
+          beforeRename: async (part, final) => {
+            checkRename(this.root, part, final);
+            if (shrink) await this.verifyShrunk(part, sourceDurationMs);
+          },
         },
         this.profile,
       );

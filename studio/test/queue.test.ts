@@ -2,6 +2,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, syml
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { stringify } from "smol-toml";
 import { spawnSync } from "node:child_process";
 import { ConversionQueue } from "../src/server/queue.js";
 import { readSources, writeSources } from "../src/server/sources.js";
@@ -497,43 +498,70 @@ test("the queue converts with the drive profile by default", async () => {
   expect(seen).toEqual([DRIVE_PROFILE]);
 });
 
-test("a shrink job re-encodes the target in place, leaving sources.toml and the converted event alone", async () => {
+const heavyProbe: typeof probe = async (file) => ({
+  durationMs: file.endsWith(".part") && file.includes("short") ? 3000 : 60000,
+  width: file.includes("narrow") ? 480 : 640,
+  height: 360,
+  displayAspect: 16 / 9,
+  videoStreamIndex: 0,
+  bitRateKbps: file.includes("light") ? 1000 : 1700,
+});
+
+async function oldFile(name: string): Promise<string> {
   await mkdir(path.join(dir, "A"), { recursive: true });
-  const target = path.join(dir, "A", "a.mpg");
-  await writeFile(target, "old");
+  const file = path.join(dir, "A", name);
+  await writeFile(file, "old");
+  return file;
+}
+
+test("a shrink job re-encodes the target in place, leaving sources.toml and the converted event alone", async () => {
+  const target = await oldFile("a.mpg");
   const rec: SourceRecord = { target: "A/a.mpg", source: "upload:a.mkv", size: 9, mtimeMs: 1, durationMs: 1000 };
   await writeSources(dir, [rec]);
   const before = await readFile(path.join(dir, ".studio", "sources.toml"));
-  const calls: { src: string; dst: string; profile: unknown }[] = [];
-  const convertFn: typeof convert = async (src, dst, _a, _p, _sig, _g, profile) => {
-    calls.push({ src, dst, profile });
+  const calls: { src: string; dst: string; aspect: string; profile: unknown }[] = [];
+  const convertFn: typeof convert = async (src, dst, aspect, _p, _sig, _g, profile) => {
+    calls.push({ src, dst, aspect, profile });
     await writeFile(dst, "new");
   };
-  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn, profile: SERVER_PROFILE });
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn: heavyProbe, profile: SERVER_PROFILE });
   const converted: SourceRecord[] = [];
   q.on("converted", (r: SourceRecord) => converted.push(r));
-  const job = q.enqueueShrink("A/a.mpg", "16:9");
+  const job = q.enqueueShrink("A/a.mpg");
   expect(job.kind).toBe("shrink");
   expect(job.source).toBe(target);
   q.start();
   await idle(q, 1);
   await q.stop();
-  expect(calls).toEqual([{ src: target, dst: target, profile: SERVER_PROFILE }]);
+  expect(calls).toEqual([{ src: target, dst: target, aspect: "16:9", profile: SERVER_PROFILE }]);
   expect(q.list()[0]?.state).toBe("done");
   expect(converted).toEqual([]);
   expect(await readFile(path.join(dir, ".studio", "sources.toml"))).toEqual(before);
 });
 
+test("a shrink takes its frame size from the existing file", async () => {
+  await oldFile("narrow.mpg");
+  const aspects: string[] = [];
+  const convertFn: typeof convert = async (_s, dst, aspect) => {
+    aspects.push(aspect);
+    await writeFile(dst, "new");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn: heavyProbe, profile: SERVER_PROFILE });
+  q.enqueueShrink("A/narrow.mpg");
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(aspects).toEqual(["4:3"]);
+});
+
 test("a failing shrink leaves the original file untouched", async () => {
-  await mkdir(path.join(dir, "A"), { recursive: true });
-  const target = path.join(dir, "A", "a.mpg");
-  await writeFile(target, "old");
+  const target = await oldFile("a.mpg");
   const convertFn: typeof convert = async (_s, dst) => {
     await writeFile(`${dst}.part`, "half");
     throw new Error("ffmpeg died");
   };
-  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn, profile: SERVER_PROFILE });
-  q.enqueueShrink("A/a.mpg", "4:3");
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn: heavyProbe, profile: SERVER_PROFILE });
+  q.enqueueShrink("A/a.mpg");
   q.start();
   await idle(q, 1);
   await q.stop();
@@ -541,13 +569,48 @@ test("a failing shrink leaves the original file untouched", async () => {
   expect(await readFile(target, "utf8")).toBe("old");
 });
 
-test("a shrink job keeps its kind across a reload", async () => {
-  await mkdir(path.join(dir, "A"), { recursive: true });
-  await writeFile(path.join(dir, "A", "a.mpg"), "old");
-  const first = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
-  first.enqueueShrink("A/a.mpg", "16:9");
-  first.enqueue(srcFile, "A/b.mpg", "4:3");
-  await first.stop();
-  const second = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
-  expect(second.list().map((j) => [j.target, j.kind ?? "convert"])).toEqual([["A/a.mpg", "shrink"], ["A/b.mpg", "convert"]]);
+test("a truncated smaller copy is refused and the original kept", async () => {
+  const target = await oldFile("short.mpg");
+  const convertFn: typeof convert = async (_s, dst, _a, _p, _sig, guard) => {
+    const part = `${dst}.part`;
+    await writeFile(part, "cut");
+    await guard?.beforeRename(part, dst);
+    await rename(part, dst);
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn: heavyProbe, profile: SERVER_PROFILE });
+  q.enqueueShrink("A/short.mpg");
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(q.list()[0]?.state).toBe("failed");
+  expect(await readFile(target, "utf8")).toBe("old");
+  expect((await readdir(path.join(dir, "A"))).sort()).toEqual(["short.mpg"]);
+});
+
+test("a shrink for a file that is already small is done without encoding", async () => {
+  const target = await oldFile("light.mpg");
+  let calls = 0;
+  const convertFn: typeof convert = async () => {
+    calls++;
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn: heavyProbe, profile: SERVER_PROFILE });
+  q.enqueueShrink("A/light.mpg");
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(calls).toBe(0);
+  expect(q.list()[0]?.state).toBe("done");
+  expect(await readFile(target, "utf8")).toBe("old");
+});
+
+test("a shrink job keeps its kind across a reload and ignores a stored source elsewhere", async () => {
+  await oldFile("a.mpg");
+  await mkdir(path.join(dir, ".studio"), { recursive: true });
+  const stored = { version: 1, job: [{ id: "j1", kind: "shrink", source: "/etc/passwd", target: "A/a.mpg", aspect: "4:3" }, { id: "j2", source: srcFile, target: "A/b.mpg", aspect: "4:3" }] };
+  await writeFile(path.join(dir, ".studio", "queue.toml"), stringify(stored));
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn: heavyProbe });
+  expect(q.list().map((j) => [j.target, j.kind ?? "convert", j.source])).toEqual([
+    ["A/a.mpg", "shrink", path.join(dir, "A", "a.mpg")],
+    ["A/b.mpg", "convert", srcFile],
+  ]);
 });

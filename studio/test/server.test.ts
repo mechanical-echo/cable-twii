@@ -342,9 +342,9 @@ test("server mode converts with the server profile", async () => {
 
 async function shrinkFixture(): Promise<typeof probe> {
   const root = path.join(dir, "cable-twii");
-  const names = ["big-1.mpg", "big-2.mpg", "light.mpg"];
+  const names = { "big-1.mpg": 12_750_000, "big-2.mpg": 12_750_000, "light.mpg": 7_500_000 };
   await mkdir(path.join(root, "CN", "Show"), { recursive: true });
-  for (const name of names) await writeFile(path.join(root, "CN", "Show", name), "old");
+  for (const [name, size] of Object.entries(names)) await writeFile(path.join(root, "CN", "Show", name), Buffer.alloc(size));
   await writeLibrary(root, {
     version: 1,
     generated: new Date(0),
@@ -355,11 +355,11 @@ async function shrinkFixture(): Promise<typeof probe> {
         folder: "Show",
         name: "Show",
         icon: "",
-        episode: names.map((name, i) => ({ season: 1, episode: i + 1, title: name, description: "", path: `CN/Show/${name}`, duration_ms: 60000 })),
+        episode: Object.keys(names).map((name, i) => ({ season: 1, episode: i + 1, title: name, description: "", path: `CN/Show/${name}`, duration_ms: 60000 })),
       },
     ],
   });
-  return async (file) => ({ ...(await fakeProbe(file)), bitRateKbps: path.basename(file).startsWith("big") ? 1700 : 1000 });
+  return async (file) => ({ ...(await fakeProbe(file)), bitRateKbps: 1700 });
 }
 
 test("shrink counts, queues and skips what is already queued", async () => {
