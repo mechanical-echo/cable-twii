@@ -69,6 +69,7 @@ static write_guard root_guard;
 static write_guard config_guard;
 static DISC_INTERFACE config_iface;
 static bool config_held;
+static bool config_card_clean;
 
 unsigned g_dvmOgcUsbMount = 0;
 
@@ -401,6 +402,18 @@ static bool enable_writes(int chosen)
     return false;
 }
 
+static void scan_other_parts(vol_scan *scans)
+{
+    for (int i = 1; i < part_count; i++) {
+        char name[16];
+        snprintf(name, sizeof name, "sd%d", i);
+        bool mounted = fatMount(name, &disks[parts[i].disk].iface, parts[i].start, CACHE_PAGES, SECTORS_PER_PAGE);
+        scans[i].has_games = false;
+        scans[i].scan_error = !mounted || !root_scan(name, &scans[i].has_games);
+        if (mounted) unmount_name(name);
+    }
+}
+
 int st_config_mount(void)
 {
     if (config_held) return 0;
@@ -413,23 +426,26 @@ int st_config_mount(void)
         if (disk_count > 0) scan_disk(0, buf);
         free(buf);
     }
-    bool found = part_count > 0;
-    if (found) {
+    vol_scan scans[MAX_PARTS];
+    int scan_count = part_count;
+    if (scan_count > 0) {
         config_iface = disks[0].iface;
         config_guard.on = false;
         config_guard.source = VOL_SD;
         config_guard.disk = -1;
         config_guard.start = parts[0].start;
         config_guard.span = parts[0].span;
+        scan_other_parts(scans);
     }
     disk_count = 0;
     part_count = 0;
-    if (!found || !fatMount("sd", &config_iface, config_guard.start, CACHE_PAGES, SECTORS_PER_PAGE)) return -1;
+    if (scan_count == 0 || !fatMount("sd", &config_iface, config_guard.start, CACHE_PAGES, SECTORS_PER_PAGE)) return -1;
     config_held = true;
 
-    bool has_games = false;
-    bool scanned = root_scan("sd", &has_games);
-    if (config_guard.span == 0 || !vol_config_write_allowed(has_games, !scanned)) return 0;
+    scans[0].has_games = false;
+    scans[0].scan_error = !root_scan("sd", &scans[0].has_games);
+    config_card_clean = scan_count < MAX_PARTS && vol_card_write_allowed(scans, (size_t)scan_count);
+    if (config_guard.span == 0 || !vol_config_write_allowed(scans[0].has_games, scans[0].scan_error)) return 0;
     if (remount_guarded("sd", &config_guard, config_write, &config_iface)) return 0;
     config_held = fatMount("sd", &config_iface, config_guard.start, CACHE_PAGES, SECTORS_PER_PAGE);
     return config_held ? 0 : -1;
@@ -437,7 +453,7 @@ int st_config_mount(void)
 
 bool st_config_writable(void)
 {
-    return config_held && config_guard.on;
+    return config_held && config_guard.on && config_card_clean;
 }
 
 static bool sd_part_mounted(void)

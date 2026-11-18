@@ -357,6 +357,21 @@ TEST config_write_needs_clean_sd(void)
     PASS();
 }
 
+TEST card_write_needs_every_partition_clean(void)
+{
+    vol_scan clean[] = { { false, false }, { false, false } };
+    vol_scan games_later[] = { { false, false }, { true, false } };
+    vol_scan error_later[] = { { false, false }, { false, false }, { false, true } };
+    vol_scan games_first[] = { { true, false }, { false, false } };
+    ASSERT(vol_card_write_allowed(clean, 1));
+    ASSERT(vol_card_write_allowed(clean, 2));
+    ASSERT(!vol_card_write_allowed(games_later, 2));
+    ASSERT(!vol_card_write_allowed(error_later, 3));
+    ASSERT(!vol_card_write_allowed(games_first, 2));
+    ASSERT(!vol_card_write_allowed(clean, 0));
+    PASS();
+}
+
 SUITE(volume_suite)
 {
     RUN_TEST(pick_flash_drive_after_games_drive);
@@ -385,4 +400,5 @@ SUITE(volume_suite)
     RUN_TEST(scan_end_versus_error);
     RUN_TEST(writes_only_on_clean_root_without_games);
     RUN_TEST(config_write_needs_clean_sd);
+    RUN_TEST(card_write_needs_every_partition_clean);
 }

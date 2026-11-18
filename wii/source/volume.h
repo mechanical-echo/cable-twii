@@ -19,6 +19,11 @@ typedef struct {
     uint32_t sectors;
 } vol_part_entry;
 
+typedef struct {
+    bool has_games;
+    bool scan_error;
+} vol_scan;
+
 int vol_pick_root(const vol_candidate *c, size_t n);
 bool vol_boot_is_fat(const uint8_t *sector);
 bool vol_mbr_valid(const uint8_t *sector);
@@ -32,6 +37,7 @@ bool vol_is_games_name(const char *name);
 bool vol_scan_failed(int err);
 bool vol_write_allowed(bool has_root, bool has_games, bool scan_error);
 bool vol_config_write_allowed(bool has_games, bool scan_error);
+bool vol_card_write_allowed(const vol_scan *scans, size_t n);
 bool vol_device_spec(const char *name, char *out, size_t out_size);
 bool vol_sector_supported(uint32_t sector_size);
 
