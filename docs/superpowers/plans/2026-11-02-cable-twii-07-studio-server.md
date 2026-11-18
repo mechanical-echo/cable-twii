@@ -405,3 +405,40 @@
 - [ ] **Step 6: Real check:** convert one file on the Mac server and confirm with `ffprobe` that the overall bitrate is about 1 Mbit/s.
 - [ ] **Step 7: Commit** `wip | server conversion profile`
 
+
+---
+
+### Task 10: Shrink videos already on the server (owner request, 2026-11-18)
+
+Videos converted before Task 9 use the drive profile (about 1.7 Mbit/s), which the owner's Wi-Fi can't stream. Uploaded originals are deleted after conversion, so the server re-encodes its own converted files down to the server profile, in place, through the normal conversion queue.
+
+**Files:**
+- Create: `studio/src/server/shrink.ts`, `studio/test/shrink.test.ts`
+- Modify: `studio/src/server/ffmpeg.ts` (probe reports the bitrate), `studio/src/server/types.ts`, `studio/src/server/queue.ts`, `studio/src/server/app.ts`, `studio/src/web/api.ts`, `studio/src/web/pages/DrivePage.tsx`, `studio/test/queue.test.ts`, `studio/test/server.test.ts`, `docs/formats.md`, `docs/SERVER.md`
+
+**Interfaces:**
+- Consumes: Task 9 `SERVER_PROFILE` and the queue's `profile` option.
+- Produces:
+  - `ProbeResult.bitRateKbps: number | null` from ffprobe's `format=bit_rate` (null when missing or not a number).
+  - `shrink.ts`:
+    - `export const SHRINK_ABOVE_KBPS = 1300`
+    - `export function needsShrink(bitRateKbps: number | null): boolean`: true only above the threshold.
+    - `export async function shrinkCandidates(root: string, lib: Library, busy: Set<string>, probeFn: typeof probe): Promise<{ target: string; aspect: Aspect }[]>`: every episode and ad file in the library whose probed bitrate needs shrinking, skipping targets in `busy` (queued or running jobs) and files that fail to probe; `aspect` from the probed frame size (640 wide is 16:9, 480 is 4:3).
+  - `Job.kind?: "convert" | "shrink"` (missing means `"convert"`); `queue.toml` gains an optional `kind` key, documented in `formats.md`.
+  - `ConversionQueue.enqueueShrink(target: string, aspect: Aspect): Job`: the source is the target file itself; ffmpeg reads it while writing `<target>.part`, then the usual rename replaces it. A finished shrink job leaves `sources.toml` untouched (the record keeps its `upload:` or original source) and emits no `converted` event; a failed one leaves the original file in place.
+  - Routes, server mode only (drive mode 404):
+    - `GET /api/library/shrink` returns `{ candidates: number }`.
+    - `POST /api/library/shrink` enqueues every candidate and returns `{ queued: number }`.
+  - Web, server page: a "Make older videos smaller for Wi-Fi" card showing the candidate count, with a button that calls the POST and a line saying the conversions list shows the progress. Hidden when the count is 0.
+
+- [ ] **Step 1: Write the failing tests**:
+  - `shrink.test.ts`: `needsShrink(1700)` true, `needsShrink(1100)` false, `needsShrink(null)` false; `shrinkCandidates` with a fake probe returns only the files above the threshold, skips a `busy` target and a file whose probe throws, and maps 640/480 widths to `16:9`/`4:3`.
+  - `queue.test.ts`: a shrink job runs `convertFn` with source and target pointing at the same file and the server profile, ends `done`, leaves `sources.toml` byte-identical, emits no `converted`; a failing shrink leaves the original bytes untouched; `kind = "shrink"` survives a queue reload from `queue.toml`.
+  - `server.test.ts`: with a fixture library and a fake probe reporting 1700 kbit/s for two files and 1000 for one, `GET` returns 2, `POST` returns `{ queued: 2 }` and the jobs list shows two shrink jobs; drive mode gives 404 for both routes; a second `POST` while they're queued returns `{ queued: 0 }`.
+  - `ffmpeg.test.ts`: the probe parser reads `bit_rate` into `bitRateKbps` (rounded) and gives null when it's missing.
+- [ ] **Step 2: Run and see them fail.**
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** `cd studio && npm test && npm run typecheck`. Expected: PASS.
+- [ ] **Step 5: Docs:** `SERVER.md` explains the button and that the Wii may briefly miss a video while it's being replaced; `formats.md` documents the `kind` key.
+- [ ] **Step 6: Real check on the Mac:** shrink one 1500 kbit/s file in a scratch server library; `ffprobe` shows about 1 Mbit/s afterwards, the duration is unchanged, and the library still lists it.
+- [ ] **Step 7: Commit** `wip | shrink older server videos`
