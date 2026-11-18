@@ -79,7 +79,7 @@ export function JobsPanel({ onFinished }: Props) {
       {list.map((job) => (
         <div key={job.id} className="job">
           <div className="job-head">
-            <span>{baseName(job.target)}</span>
+            <span>{job.kind === "shrink" ? `Smaller: ${baseName(job.target)}` : baseName(job.target)}</span>
             <span className={`state ${job.state}`}>{job.state}</span>
           </div>
           <progress max={1} value={job.state === "done" ? 1 : job.progress} />

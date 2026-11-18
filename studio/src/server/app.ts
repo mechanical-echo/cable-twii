@@ -18,12 +18,14 @@ import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./lib
 import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
+import { DRIVE_PROFILE, SERVER_PROFILE, type VideoProfile } from "./videoSettings.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
 import { uploadsDir } from "./serverSettings.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { shrinkCandidates } from "./shrink.js";
 import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
 import { registerWiiApi } from "./wiiApi.js";
 
@@ -36,7 +38,7 @@ export interface ServerModeOptions {
 
 export interface AppOptions {
   schedBin: string;
-  queueFactory?: (root: string) => ConversionQueue;
+  queueFactory?: (root: string, profile: VideoProfile) => ConversionQueue;
   settingsPath?: string;
   inspectDeps?: DriveDeps;
   probeFn?: typeof probe;
@@ -378,7 +380,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   function queueFor(root: string): ConversionQueue {
     let queue = queues.get(root);
     if (queue) return queue;
-    queue = opts.queueFactory ? opts.queueFactory(root) : new ConversionQueue(root);
+    const profile = server ? SERVER_PROFILE : DRIVE_PROFILE;
+    queue = opts.queueFactory ? opts.queueFactory(root, profile) : new ConversionQueue(root, { profile });
     queue.on("change", (job: Job) => jobEvents.emit("change", job));
     queue.on("converted", (rec: SourceRecord) => {
       scheduleRebuild(root);
@@ -686,6 +689,26 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   if (server) {
+    async function candidates(root: string, queue: ConversionQueue): Promise<string[]> {
+      const library = (await readLibrary(root)) ?? (await rebuildNow(root)).library;
+      const busy = new Set(queue.list().filter((j) => j.state === "queued" || j.state === "running").map((j) => j.target));
+      return shrinkCandidates(root, library, busy);
+    }
+
+    app.get("/api/library/shrink", async () => {
+      const root = await requireRoot();
+      return { candidates: (await candidates(root, queueFor(root))).length };
+    });
+
+    app.post("/api/library/shrink", async () => {
+      const root = await requireRoot();
+      const queue = queueFor(root);
+      const known = new Set(queue.list().map((j) => j.id));
+      const found = await candidates(root, queue);
+      const created = found.map((target) => queue.enqueueShrink(target)).filter((job) => !known.has(job.id));
+      return { queued: created.length };
+    });
+
     app.get("/api/imports", async (request) => {
       const dir = (request.query as Record<string, unknown>).dir ?? "";
       if (typeof dir !== "string") throw bad("dir must be a string.");

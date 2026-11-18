@@ -4,7 +4,8 @@ import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { aspectFor, conversionArgs, convert, displayAspectOf, isTooShort, probe } from "../src/server/ffmpeg.js";
+import { DRIVE_PROFILE, SERVER_PROFILE } from "../src/server/videoSettings.js";
+import { aspectFor, conversionArgs, convert, bitRateKbpsOf, displayAspectOf, isTooShort, probe } from "../src/server/ffmpeg.js";
 import { MIN_DURATION_MS } from "../src/server/videoSettings.js";
 
 let dir: string;
@@ -41,6 +42,13 @@ test("args 16:9", () => {
   expect(a.at(-1)).toBe("file:out.mpg.part");
   expect(a).toEqual(expect.arrayContaining(["-i", "file:in.mkv", "-map", "0:0", "0:a:0?", "-sn", "-dn"]));
 });
+test("args for the server profile use the smaller bitrates", () => {
+  const a = conversionArgs("in.mkv", "out.mpg.part", "16:9", 0, SERVER_PROFILE);
+  expect(a).toEqual(expect.arrayContaining(["-b:v", "900k", "-maxrate", "1100k", "-bufsize", "600k", "-b:a", "128k"]));
+  expect(a).not.toContain("1500k");
+  expect(conversionArgs("in.mkv", "out.mpg.part", "16:9", 0, DRIVE_PROFILE)).toEqual(conversionArgs("in.mkv", "out.mpg.part", "16:9", 0));
+});
+
 test("args 4:3", () => expect(conversionArgs("a", "b", "4:3", 0).join(" ")).toContain("scale=480:360:force_original_aspect_ratio=decrease,pad=480:360"));
 test("aspectFor", () => {
   expect(aspectFor(16 / 9)).toBe("16:9");
@@ -190,4 +198,16 @@ test("already aborted signal rejects without output", async () => {
   const dst = path.join(dir, "out.mpg");
   await expect(convert(makeVideo("a.mkv", "320x240", 1.2), dst, "4:3", () => {}, ctl.signal)).rejects.toThrow(/abort/i);
   expect(existsSync(dst + ".part")).toBe(false);
+});
+
+test("bitRateKbpsOf rounds the format bit_rate and gives null when it is missing", () => {
+  expect(bitRateKbpsOf({ bit_rate: "1700400" })).toBe(1700);
+  expect(bitRateKbpsOf({ bit_rate: "1999600" })).toBe(2000);
+  expect(bitRateKbpsOf({})).toBeNull();
+  expect(bitRateKbpsOf(undefined)).toBeNull();
+  expect(bitRateKbpsOf({ bit_rate: "N/A" })).toBeNull();
+});
+test("probe reports the bit rate of a real file", async () => {
+  const p = await probe(makeVideo("a.mkv", "320x240", 1.5));
+  expect(typeof p.bitRateKbps).toBe("number");
 });

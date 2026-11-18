@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { type DriveInfo, driveDone, initDrive, logout, pickDrive, setDrive } from "../api";
+import { useEffect, useState } from "react";
+import { type DriveInfo, driveDone, getShrinkCount, initDrive, logout, pickDrive, setDrive, startShrink } from "../api";
 import { formatBytes } from "../format";
 
 export interface ServerInfo {
@@ -33,6 +33,28 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
     }
   }
 
+  const [shrinkable, setShrinkable] = useState(0);
+  const [queued, setQueued] = useState<number | null>(null);
+
+  useEffect(() => {
+    getShrinkCount()
+      .then((r) => setShrinkable(r.candidates))
+      .catch(() => setShrinkable(0));
+  }, []);
+
+  async function shrink() {
+    setBusy(true);
+    setError(null);
+    try {
+      setQueued((await startShrink()).queued);
+      setShrinkable(0);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section>
       <h2>Server</h2>
@@ -49,6 +71,22 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
           Sign out
         </button>
       </div>
+      {queued !== null && shrinkable === 0 && (
+        <div className="banner">
+          {queued} {queued === 1 ? "video" : "videos"} queued. See Conversions on the Library page.
+        </div>
+      )}
+      {shrinkable > 0 && (
+        <div className="card">
+          <h3>Make older videos smaller for Wi-Fi</h3>
+          <p>
+            {shrinkable} {shrinkable === 1 ? "video is" : "videos are"} too big to stream reliably over Wi-Fi. They are converted again in place; the Conversions list on the Library page shows the progress.
+          </p>
+          <button disabled={busy} onClick={shrink}>
+            Make smaller
+          </button>
+        </div>
+      )}
     </section>
   );
 }

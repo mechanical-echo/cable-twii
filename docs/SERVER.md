@@ -16,7 +16,7 @@ Read this first:
 - A computer that stays on whenever the Wii is used: the Windows 11 PC (section 3), a Raspberry Pi with an SSD (section 4), or a Mac for testing (section 5).
 - Node 22, Git and ffmpeg (which includes `ffprobe`) on that computer.
 - A C compiler and `make`. Studio builds its schedule tool, `cable-twii-sched`, from the engine source. On Linux and Mac the first start does it by itself. On Windows you build it once by hand.
-- Room on the disk: converted video takes about 0.8 GB per hour. A video that is uploaded from a browser also needs room until it is converted.
+- Room on the disk: converted video takes about 0.5 GB per hour. The server converts videos smaller than a drive does, because the Wii's Wi-Fi is too slow for the drive size. A video that is uploaded from a browser also needs room until it is converted.
 - The Wii joined to the same home network, with its own Internet settings.
 
 ## 2. The settings file
@@ -369,6 +369,8 @@ Open `http://<server-address>:4747/` in a browser on any computer or phone at ho
 - **Imports folder.** For big batches, copy the videos into the imports folder on the server (for example with `scp`, over a network share you have set up, or by hand), then pick them here. The folder is `imports` inside the library folder unless you set `imports` in the settings file. Files there are never changed or deleted, so you can convert them again later.
 
 Uploads can be up to 20 GB per file.
+
+**Making older videos smaller.** Videos converted before the server used its own, lighter video settings can be too big for the Wii's Wi-Fi to stream. When there are any, the **Server** tab shows a card "Make older videos smaller for Wi-Fi" with how many there are. Click **Make smaller** and the server converts each one again, in place, through the normal conversion queue. The Library page's Conversions list shows the progress, with "Smaller:" before each name. The originals you uploaded are gone, so this starts from the already converted file, which is fine at these sizes. If a conversion fails the old file stays as it was. A video playing on the Wii at the moment it is replaced may stop or skip, so it is best to shrink when nobody is watching.
 
 An uploaded video that is not waiting to be converted, for example because the import window was closed or its conversion failed, is deleted when the server starts once it is more than a day old. To free the space sooner, stop the server and delete what is inside the `.uploads` folder in the library folder by hand.
 

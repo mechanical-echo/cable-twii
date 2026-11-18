@@ -370,6 +370,7 @@ Top level: `version` (integer, required, `1`) and `job` (array of tables `[[job]
 | `source` | string | yes | none | absolute path of the original on the Mac |
 | `target` | string | yes | none | output path relative to `/cable-twii/` (written as `<target>.part`, renamed on success) |
 | `aspect` | string | yes | none | `"16:9"` or `"4:3"` |
+| `kind` | string | no | `"convert"` | `"convert"` or `"shrink"`. A `shrink` job re-encodes a file already on the server in place: `source` is the absolute path of the target file itself, and `sources.toml` is not changed when it finishes. Written only for `shrink` jobs. |
 
 `state`, `progress` and `error` are runtime only and not stored.
 
@@ -573,6 +574,17 @@ Every answer for an existing file has `Accept-Ranges: bytes` and a `Content-Leng
 **Compression.** If the file's extension is `.toml` and the request has `Accept-Encoding` with `gzip`, the whole file comes back gzip-compressed with `Content-Encoding: gzip`, and `Content-Length` is the compressed size. `Range` is ignored then. Other files are never compressed.
 
 ---
+
+## Server conversion profile
+
+In server mode Studio converts every video with a smaller profile than a drive, because the Wii's Wi-Fi is too slow for the drive bitrate. Spec: `docs/decisions/0004-server-streaming.md`.
+
+| | Drive | Server |
+|---|---|---|
+| Video `mpeg1video` bitrate / maxrate / bufsize | `1500k` / `2000k` / `1000k` | `900k` / `1100k` / `600k` |
+| Audio `mp2` bitrate | `192k` | `128k` |
+
+Frame sizes (640x360, 480x360), 30 fps, GOP 15, codecs and loudness are the same in both. A server library only gets server-profile conversions. The overall bitrate of a converted file is about 1 Mbit/s.
 
 ## Uploads
 
