@@ -365,10 +365,12 @@ Open `http://<server-address>:4747/` in a browser on any computer or phone at ho
 
 **Adding videos.** On the Library page, click **Add show…** or **Add ads…**. The **Add videos** window has two tabs:
 
-- **Upload.** Pick one or more videos on the computer you are using and click **Upload**. When they have arrived, the usual steps follow: names, seasons and episodes, then conversion on the server. A video is kept on the server only until it is converted, and then deleted. You still have the original. Uploading the same file again is skipped with the note "already on the server".
+- **Upload.** Pick one or more videos on the computer you are using. They are listed with a tick box each, so untick the ones you do not want before you click **Upload**. Only the ticked videos are sent. When they have arrived, the usual steps follow: names, seasons and episodes, then conversion on the server. A video is kept on the server only until it is converted, and then deleted. You still have the original. Uploading the same file again is skipped with the note "already on the server".
 - **Imports folder.** For big batches, copy the videos into the imports folder on the server (for example with `scp`, over a network share you have set up, or by hand), then pick them here. The folder is `imports` inside the library folder unless you set `imports` in the settings file. Files there are never changed or deleted, so you can convert them again later.
 
 Uploads can be up to 20 GB per file.
+
+Videos you untick in the import window are deleted from the server as soon as you click **Import**. If you click **Cancel** instead, the window asks "Delete the uploaded files?". Answer yes and they are deleted right away. Answer no and they stay until the daily clean-up below. In the channel box, choose one of your channels from the list, or **New channel…** to type a new name.
 
 **Making older videos smaller.** Videos converted before the server used its own, lighter video settings can be too big for the Wii's Wi-Fi to stream. When there are any, the **Server** tab shows a card "Make older videos smaller for Wi-Fi" with how many there are. Click **Make smaller** and the server converts each one again, in place, through the normal conversion queue. The Library page's Conversions list shows the progress, with "Smaller:" before each name. The originals you uploaded are gone, so this starts from the already converted file, which is fine at these sizes. If a conversion fails the old file stays as it was. A video playing on the Wii at the moment it is replaced may stop or skip, so it is best to shrink when nobody is watching.
 

@@ -26,3 +26,17 @@ export function batches<T>(items: readonly T[], size: number): T[][] {
 export function rejectedLine(rejected: { name: string; reason: string }): string {
   return `${rejected.name}: ${rejected.reason.split("\n")[0]}`;
 }
+
+export function tickedFiles<T>(files: T[], ticked: boolean[]): T[] {
+  return files.filter((_, i) => ticked[i] === true);
+}
+
+export function uploadGroups(sources: string[]): { dir: string; names: string[] }[] {
+  const groups = new Map<string, string[]>();
+  for (const source of sources) {
+    const cut = Math.max(source.lastIndexOf("/"), source.lastIndexOf("\\"));
+    const dir = source.slice(0, cut);
+    groups.set(dir, [...(groups.get(dir) ?? []), source.slice(cut + 1)]);
+  }
+  return [...groups].map(([dir, names]) => ({ dir, names }));
+}

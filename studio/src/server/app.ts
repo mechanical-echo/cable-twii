@@ -26,7 +26,7 @@ import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMet
 import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
 import { shrinkCandidates } from "./shrink.js";
-import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
+import { UPLOAD_LIMIT, convertedUpload, discardUploads, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
 import { registerWiiApi } from "./wiiApi.js";
 
 export interface ServerModeOptions {
@@ -685,6 +685,15 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         throw err;
       }
       return { dir, files, rejected };
+    });
+  }
+
+  if (uploads) {
+    app.post("/api/upload/discard", async (request) => {
+      const body = objectBody(request.body);
+      const names = body.names;
+      if (!Array.isArray(names) || names.some((n) => typeof n !== "string")) throw bad("names must be a list of strings.");
+      return { removed: await discardUploads(uploads, stringField(body, "dir"), names as string[]) };
     });
   }
 

@@ -293,6 +293,53 @@ test("upload does not exist in drive mode", async () => {
   }
 });
 
+function discard(payload: unknown) {
+  return send({ method: "POST", url: "/api/upload/discard", payload: payload as object });
+}
+
+test("discard removes the named files and the emptied batch folder", async () => {
+  const res = await uploadMany([
+    { name: "a.mp4", data: Buffer.from("one") },
+    { name: "b.mp4", data: Buffer.from("two") },
+  ]);
+  const batch = res.json().dir as string;
+  const first = await discard({ dir: batch, names: ["a.mp4"] });
+  expect(first.statusCode).toBe(200);
+  expect(first.json()).toEqual({ removed: 1 });
+  expect(await readdir(batch)).toEqual(["b.mp4"]);
+  const second = await discard({ dir: batch, names: ["b.mp4"] });
+  expect(second.json()).toEqual({ removed: 1 });
+  expect(await uploadsEmpty()).toBe(true);
+});
+
+test("discard refuses a folder outside the uploads, a bad name and a missing file", async () => {
+  const batch = (await upload({ name: "a.mp4", data: Buffer.from("one") })).json().dir as string;
+  const outside = path.join(dir, "imports");
+  await mkdir(outside, { recursive: true });
+  await writeFile(path.join(outside, "keep.mp4"), "keep");
+  const attempts = [
+    { dir: outside, names: ["keep.mp4"] },
+    { dir: uploads, names: ["a.mp4"] },
+    { dir: path.join(batch, ".."), names: [path.basename(batch)] },
+    { dir: batch, names: ["../a.mp4"] },
+    { dir: batch, names: ["a.mp4", "missing.mp4"] },
+    { dir: batch, names: "a.mp4" },
+  ];
+  for (const attempt of attempts) expect((await discard(attempt)).statusCode).toBe(400);
+  expect(await readdir(batch)).toEqual(["a.mp4"]);
+  expect(await readFile(path.join(outside, "keep.mp4"), "utf8")).toBe("keep");
+});
+
+test("discard does not exist in drive mode", async () => {
+  const drive = build({ server: undefined });
+  try {
+    const res = await drive.inject({ method: "POST", url: "/api/upload/discard", payload: { dir: uploads, names: [] }, headers: { host: "127.0.0.1:4747", "x-cable-twii": "1" } });
+    expect(res.statusCode).toBe(404);
+  } finally {
+    await drive.close();
+  }
+});
+
 test("converted upload is deleted and recorded", async () => {
   const res = await upload({ name: "ep.mp4", data: Buffer.from("video") });
   const source = res.json().files[0].source as string;

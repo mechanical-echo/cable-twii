@@ -6,7 +6,7 @@ import type { ShowMeta } from "../server/showMeta.js";
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
 import { streamLost } from "./jobs.js";
 import type { WebLibrary } from "./tree.js";
-import { UPLOAD_BATCH_FILES, batches, uploadRatio } from "./uploading.js";
+import { UPLOAD_BATCH_FILES, batches, uploadGroups, uploadRatio } from "./uploading.js";
 
 export type { DriveInfo, ScanResult, ImportEntry, Config, Issue, Job, LineupResult, ValidateResult };
 
@@ -197,6 +197,10 @@ export async function uploadVideos(files: File[], onProgress: (ratio: number) =>
     onProgress(uploadRatio(sent, total));
   }
   return merged;
+}
+
+export async function discardUploaded(sources: string[]): Promise<void> {
+  for (const group of uploadGroups(sources)) await send<{ removed: number }>("POST", "/api/upload/discard", group);
 }
 
 export interface JobStreamHandlers {
