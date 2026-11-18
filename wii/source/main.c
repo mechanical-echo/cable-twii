@@ -157,7 +157,7 @@ static bool load_drive(app *a)
     if (n < 0 || (size_t)n >= sizeof a->state_dir) a->state_dir[0] = '\0';
 
 #ifdef CTW_DEBUG_SCRIPT
-    dbg_script_load(a->root);
+    if (!dbg_script_active()) dbg_script_load(a->root);
 #endif
     ctw_issues issues;
     memset(&issues, 0, sizeof issues);
@@ -231,6 +231,9 @@ static void boot(app *a)
     a->settings_saveable = st_config_writable();
 
     if (sp_try_server(&a->settings)) {
+#ifdef CTW_DEBUG_SCRIPT
+        dbg_script_load(SETTINGS_DIR);
+#endif
         addr_parse(a->settings.server, &a->server);
         a->loading = true;
         ld_load(&a->server);

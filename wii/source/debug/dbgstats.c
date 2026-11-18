@@ -37,8 +37,9 @@ int dbg_format(const dbg_stats *s, char lines[DBG_LINES][DBG_LINE_BYTES])
     snprintf(lines[2], DBG_LINE_BYTES, "frames %u decoded  %u dropped", (unsigned int)s->decoded, (unsigned int)s->dropped);
     snprintf(lines[3], DBG_LINE_BYTES, "MEM1 %uK  MEM2 %uK free", kilobytes(s->mem1_free), kilobytes(s->mem2_free));
     snprintf(lines[4], DBG_LINE_BYTES, "heap %uK used  %uK free", kilobytes(s->heap_used), kilobytes(s->heap_free));
-    lines[5][0] = '\0';
-    if (!s->net_on) return DBG_LINES - 1;
-    snprintf(lines[5], DBG_LINE_BYTES, "net %u KB/s", (unsigned int)(s->net_rate / 1024.0f));
-    return DBG_LINES;
+    int n = 5;
+    if (s->load_on) snprintf(lines[n++], DBG_LINE_BYTES, "net up %u ms  load %u ms", (unsigned int)s->net_up_ms, (unsigned int)s->load_ms);
+    if (s->net_on) snprintf(lines[n++], DBG_LINE_BYTES, "net %u KB/s", (unsigned int)(s->net_rate / 1024.0f));
+    for (int i = n; i < DBG_LINES; i++) lines[i][0] = '\0';
+    return n;
 }

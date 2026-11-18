@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <ogc/lwp.h>
+#ifdef CTW_DEBUG_OVERLAY
+#include <ogc/lwp_watchdog.h>
+#endif
 
 #include "net/sock.h"
 
@@ -24,6 +27,14 @@ static srv_result result;
 static ctw_db *db;
 static ctw_issues issues;
 static srv_info info;
+#ifdef CTW_DEBUG_OVERLAY
+static u64 started_at;
+static u64 up_at;
+static u64 done_at;
+static bool timed;
+static uint32_t last_net_up_ms;
+static uint32_t last_load_ms;
+#endif
 
 static bool bring_up(void)
 {
@@ -40,13 +51,20 @@ static bool bring_up(void)
 static void *run(void *arg)
 {
     (void)arg;
-    if (!bring_up()) {
+    bool up = bring_up();
+#ifdef CTW_DEBUG_OVERLAY
+    up_at = gettime();
+#endif
+    if (!up) {
         result = SRV_NO_NETWORK;
     } else if (job == LD_JOB_LOAD) {
         result = srv_load_db(&addr, LD_REQUEST_MS, &db, &issues, &info);
     } else {
         result = srv_fetch_info(&addr, LD_REQUEST_MS, &info);
     }
+#ifdef CTW_DEBUG_OVERLAY
+    done_at = gettime();
+#endif
     finished = true;
     return NULL;
 }
@@ -67,6 +85,9 @@ static void start(ld_job j, const srv_addr *a)
     addr = *a;
     result = SRV_NO_ANSWER;
     finished = false;
+#ifdef CTW_DEBUG_OVERLAY
+    started_at = gettime();
+#endif
     state = LWP_CreateThread(&thread, run, NULL, NULL, LD_STACK, LD_PRIO) == 0 ? LD_RUNNING : LD_DONE;
 }
 
@@ -85,6 +106,13 @@ ld_state ld_poll(void)
     if (state == LD_RUNNING && finished) {
         LWP_JoinThread(thread, NULL);
         state = LD_DONE;
+#ifdef CTW_DEBUG_OVERLAY
+        if (job == LD_JOB_LOAD) {
+            last_net_up_ms = (uint32_t)ticks_to_millisecs(diff_ticks(started_at, up_at));
+            last_load_ms = (uint32_t)ticks_to_millisecs(diff_ticks(up_at, done_at));
+            timed = true;
+        }
+#endif
     }
     return state;
 }
@@ -112,3 +140,12 @@ srv_result ld_take_info(srv_info *out)
     state = LD_IDLE;
     return result;
 }
+
+#ifdef CTW_DEBUG_OVERLAY
+bool ld_debug_times(uint32_t *net_up_ms, uint32_t *load_ms)
+{
+    *net_up_ms = last_net_up_ms;
+    *load_ms = last_load_ms;
+    return timed;
+}
+#endif

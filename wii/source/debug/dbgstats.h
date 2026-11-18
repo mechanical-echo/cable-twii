@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define DBG_RATE_WINDOW_US 1000000u
-#define DBG_LINES 6
+#define DBG_LINES 7
 #define DBG_LINE_BYTES 64
 
 typedef struct {
@@ -25,6 +25,9 @@ typedef struct {
     uint32_t mem2_free;
     uint32_t heap_used;
     uint32_t heap_free;
+    bool load_on;
+    uint32_t net_up_ms;
+    uint32_t load_ms;
     bool net_on;
     float net_rate;
 } dbg_stats;

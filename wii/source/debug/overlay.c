@@ -6,6 +6,7 @@
 #include <ogc/lwp_watchdog.h>
 
 #include "dbgstats.h"
+#include "../loader.h"
 #include "../media/audio.h"
 #include "../media/player.h"
 #include "../ui/draw.h"
@@ -39,6 +40,7 @@ static void refresh(void)
     struct mallinfo mi = mallinfo();
     s.heap_used = (uint32_t)mi.uordblks;
     s.heap_free = (uint32_t)mi.fordblks;
+    s.load_on = ld_debug_times(&s.net_up_ms, &s.load_ms);
     uint32_t received;
     s.net_on = pl_debug_net(&received);
     s.net_rate = net_rate.rate;
