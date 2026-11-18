@@ -370,6 +370,8 @@ Open `http://<server-address>:4747/` in a browser on any computer or phone at ho
 
 Uploads can be up to 20 GB per file.
 
+**Making older videos smaller.** Videos converted before the server used its own, lighter video settings can be too big for the Wii's Wi-Fi to stream. When there are any, the **Server** tab shows a card "Make older videos smaller for Wi-Fi" with how many there are. Click **Make smaller** and the server converts each one again, in place, through the normal conversion queue. The Library page's Conversions list shows the progress, with "Smaller:" before each name. The originals you uploaded are gone, so this starts from the already converted file, which is fine at these sizes. If a conversion fails the old file stays as it was. The Wii may briefly miss a video while it is being replaced, so it is best to do this when nobody is watching.
+
 An uploaded video that is not waiting to be converted, for example because the import window was closed or its conversion failed, is deleted when the server starts once it is more than a day old. To free the space sooner, stop the server and delete what is inside the `.uploads` folder in the library folder by hand.
 
 **Two people editing.** If someone saves a show or the schedule while you are editing it, your save is refused and the page asks you to reload. For a show it says "show.toml was changed somewhere else. Reload it and try again." The first person's changes are kept.

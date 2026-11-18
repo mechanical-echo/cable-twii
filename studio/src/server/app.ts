@@ -25,6 +25,7 @@ import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
 import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { shrinkCandidates } from "./shrink.js";
 import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
 import { registerWiiApi } from "./wiiApi.js";
 
@@ -688,6 +689,25 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   if (server) {
+    async function candidates(root: string, queue: ConversionQueue): Promise<{ target: string; aspect: Aspect }[]> {
+      const library = (await readLibrary(root)) ?? (await rebuildNow(root)).library;
+      const busy = new Set(queue.list().filter((j) => j.state === "queued" || j.state === "running").map((j) => j.target));
+      return shrinkCandidates(root, library, busy, probeFn);
+    }
+
+    app.get("/api/library/shrink", async () => {
+      const root = await requireRoot();
+      return { candidates: (await candidates(root, queueFor(root))).length };
+    });
+
+    app.post("/api/library/shrink", async () => {
+      const root = await requireRoot();
+      const queue = queueFor(root);
+      const found = await candidates(root, queue);
+      for (const { target, aspect } of found) queue.enqueueShrink(target, aspect);
+      return { queued: found.length };
+    });
+
     app.get("/api/imports", async (request) => {
       const dir = (request.query as Record<string, unknown>).dir ?? "";
       if (typeof dir !== "string") throw bad("dir must be a string.");

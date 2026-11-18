@@ -131,6 +131,8 @@ export const importShow = (req: ImportShowRequest) => send<ImportResult>("POST",
 export const importAds = (req: ImportAdsRequest) => send<ImportResult>("POST", "/api/import/ads", req);
 export const getJobs = () => send<Job[]>("GET", "/api/jobs");
 export const retryJobs = () => send<{ jobs: Job[] }>("POST", "/api/jobs/retry");
+export const getShrinkCount = () => send<{ candidates: number }>("GET", "/api/library/shrink");
+export const startShrink = () => send<{ queued: number }>("POST", "/api/library/shrink");
 export const getLibrary = () => send<WebLibrary>("GET", "/api/library");
 export const rebuildLibrary = () => send<WebBuildResult>("POST", "/api/library/rebuild");
 export const getConfig = () => send<{ config: Config; mtimeMs: number }>("GET", "/api/config");

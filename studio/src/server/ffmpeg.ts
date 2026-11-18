@@ -27,6 +27,7 @@ export interface ProbeResult {
   height: number;
   displayAspect: number;
   videoStreamIndex: number;
+  bitRateKbps: number | null;
 }
 
 export interface FfprobeStream {
@@ -41,7 +42,7 @@ export interface FfprobeStream {
 }
 
 interface FfprobeOutput {
-  format?: { duration?: string };
+  format?: { duration?: string; bit_rate?: string };
   streams?: FfprobeStream[];
 }
 
@@ -60,6 +61,11 @@ export function displayAspectOf(stream: FfprobeStream): number {
   if (declared !== null) return declared;
   const sar = parseRatio(stream.sample_aspect_ratio) ?? 1;
   return ((stream.width ?? 0) * sar) / (stream.height ?? 1);
+}
+
+export function bitRateKbpsOf(format: FfprobeOutput["format"]): number | null {
+  const bps = format?.bit_rate === undefined ? NaN : Number(format.bit_rate);
+  return Number.isFinite(bps) ? Math.round(bps / 1000) : null;
 }
 
 export function probe(path: string): Promise<ProbeResult> {
@@ -98,7 +104,7 @@ export function probe(path: string): Promise<ProbeResult> {
         reject(new Error(`duration unknown for ${path}`));
         return;
       }
-      resolve({ durationMs: Math.round(seconds * 1000), width: video.width, height: video.height, displayAspect: displayAspectOf(video), videoStreamIndex: video.index ?? 0 });
+      resolve({ durationMs: Math.round(seconds * 1000), width: video.width, height: video.height, displayAspect: displayAspectOf(video), videoStreamIndex: video.index ?? 0, bitRateKbps: bitRateKbpsOf(parsed.format) });
     });
   });
 }

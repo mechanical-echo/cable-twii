@@ -8,7 +8,7 @@ export const fakeProbe: typeof probe = async (file) => {
   const base = path.basename(file);
   if (base.startsWith("broken")) throw new Error("no video stream");
   const durationMs = base.startsWith("short") ? 500 : 60000;
-  return { durationMs, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0 };
+  return { durationMs, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0, bitRateKbps: null };
 };
 
 export const fakeConvert: typeof convert = async (_src, dst) => {

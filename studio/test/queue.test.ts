@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const probeFn: typeof probe = async () => ({ durationMs: 4242, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0 });
+const probeFn: typeof probe = async () => ({ durationMs: 4242, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0, bitRateKbps: null });
 const quick: typeof convert = async () => {
   await sleep(10);
 };
@@ -495,4 +495,59 @@ test("the queue converts with the drive profile by default", async () => {
   await idle(q, 1);
   await q.stop();
   expect(seen).toEqual([DRIVE_PROFILE]);
+});
+
+test("a shrink job re-encodes the target in place, leaving sources.toml and the converted event alone", async () => {
+  await mkdir(path.join(dir, "A"), { recursive: true });
+  const target = path.join(dir, "A", "a.mpg");
+  await writeFile(target, "old");
+  const rec: SourceRecord = { target: "A/a.mpg", source: "upload:a.mkv", size: 9, mtimeMs: 1, durationMs: 1000 };
+  await writeSources(dir, [rec]);
+  const before = await readFile(path.join(dir, ".studio", "sources.toml"));
+  const calls: { src: string; dst: string; profile: unknown }[] = [];
+  const convertFn: typeof convert = async (src, dst, _a, _p, _sig, _g, profile) => {
+    calls.push({ src, dst, profile });
+    await writeFile(dst, "new");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn, profile: SERVER_PROFILE });
+  const converted: SourceRecord[] = [];
+  q.on("converted", (r: SourceRecord) => converted.push(r));
+  const job = q.enqueueShrink("A/a.mpg", "16:9");
+  expect(job.kind).toBe("shrink");
+  expect(job.source).toBe(target);
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(calls).toEqual([{ src: target, dst: target, profile: SERVER_PROFILE }]);
+  expect(q.list()[0]?.state).toBe("done");
+  expect(converted).toEqual([]);
+  expect(await readFile(path.join(dir, ".studio", "sources.toml"))).toEqual(before);
+});
+
+test("a failing shrink leaves the original file untouched", async () => {
+  await mkdir(path.join(dir, "A"), { recursive: true });
+  const target = path.join(dir, "A", "a.mpg");
+  await writeFile(target, "old");
+  const convertFn: typeof convert = async (_s, dst) => {
+    await writeFile(`${dst}.part`, "half");
+    throw new Error("ffmpeg died");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn, profile: SERVER_PROFILE });
+  q.enqueueShrink("A/a.mpg", "4:3");
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(q.list()[0]?.state).toBe("failed");
+  expect(await readFile(target, "utf8")).toBe("old");
+});
+
+test("a shrink job keeps its kind across a reload", async () => {
+  await mkdir(path.join(dir, "A"), { recursive: true });
+  await writeFile(path.join(dir, "A", "a.mpg"), "old");
+  const first = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
+  first.enqueueShrink("A/a.mpg", "16:9");
+  first.enqueue(srcFile, "A/b.mpg", "4:3");
+  await first.stop();
+  const second = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
+  expect(second.list().map((j) => [j.target, j.kind ?? "convert"])).toEqual([["A/a.mpg", "shrink"], ["A/b.mpg", "convert"]]);
 });

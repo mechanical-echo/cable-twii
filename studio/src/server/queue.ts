@@ -107,7 +107,9 @@ export class ConversionQueue extends EventEmitter {
           continue;
         }
         seenTargets.add(rel);
-        this.jobs.set(raw.id, { id: raw.id, source: raw.source, target: rel, aspect: raw.aspect, state: "queued", progress: 0 });
+        const job: Job = { id: raw.id, source: raw.source, target: rel, aspect: raw.aspect, state: "queued", progress: 0 };
+        if (raw.kind === "shrink") job.kind = "shrink";
+        this.jobs.set(raw.id, job);
       }
       if (dropped.length > 0) {
         this.loadErrors = dropped.map((m) => new Error(m));
@@ -132,6 +134,19 @@ export class ConversionQueue extends EventEmitter {
       if (existing.target === rel && (existing.state === "queued" || existing.state === "running")) return { ...existing };
     }
     const job: Job = { id: randomUUID(), source, target: rel, aspect, state: "queued", progress: 0 };
+    this.jobs.set(job.id, job);
+    this.persist();
+    this.emitChange(job);
+    this.pump();
+    return { ...job };
+  }
+
+  enqueueShrink(target: string, aspect: Aspect): Job {
+    const rel = normaliseTarget(this.root, target);
+    for (const existing of this.jobs.values()) {
+      if (existing.target === rel && (existing.state === "queued" || existing.state === "running")) return { ...existing };
+    }
+    const job: Job = { id: randomUUID(), kind: "shrink", source: path.join(this.root, rel), target: rel, aspect, state: "queued", progress: 0 };
     this.jobs.set(job.id, job);
     this.persist();
     this.emitChange(job);
@@ -209,7 +224,7 @@ export class ConversionQueue extends EventEmitter {
     if (this.paused) return;
     const stored = [...this.jobs.values()]
       .filter((j) => j.state === "queued" || j.state === "running")
-      .map((j) => ({ id: j.id, source: j.source, target: j.target, aspect: j.aspect }));
+      .map((j) => ({ id: j.id, ...(j.kind === "shrink" ? { kind: j.kind } : {}), source: j.source, target: j.target, aspect: j.aspect }));
     const text = stringify({ version: 1, job: stored });
     this.writeChain = this.writeChain.then(() => atomicWriteContained(this.root, this.queueFile(), text)).catch((err) => {
       this.emit("error", err);
@@ -264,20 +279,23 @@ export class ConversionQueue extends EventEmitter {
         },
         this.profile,
       );
-      const { durationMs } = await this.probeFn(dst);
-      const st = await stat(job.source);
-      const rec: SourceRecord = { target: job.target, source: job.source, size: st.size, mtimeMs: Math.trunc(st.mtimeMs), durationMs };
-      try {
-        await upsertSource(this.root, rec);
-      } catch (err) {
-        this.emit("error", err);
+      let rec: SourceRecord | undefined;
+      if (job.kind !== "shrink") {
+        const { durationMs } = await this.probeFn(dst);
+        const st = await stat(job.source);
+        rec = { target: job.target, source: job.source, size: st.size, mtimeMs: Math.trunc(st.mtimeMs), durationMs };
+        try {
+          await upsertSource(this.root, rec);
+        } catch (err) {
+          this.emit("error", err);
+        }
       }
       ended = true;
       job.state = "done";
       job.progress = 1;
       this.persist();
       this.emitChange(job);
-      this.emit("converted", rec);
+      if (rec) this.emit("converted", rec);
     } catch (err) {
       ended = true;
       if (controller.signal.aborted && this.stopping) {

@@ -370,6 +370,7 @@ Top level: `version` (integer, required, `1`) and `job` (array of tables `[[job]
 | `source` | string | yes | none | absolute path of the original on the Mac |
 | `target` | string | yes | none | output path relative to `/cable-twii/` (written as `<target>.part`, renamed on success) |
 | `aspect` | string | yes | none | `"16:9"` or `"4:3"` |
+| `kind` | string | no | `"convert"` | `"convert"` or `"shrink"`. A `shrink` job re-encodes a file already on the server in place: `source` is the absolute path of the target file itself, and `sources.toml` is not changed when it finishes. Written only for `shrink` jobs. |
 
 `state`, `progress` and `error` are runtime only and not stored.
 

@@ -5,11 +5,12 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { stringify } from "smol-toml";
 import { buildApp, type AppOptions } from "../src/server/app.js";
-import { readLibrary } from "../src/server/library.js";
+import { readLibrary, writeLibrary } from "../src/server/library.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary } from "../src/server/serverSettings.js";
 import { SERVER_PROFILE, type VideoProfile } from "../src/server/videoSettings.js";
+import type { probe } from "../src/server/ffmpeg.js";
 import { fakeConvert, fakeProbe, waitFor } from "./helpers.js";
 
 const LAN_HOST = "192.168.1.20:4747";
@@ -336,5 +337,53 @@ test("server mode converts with the server profile", async () => {
     expect(seen).toEqual([SERVER_PROFILE]);
   } finally {
     await started.close();
+  }
+});
+
+async function shrinkFixture(): Promise<typeof probe> {
+  const root = path.join(dir, "cable-twii");
+  const names = ["big-1.mpg", "big-2.mpg", "light.mpg"];
+  await mkdir(path.join(root, "CN", "Show"), { recursive: true });
+  for (const name of names) await writeFile(path.join(root, "CN", "Show", name), "old");
+  await writeLibrary(root, {
+    version: 1,
+    generated: new Date(0),
+    ad: [],
+    show: [
+      {
+        channel: "CN",
+        folder: "Show",
+        name: "Show",
+        icon: "",
+        episode: names.map((name, i) => ({ season: 1, episode: i + 1, title: name, description: "", path: `CN/Show/${name}`, duration_ms: 60000 })),
+      },
+    ],
+  });
+  return async (file) => ({ ...(await fakeProbe(file)), bitRateKbps: path.basename(file).startsWith("big") ? 1700 : 1000 });
+}
+
+test("shrink counts, queues and skips what is already queued", async () => {
+  const probeFn = await shrinkFixture();
+  await app.close();
+  app = build({ probeFn, queueFactory: (r, profile) => new ConversionQueue(r, { convertFn: (_s, _d, _a, _p, signal) => new Promise((_, reject) => signal?.addEventListener("abort", () => reject(new Error("stopped")))), probeFn, concurrency: 1, profile }) });
+  cookie = await signIn(app);
+  const count = await send({ method: "GET", url: "/api/library/shrink" });
+  expect(count.json()).toEqual({ candidates: 2 });
+  const first = await send({ method: "POST", url: "/api/library/shrink" });
+  expect(first.json()).toEqual({ queued: 2 });
+  const jobs = (await send({ method: "GET", url: "/api/jobs" })).json();
+  expect(jobs.map((j: { kind: string }) => j.kind)).toEqual(["shrink", "shrink"]);
+  const again = await send({ method: "POST", url: "/api/library/shrink" });
+  expect(again.json()).toEqual({ queued: 0 });
+});
+
+test("shrink routes do not exist in drive mode", async () => {
+  const drive = build({ server: undefined });
+  try {
+    const headers = { host: "127.0.0.1:4747", "x-cable-twii": "1" };
+    expect((await drive.inject({ method: "GET", url: "/api/library/shrink", headers })).statusCode).toBe(404);
+    expect((await drive.inject({ method: "POST", url: "/api/library/shrink", headers })).statusCode).toBe(404);
+  } finally {
+    await drive.close();
   }
 });

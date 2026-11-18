@@ -23,4 +23,5 @@ export interface Airing { start_ms: number; duration_ms: number; kind: "episode"
 export interface LineupResult { channel: number; date: string; hash: string; airings: Airing[]; warnings: Issue[] }
 
 export type JobState = "queued" | "running" | "done" | "failed";
-export interface Job { id: string; source: string; target: string; aspect: "16:9" | "4:3"; state: JobState; progress: number; error?: string }
+export type JobKind = "convert" | "shrink";
+export interface Job { id: string; kind?: JobKind; source: string; target: string; aspect: "16:9" | "4:3"; state: JobState; progress: number; error?: string }

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { DRIVE_PROFILE, SERVER_PROFILE } from "../src/server/videoSettings.js";
-import { aspectFor, conversionArgs, convert, displayAspectOf, isTooShort, probe } from "../src/server/ffmpeg.js";
+import { aspectFor, conversionArgs, convert, bitRateKbpsOf, displayAspectOf, isTooShort, probe } from "../src/server/ffmpeg.js";
 import { MIN_DURATION_MS } from "../src/server/videoSettings.js";
 
 let dir: string;
@@ -198,4 +198,16 @@ test("already aborted signal rejects without output", async () => {
   const dst = path.join(dir, "out.mpg");
   await expect(convert(makeVideo("a.mkv", "320x240", 1.2), dst, "4:3", () => {}, ctl.signal)).rejects.toThrow(/abort/i);
   expect(existsSync(dst + ".part")).toBe(false);
+});
+
+test("bitRateKbpsOf rounds the format bit_rate and gives null when it is missing", () => {
+  expect(bitRateKbpsOf({ bit_rate: "1700400" })).toBe(1700);
+  expect(bitRateKbpsOf({ bit_rate: "1999600" })).toBe(2000);
+  expect(bitRateKbpsOf({})).toBeNull();
+  expect(bitRateKbpsOf(undefined)).toBeNull();
+  expect(bitRateKbpsOf({ bit_rate: "N/A" })).toBeNull();
+});
+test("probe reports the bit rate of a real file", async () => {
+  const p = await probe(makeVideo("a.mkv", "320x240", 1.5));
+  expect(typeof p.bitRateKbps).toBe("number");
 });
