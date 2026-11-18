@@ -43,11 +43,11 @@ Throwaway code, so none; the real-Wii numbers in Task 3 are the review.
 **Interfaces:**
 - Produces: `node spikes/stream/serve.mjs <file.mpg> [port]` serving `GET`/`HEAD /test.mpg` on `0.0.0.0`.
 
-- [ ] **Step 1: Write `serve.mjs`** with `node:http`: single ranges only (`bytes=a-b`, `bytes=a-`, `bytes=-n`) → 206 with `Content-Range`; no `Range` → 200; out of range → 416; `Content-Length` and `Accept-Ranges: bytes` on every response, never chunked; keep-alive on. One log line per request: time, client address, range, bytes sent, ms.
-- [ ] **Step 2: Verify**
+- [x] **Step 1: Write `serve.mjs`** with `node:http`: single ranges only (`bytes=a-b`, `bytes=a-`, `bytes=-n`) → 206 with `Content-Range`; no `Range` → 200; out of range → 416; `Content-Length` and `Accept-Ranges: bytes` on every response, never chunked; keep-alive on. One log line per request: time, client address, range, bytes sent, ms.
+- [x] **Step 2: Verify**
   Run: `node spikes/stream/serve.mjs <file.mpg> &` then `curl -s -r 0-99 -o /dev/null -w '%{http_code} %{size_download}\n' http://127.0.0.1:4747/test.mpg`
   Expected: `206 100`. `curl -sI http://127.0.0.1:4747/test.mpg` shows `Accept-Ranges: bytes` and the file's `Content-Length`.
-- [ ] **Step 3: Commit** `wip | streaming test range server`
+- [x] **Step 3: Commit** `wip | streaming test range server`
 
 ---
 
@@ -60,7 +60,7 @@ Throwaway code, so none; the real-Wii numbers in Task 3 are the review.
 - Consumes: Task 1 server.
 - Produces: `spikes/stream/boot.dol`; log file `sd:/cable-twii-spike/stream-log.txt`.
 
-- [ ] **Step 1: Replace file reading with HTTP** in `main.c`:
+- [x] **Step 1: Replace file reading with HTTP** in `main.c`:
   - Read `sd:/cable-twii-spike/server.txt`, one line `host:port`.
   - Bring the network up with `if_config(ip, mask, gw, true, 20)`, showing "connecting" until it returns.
   - Keep one keep-alive TCP connection and send `GET /test.mpg` with `Range` in 64 KiB chunks. Take the total length from the first response's `Content-Range`.
@@ -70,35 +70,35 @@ Throwaway code, so none; the real-Wii numbers in Task 3 are the review.
     - `seek` resets the ring when the target is outside the buffered window.
     - `tell` returns the read position.
   - Reconnect once on a socket error.
-- [ ] **Step 2: Stats and controls**:
+- [x] **Step 2: Stats and controls**:
   - On screen, and appended to the log every 5 s: fps, audio underruns, KB/s over the last 5 s, ring fill %, total stall ms, total requests.
   - Button 1 seeks to `SEEK_TARGET` seconds (default 300).
   - Button 2 tunes: close the connection, reconnect, and open at a random offset between 0 and (duration − 60 s).
   - For both buttons, log the ms from the press to the first new frame shown, and the number of requests made.
   - The `AUTOTEST=1` build presses 2 every 20 s, the same as the video spike's autotest.
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
   Run: `make -C spikes/stream`
   Expected: `spikes/stream/boot.dol` links with no errors.
-- [ ] **Step 4: Run in Dolphin** (ask the owner first):
+- [ ] **Step 4: Run in Dolphin** (skipped: the owner ran it on the real Wii instead) (ask the owner first):
   1. Start the server on the Mac.
   2. Put `cable-twii-spike/server.txt` in Dolphin's SD sync folder, containing `<ip>:4747`, where `<ip>` is from `ipconfig getifaddr en0`.
   3. Run `open -a /Applications/Dolphin.app --args -e spikes/stream/boot.dol`.
 
   Expected: the video plays, the server log shows range requests, and button 2 re-tunes. Ignore Dolphin's speed.
-- [ ] **Step 5: Write `README.md`**: how to build, start the server and write `server.txt`, and what to record in Task 3.
-- [ ] **Step 6: Commit** `wip | streaming test app`
+- [x] **Step 5: Write `README.md`**: how to build, start the server and write `server.txt`, and what to record in Task 3.
+- [x] **Step 6: Commit** `wip | streaming test app`
 
 ---
 
 ### Task 3: Real Wii run (owner, at home)
 
-- [ ] **Step 1:** Set up the server on the Windows PC or the Mac at home, wired to the router if possible. The Wii stays on Wi-Fi. `server.txt` holds that machine's address.
-- [ ] **Step 2:** Run `WIILOAD=tcp:<wii-ip> wiiload spikes/stream/boot.dol` for each run:
+- [x] **Step 1:** Set up the server on the Windows PC or the Mac at home, wired to the router if possible. The Wii stays on Wi-Fi. `server.txt` holds that machine's address.
+- [x] **Step 2 (partly: short runs only, no 30-minute run, no Ethernet; see decision 0004):** Run `WIILOAD=tcp:<wii-ip> wiiload spikes/stream/boot.dol` for each run:
   - 30 minutes of continuous play over Wi-Fi
   - 10 tunes with button 2 over Wi-Fi
   - the same two runs over a USB Ethernet adapter, if one is available
   - while at it, the pending video spike run (roadmap plan 00, Task 2 Step 4)
-- [ ] **Step 3:** Record for each run:
+- [x] **Step 3:** Record for each run:
   - underruns (target 0)
   - stall ms
   - average and worst KB/s
@@ -113,11 +113,11 @@ Throwaway code, so none; the real-Wii numbers in Task 3 are the review.
 - Create: `docs/decisions/0004-server-streaming.md`
 - Modify: `docs/STATUS.md`
 
-- [ ] **Step 1: Write the record**:
+- [x] **Step 1: Write the record**:
   - The Task 3 numbers, and pass or fail against the bar.
   - The decision, one of:
     - **Both pass:** plan 08 runs as written. Record the ring size and chunk size to use.
     - **Playback passes, tune-in fails:** a seek index is needed. Plan 09 is written first.
     - **Playback fails:** the owner picks a lower-bitrate server profile or Ethernet before plan 08 starts.
-- [ ] **Step 2: Update `STATUS.md`** with a row for plans 06–08.
-- [ ] **Step 3: Commit** `wip | streaming test results`
+- [x] **Step 2: Update `STATUS.md`** with a row for plans 06–08.
+- [x] **Step 3: Commit** `wip | streaming test results`

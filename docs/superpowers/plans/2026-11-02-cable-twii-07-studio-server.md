@@ -380,3 +380,28 @@
 - [ ] **Step 2: Write** `serve-windows.cmd`, `SERVER.md`, the `formats.md` sections, a README link and a STATUS row.
 - [ ] **Step 3: Owner check at home**: follow `SERVER.md` on the Windows 11 PC, then run `curl http://<pc-ip>:4747/wii/v1/info` from the Mac and sign in from a phone.
 - [ ] **Step 4: Commit** `wip | studio server install guide and formats`
+
+---
+
+### Task 9: Server conversion profile (decision 0004)
+
+**Files:**
+- Modify: `studio/src/server/videoSettings.ts`, `studio/src/server/ffmpeg.ts`, `studio/src/server/queue.ts`, `studio/src/server/app.ts`, `studio/test/ffmpeg.test.ts`, `studio/test/queue.test.ts`, `studio/test/server.test.ts`, `docs/formats.md`, `docs/SERVER.md`
+
+**Interfaces:**
+- Produces:
+  - `videoSettings.ts`: `export interface VideoProfile { videoBitrate: string; videoMaxrate: string; videoBufsize: string; audioBitrate: string }`, `export const DRIVE_PROFILE: VideoProfile` (today's `1500k` / `2000k` / `1000k` / `192k`) and `export const SERVER_PROFILE: VideoProfile` (`900k` / `1100k` / `600k` / `128k`). Frame sizes, frame rate, GOP, codecs and loudness stay shared.
+  - `convert(src, dst, aspect, onProgress, signal?, guard?, profile: VideoProfile = DRIVE_PROFILE)`: the ffmpeg arguments take the bitrates from `profile`.
+  - `QueueOptions.profile?: VideoProfile`; the queue passes it to every conversion. `buildApp` in server mode creates queues with `SERVER_PROFILE`; drive mode keeps `DRIVE_PROFILE`.
+
+- [ ] **Step 1: Write the failing tests**:
+  - `ffmpeg.test.ts`: the argument list for `SERVER_PROFILE` contains `-b:v 900k`, `-maxrate 1100k`, `-bufsize 600k`, `-b:a 128k`; the default call still contains `1500k`, `2000k`, `1000k`, `192k`.
+  - `queue.test.ts`: a queue built with `profile: SERVER_PROFILE` passes it to its `convertFn`.
+  - `server.test.ts`: an import in server mode reaches `convertFn` with `SERVER_PROFILE`; drive mode (`app.test.ts` existing import test) still with `DRIVE_PROFILE`.
+- [ ] **Step 2: Run and see them fail.**
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** `cd studio && npm test && npm run typecheck`. Expected: PASS.
+- [ ] **Step 5: Docs:** `formats.md` Uploads/server section states the server profile; `SERVER.md` says server videos are converted smaller for the Wii's Wi-Fi.
+- [ ] **Step 6: Real check:** convert one file on the Mac server and confirm with `ffprobe` that the overall bitrate is about 1 Mbit/s.
+- [ ] **Step 7: Commit** `wip | server conversion profile`
+

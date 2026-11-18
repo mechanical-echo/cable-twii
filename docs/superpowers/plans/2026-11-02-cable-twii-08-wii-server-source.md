@@ -24,7 +24,7 @@
 
 ## Global Constraints
 
-- **Starts after plan 06's decision 0004.** Ring size and chunk size come from it; the defaults are a 2 MiB ring and 64 KiB chunks. If 0004 calls for a seek index, plan 09 lands before Task 5.
+- **Follows decision 0004 (accepted 2026-11-18):** server libraries use the lower-bitrate profile (plan 07 Task 9); the client streams continuously (one open-ended `Range: bytes=<pos>-` request per position) into a 2 MiB ring with a read-ahead target of about 10 s; getting online retries from scratch; no seek index.
 - **Drive mode is unchanged.**
   - With `source = "drive"`, or no settings file, every existing flow behaves as today.
   - All existing host tests pass, and the drive checklist items still pass in Dolphin.
@@ -36,7 +36,8 @@
   - Plain HTTP, default port 4747.
 - **Settings file:** `sd:/apps/cable-twii/settings.toml`. Keys `source` (`"drive"` or `"server"`, default `"drive"`) and `server` (the address as typed, at most 127 bytes).
 - **Timeouts:**
-  - network up: 10000 ms
+  - network up: up to 3 attempts of `net_init`, each capped at 10000 ms, with `net_deinit` between attempts
+  - first connection to the server: one immediate retry
   - each server request while loading: 5000 ms
   - stream read: 5000 ms before one reconnect
   - weak-signal note after 1000 ms waiting
@@ -48,6 +49,7 @@
   - Error body: `cable-twii couldn't connect to <address>. Check that the server is running and the Wii is online, or change the address in Settings.`
   - Weak signal: `Weak signal`
   - Reload notice: `Channels updated`
+  - No network: `Can't reach the network. Check the Wii's internet settings, or start cable-twii again.`
   - No SD card: `No SD card. These settings last until cable-twii closes.`
   - Test results:
     - `Connected to "<name>".`
@@ -170,7 +172,8 @@
 - Consumes: Task 2 `srv_addr`.
 - Produces:
   - `sock.h`. The Wii version uses `if_config`, `net_gethostbyname`, `net_socket`, `net_connect`, `net_send`, `net_recv` and `net_close` with polling timeouts. The host version uses POSIX.
-    - `int sk_up(uint32_t timeout_ms);`
+    - `int sk_up(uint32_t timeout_ms);`: one attempt.
+    - `void sk_down(void);`: `net_deinit` on the Wii, nothing on the host.
     - `int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms);`
     - `int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms);`
     - `long sk_recv(int fd, void *buf, size_t len, uint32_t timeout_ms);`
@@ -183,9 +186,10 @@
     - `typedef struct { char *data; size_t len; int status; } http_body;`
     - `int http_get(const srv_addr *a, const char *path, size_t max_bytes, uint32_t timeout_ms, http_body *out);`: sends `Accept-Encoding: gzip`, inflates gzip with zlib, and NUL-terminates the body.
     - `void http_body_free(http_body *b);`
-    - `typedef struct { srv_addr addr; char path[512]; int fd; uint64_t length; uint32_t timeout_ms; } http_stream;`
+    - `typedef struct { srv_addr addr; char path[512]; int fd; uint64_t length; uint64_t remaining; uint32_t timeout_ms; } http_stream;`
     - `int hs_open(http_stream *s, const srv_addr *a, const char *path, uint32_t timeout_ms);`: requests `bytes=0-0` and learns `length` from `Content-Range`.
-    - `long hs_read_at(http_stream *s, uint64_t offset, void *dst, size_t len);`: one `Range` request on the kept connection. Reconnects once on a socket error or a closed connection. A non-206 status gives `HTTP_E_STATUS`.
+    - `int hs_start(http_stream *s, uint64_t offset);`: sends one open-ended `Range: bytes=<offset>-` request. If the previous response still has unread body bytes, it closes the connection and opens a new one first. Reconnects once on a socket error or a closed connection. A non-206 status gives `HTTP_E_STATUS`.
+    - `long hs_read(http_stream *s, void *dst, size_t len);`: returns the next body bytes as they arrive (up to `len`, waiting at most `timeout_ms`), 0 when the response is complete, negative on error. The caller restarts with `hs_start` at its own position after an error.
     - `void hs_close(http_stream *s);`
   - `testserver.h` (host only):
     - `typedef struct { const char *head; const void *body; size_t body_len; bool close_after; } ts_reply;`
@@ -203,8 +207,9 @@
     - `get_inflates_gzip`: gzip `version = 1\n` comes back as plain text, and `ts_request(0)` contains `Accept-Encoding: gzip`.
     - `get_404_is_status_error`: `HTTP_E_STATUS` with `status 404`.
     - `get_too_large`: `max_bytes` 4 against a 10-byte body gives `HTTP_E_TOO_LARGE`.
-    - `stream_reads_ranges_on_one_connection`: two `hs_read_at` calls are served on one accepted connection, with request ranges `bytes=0-0`, then `bytes=100-109`, then `bytes=110-119`.
-    - `stream_reconnects_after_server_close`: the reply has `close_after`, and the next `hs_read_at` still returns 10 bytes.
+    - `stream_reads_open_ended_range`: after `hs_open`, `hs_start(s, 100)` sends `Range: bytes=100-` on the same connection, and repeated `hs_read` calls return the exact remaining bytes, then 0.
+    - `stream_restart_drops_unfinished_body`: `hs_start(s, 500)` while the previous body is unread opens a new connection and the next `hs_read` returns bytes from 500.
+    - `stream_reconnects_after_server_close`: the reply has `close_after`, and the next `hs_start` still succeeds and `hs_read` returns the bytes.
     - `connect_refused_is_connect_error`.
 - [ ] **Step 2: Run and see them fail** `make -C wii/tests test`. Expected: FAIL.
 - [ ] **Step 3: Implement**. Add `../source/net/httpparse.c ../source/net/http.c` to `SRC`. `sock_wii.c` is Wii-only and is not in the host `SRC`.
@@ -225,10 +230,10 @@
   - `srvlib.h`:
     - `typedef struct { int version; char name[64]; char revision[64]; } srv_info;`
     - `int srv_info_parse(const char *toml, srv_info *out);`: -1 unless `version == 1`.
-    - `typedef enum { SRV_OK, SRV_NO_ANSWER, SRV_NOT_CABLE_TWII, SRV_BAD_LIBRARY } srv_result;`
+    - `typedef enum { SRV_OK, SRV_NO_NETWORK, SRV_NO_ANSWER, SRV_NOT_CABLE_TWII, SRV_BAD_LIBRARY } srv_result;`
     - `srv_result srv_fetch_info(const srv_addr *a, uint32_t timeout_ms, srv_info *out);`
     - `srv_result srv_load_db(const srv_addr *a, uint32_t timeout_ms, ctw_db **out, ctw_issues *issues, srv_info *info);`: fetches `info`, then `library.toml`, then `config.toml`, each at most 16 MiB. Parses the library first, then the config, like `ctw_db_load`.
-    - `void srv_test_message(srv_result r, const char *address, const char *name, char *out, size_t out_size);`: the four Global Constraints test texts.
+    - `void srv_test_message(srv_result r, const char *address, const char *name, char *out, size_t out_size);`: the four Global Constraints test texts, and the No network copy for `SRV_NO_NETWORK`.
   - `srcpick.h`:
     - `typedef enum { SP_SERVER, SP_DRIVE_WITH_NOTICE, SP_FAIL } sp_outcome;`
     - `bool sp_try_server(const ctw_settings *s);`: true when the source is server and `addr_parse` succeeds.
@@ -247,6 +252,7 @@
     - `sp_after_server(SRV_NO_ANSWER, true) == SP_DRIVE_WITH_NOTICE`
     - `sp_after_server(SRV_NO_ANSWER, false) == SP_FAIL`
     - `sp_after_server(SRV_BAD_LIBRARY, true) == SP_DRIVE_WITH_NOTICE`
+    - `sp_after_server(SRV_NO_NETWORK, true) == SP_DRIVE_WITH_NOTICE` and `sp_after_server(SRV_NO_NETWORK, false) == SP_FAIL`
     - `sp_try_server` is false for `SRC_DRIVE`, and false for `SRC_SERVER` with `"https://x"`.
 - [ ] **Step 2: Run and see them fail** `make -C wii/tests test`. Expected: FAIL.
 - [ ] **Step 3: Implement**, adding both files to `SRC`.
@@ -275,7 +281,7 @@
     - `void nr_append(nr_ring *r, const uint8_t *src, size_t n);`
     - `size_t nr_copy(const nr_ring *r, uint64_t pos, uint8_t *dst, size_t n);`
     - `void nr_drop_before(nr_ring *r, uint64_t pos);`: keeps `NR_KEEP_BEHIND` bytes before `pos`.
-  - `netsrc.h` (Wii-only). One fetch thread (`LWP`) per source appends chunks ahead of the read position. The ring lives in MEM2.
+  - `netsrc.h` (Wii-only). One fetch thread (`LWP`) per source keeps one open-ended response (`hs_start` at `nr_end`) streaming into the ring with `hs_read`, pausing while the ring is full or about 10 s ahead of the reader. A read outside the window resets the ring and restarts the response at the new position. The ring lives in MEM2. The debug overlay shows the live download rate.
     - `typedef struct ns_source ns_source;`
     - `ns_source *ns_open(const char *url, uint32_t timeout_ms);`
     - `size_t ns_read(ns_source *s, uint8_t *dst, size_t len);`
@@ -313,7 +319,7 @@
 **Interfaces:**
 - Consumes: Task 1 settings, `st_config_*` and `state_dir`. Task 4 `srv_load_db`, `sp_*` and `srv_root`. Task 5 player.
 - Produces:
-  - `loader.h` (Wii-only). One background thread at a time; it runs `sk_up(10000)` before its first request.
+  - `loader.h` (Wii-only). One background thread at a time. Before its first request it brings the network up with up to 3 attempts of `sk_up(10000)`, calling `sk_down()` between them; after the third failure the job ends with `SRV_NO_NETWORK`.
     - `typedef enum { LD_IDLE, LD_RUNNING, LD_DONE } ld_state;`
     - `void ld_load(const srv_addr *a);`
     - `void ld_info(const srv_addr *a);`
@@ -328,7 +334,7 @@
     - On `LD_DONE`, `sp_after_server` decides:
       - `SP_SERVER`: `a->root = srv_root`, `from_server = true`, `state_dir = SETTINGS_DIR`, then `tn_init`, `state_load`, `guide_prepare`.
       - `SP_DRIVE_WITH_NOTICE`: the drive boot, then the matching fallback notice.
-      - `SP_FAIL`: `app_fail` with the exact error copy.
+      - `SP_FAIL`: `app_fail` with the exact error copy, or the No network copy when the result is `SRV_NO_NETWORK`.
   - `live.c`: no `drive_lost` check when `from_server`.
   - Icons with `http://` paths are fetched by one worker thread (a queue of 8). The main thread decodes at most `ICON_LOADS_PER_FRAME` fetched PNGs per frame and draws the placeholder until then.
 
