@@ -200,7 +200,15 @@ export async function uploadVideos(files: File[], onProgress: (ratio: number) =>
 }
 
 export async function discardUploaded(sources: string[]): Promise<void> {
-  for (const group of uploadGroups(sources)) await send<{ removed: number }>("POST", "/api/upload/discard", group);
+  const failed: string[] = [];
+  for (const group of uploadGroups(sources)) {
+    try {
+      await send<{ removed: number; kept: number }>("POST", "/api/upload/discard", group);
+    } catch (err) {
+      failed.push((err as Error).message);
+    }
+  }
+  if (failed.length > 0) throw new Error(failed[0]);
 }
 
 export interface JobStreamHandlers {

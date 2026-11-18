@@ -133,7 +133,7 @@ export function folderSuggestions(library: Pick<WebLibrary, "show" | "ad">): str
 export function channelChoices(config: Config | null, libraryChannels: string[]): string[] {
   const found = new Set(libraryChannels);
   for (const channel of config?.channel ?? []) found.add(effectiveFolder(channel));
-  return [...found].filter((c) => c !== "").sort();
+  return [...found].filter((c) => c !== "").sort((a, b) => a.localeCompare(b));
 }
 
 export const NEW_CHANNEL = "\u0000new";

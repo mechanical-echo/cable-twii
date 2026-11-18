@@ -44,7 +44,8 @@ export function ImportAdsDialog({ dir, files, uploaded, channels, onClose, onImp
       let skipped = describeRejected(result.jobs.length, result.rejected);
       if (uploaded) {
         try {
-          await discardUploaded(files.filter((f) => !picked.has(f.source)).map((f) => f.source));
+          const unticked = files.filter((f) => !picked.has(f.source)).map((f) => f.source);
+          await discardUploaded([...unticked, ...result.rejected.map((r) => r.source)]);
         } catch (err) {
           skipped = `${skipped ?? "Imported."} The unticked uploads could not be deleted: ${(err as Error).message}`;
         }
@@ -61,15 +62,22 @@ export function ImportAdsDialog({ dir, files, uploaded, channels, onClose, onImp
     }
   }
 
-  function close() {
+  async function close() {
     if (uploaded && !imported && window.confirm("Delete the uploaded files?")) {
-      discardUploaded(files.map((f) => f.source)).catch(() => undefined);
+      setBusy(true);
+      try {
+        await discardUploaded(files.map((f) => f.source));
+      } catch (err) {
+        setError(`Some uploads could not be deleted: ${(err as Error).message}`);
+        setBusy(false);
+        return;
+      }
     }
     onClose();
   }
 
   return (
-    <Dialog title="Add ads" onClose={close}>
+    <Dialog title="Add ads" busy={busy} onClose={close}>
       <div className="form-grid">
         <label>
           Play on
@@ -90,7 +98,7 @@ export function ImportAdsDialog({ dir, files, uploaded, channels, onClose, onImp
       </ul>
       {error !== null && <div className="banner error">{error}</div>}
       <div className="row end">
-        <button onClick={close}>{imported ? "Close" : "Cancel"}</button>
+        <button disabled={busy} onClick={close}>{imported ? "Close" : "Cancel"}</button>
         <button className="primary" disabled={busy || imported || picked.size === 0 || (channel === NEW_CHANNEL && channelFolder === "")} onClick={submit}>
           Import
         </button>

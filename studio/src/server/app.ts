@@ -693,7 +693,9 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const body = objectBody(request.body);
       const names = body.names;
       if (!Array.isArray(names) || names.some((n) => typeof n !== "string")) throw bad("names must be a list of strings.");
-      return { removed: await discardUploads(uploads, stringField(body, "dir"), names as string[]) };
+      const jobs = queueFor(await requireRoot()).list();
+      const queued = new Set(jobs.filter((j) => j.state === "queued" || j.state === "running").map((j) => path.resolve(j.source)));
+      return discardUploads(uploads, stringField(body, "dir"), names as string[], queued);
     });
   }
 

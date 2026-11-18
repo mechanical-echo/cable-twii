@@ -305,14 +305,14 @@ test("discard removes the named files and the emptied batch folder", async () =>
   const batch = res.json().dir as string;
   const first = await discard({ dir: batch, names: ["a.mp4"] });
   expect(first.statusCode).toBe(200);
-  expect(first.json()).toEqual({ removed: 1 });
+  expect(first.json()).toEqual({ removed: 1, kept: 0 });
   expect(await readdir(batch)).toEqual(["b.mp4"]);
   const second = await discard({ dir: batch, names: ["b.mp4"] });
-  expect(second.json()).toEqual({ removed: 1 });
+  expect(second.json()).toEqual({ removed: 1, kept: 0 });
   expect(await uploadsEmpty()).toBe(true);
 });
 
-test("discard refuses a folder outside the uploads, a bad name and a missing file", async () => {
+test("discard refuses a folder outside the uploads and a bad name", async () => {
   const batch = (await upload({ name: "a.mp4", data: Buffer.from("one") })).json().dir as string;
   const outside = path.join(dir, "imports");
   await mkdir(outside, { recursive: true });
@@ -322,12 +322,30 @@ test("discard refuses a folder outside the uploads, a bad name and a missing fil
     { dir: uploads, names: ["a.mp4"] },
     { dir: path.join(batch, ".."), names: [path.basename(batch)] },
     { dir: batch, names: ["../a.mp4"] },
-    { dir: batch, names: ["a.mp4", "missing.mp4"] },
     { dir: batch, names: "a.mp4" },
   ];
   for (const attempt of attempts) expect((await discard(attempt)).statusCode).toBe(400);
   expect(await readdir(batch)).toEqual(["a.mp4"]);
   expect(await readFile(path.join(outside, "keep.mp4"), "utf8")).toBe("keep");
+});
+
+test("discard skips a missing file and keeps one with a queued job", async () => {
+  const batch = (await uploadMany([
+    { name: "a.mp4", data: Buffer.from("one") },
+    { name: "b.mp4", data: Buffer.from("two") },
+  ])).json().dir as string;
+  const queue = new ConversionQueue(root, { convertFn: fakeConvert, probeFn: fakeProbe, concurrency: 1 });
+  vi.spyOn(queue, "list").mockReturnValue([{ id: "1", source: path.join(batch, "a.mp4"), target: "x", aspect: "4:3", state: "queued", progress: 0 }]);
+  const kept = build({ queueFactory: () => queue });
+  try {
+    const key = await signIn(kept);
+    const res = await kept.inject({ method: "POST", url: "/api/upload/discard", payload: { dir: batch, names: ["a.mp4", "b.mp4", "gone.mp4"] }, headers: { host: LAN_HOST, "x-cable-twii": "1", cookie: key } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ removed: 1, kept: 1 });
+    expect(await readdir(batch)).toEqual(["a.mp4"]);
+  } finally {
+    await kept.close();
+  }
 });
 
 test("discard does not exist in drive mode", async () => {

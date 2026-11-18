@@ -100,7 +100,7 @@ export async function sweepUploads(uploads: string, queued: ReadonlySet<string>,
   }
 }
 
-export async function discardUploads(uploads: string, dir: string, names: string[]): Promise<number> {
+export async function discardUploads(uploads: string, dir: string, names: string[], queued: ReadonlySet<string>): Promise<{ removed: number; kept: number }> {
   const base = path.resolve(uploads);
   const batch = path.resolve(dir);
   if (path.dirname(batch) !== base) throw new ContainmentError("That path is outside the uploads folder.");
@@ -109,16 +109,21 @@ export async function discardUploads(uploads: string, dir: string, names: string
     if (uploadName(name) !== name) throw new ContainmentError(`${name} is not a usable upload name.`);
     return path.join(batch, name);
   });
+  let removed = 0;
+  let kept = 0;
   for (const file of files) {
-    let stat;
-    try {
-      stat = await lstat(file);
-    } catch {
-      throw new ContainmentError(`${path.basename(file)} is not in this upload.`);
+    if (queued.has(file)) {
+      kept++;
+      continue;
     }
-    if (!stat.isFile()) throw new ContainmentError(`${path.basename(file)} is not in this upload.`);
+    try {
+      if (!(await lstat(file)).isFile()) continue;
+    } catch {
+      continue;
+    }
+    await rm(file, { force: true });
+    removed++;
   }
-  for (const file of files) await rm(file, { force: true });
   await rmdir(batch).catch(() => undefined);
-  return files.length;
+  return { removed, kept };
 }

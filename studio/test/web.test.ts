@@ -168,7 +168,7 @@ describe("channelChoices", () => {
   const config = { channel: [{ name: "Cartoon Network" }, { name: "MTV", folder: "mtv-00s" }] } as Config;
 
   it("merges config folders and library channels, de-duplicated and sorted", () => {
-    expect(channelChoices(config, ["Cartoon Network", "Nickelodeon"])).toEqual(["Cartoon Network", "Nickelodeon", "mtv-00s"]);
+    expect(channelChoices(config, ["Cartoon Network", "Nickelodeon"])).toEqual(["Cartoon Network", "mtv-00s", "Nickelodeon"]);
   });
 
   it("is empty without a config or channels", () => {
