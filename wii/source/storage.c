@@ -155,7 +155,7 @@ static void open_usb(void)
     usb_device_entry list[MAX_DEVS];
     u8 cnt = 0;
 
-    USBStorage_Initialize();
+    if (USB_Initialize() < 0 || USBStorage_Initialize() < 0) return;
     if (USB_GetDeviceList(list, MAX_DEVS, MASS_STORAGE_CLASS, &cnt) < 0) return;
 
     for (int i = 0; i < cnt && i < MAX_DEVS; i++) {
