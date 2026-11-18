@@ -137,6 +137,7 @@ static void badge(const home_layout *l)
 
 static void playing(app *a, const home_layout *l)
 {
+    if (a->db == NULL) return;
     const ctw_channel *ch = ctw_db_channel(a->db, a->current_channel);
     if (ch == NULL) return;
     uint32_t offset = 0;
