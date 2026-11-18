@@ -30,6 +30,8 @@ SUITE_EXTERN(sysbar_layout_suite);
 SUITE_EXTERN(addr_suite);
 SUITE_EXTERN(httpparse_suite);
 SUITE_EXTERN(http_suite);
+SUITE_EXTERN(srvlib_suite);
+SUITE_EXTERN(srcpick_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -66,5 +68,7 @@ int main(int argc, char **argv)
     RUN_SUITE(addr_suite);
     RUN_SUITE(httpparse_suite);
     RUN_SUITE(http_suite);
+    RUN_SUITE(srvlib_suite);
+    RUN_SUITE(srcpick_suite);
     GREATEST_MAIN_END();
 }
