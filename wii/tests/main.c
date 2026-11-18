@@ -32,6 +32,7 @@ SUITE_EXTERN(httpparse_suite);
 SUITE_EXTERN(http_suite);
 SUITE_EXTERN(srvlib_suite);
 SUITE_EXTERN(srcpick_suite);
+SUITE_EXTERN(netring_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -70,5 +71,6 @@ int main(int argc, char **argv)
     RUN_SUITE(http_suite);
     RUN_SUITE(srvlib_suite);
     RUN_SUITE(srcpick_suite);
+    RUN_SUITE(netring_suite);
     GREATEST_MAIN_END();
 }

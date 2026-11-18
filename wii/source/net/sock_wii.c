@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <network.h>
 #include <ogc/lwp_watchdog.h>
+#include <ogc/mutex.h>
 
 #define IO_MAX (16 * 1024)
 #define POLL_SLICE_MS 50
@@ -16,6 +17,7 @@
 
 static volatile bool up_done;
 static volatile s32 up_result;
+static mutex_t lookup_lock = LWP_MUTEX_NULL;
 
 static uint32_t since_ms(u64 start)
 {
@@ -44,6 +46,7 @@ static s32 up_cb(s32 result, void *usrdata)
 
 int sk_up(uint32_t timeout_ms)
 {
+    if (lookup_lock == LWP_MUTEX_NULL) LWP_MutexInit(&lookup_lock, false);
     up_done = false;
     up_result = SK_E_FAIL;
     u64 start = gettime();
@@ -73,9 +76,12 @@ int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
     if (!inet_aton(host, &sa.sin_addr)) {
+        LWP_MutexLock(lookup_lock);
         struct hostent *h = net_gethostbyname(host);
-        if (h == NULL || h->h_addr_list == NULL || h->h_addr_list[0] == NULL) return SK_E_FAIL;
-        memcpy(&sa.sin_addr, h->h_addr_list[0], sizeof sa.sin_addr);
+        bool found = h != NULL && h->h_addr_list != NULL && h->h_addr_list[0] != NULL;
+        if (found) memcpy(&sa.sin_addr, h->h_addr_list[0], sizeof sa.sin_addr);
+        LWP_MutexUnlock(lookup_lock);
+        if (!found) return SK_E_FAIL;
     }
 
     s32 fd = net_socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
