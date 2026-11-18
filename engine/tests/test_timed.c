@@ -507,7 +507,7 @@ TEST timed_random_run_consecutive(void)
             ASSERT_EQ(CTW_AIR_EPISODE, l.items[i].kind);
             ASSERT_EQ(g, l.items[i].show);
             ASSERT_EQ(0, l.items[i].item_index);
-            ASSERT_EQ_FMT(k + i, pool_index(g, 0, l.items[i].episode), "%lld");
+            ASSERT_EQ_FMT((long long)(k + i), (long long)(pool_index(g, 0, l.items[i].episode)), "%lld");
         }
         ASSERT_EQ(0u, l.warnings.count);
         ctw_lineup_free(&l);
@@ -531,7 +531,7 @@ TEST timed_random_run_shortened(void)
     ASSERT_EQ(2u, count_kind(&l, 0, CTW_AIR_EPISODE));
     k = pool_index(at, 0, l.items[0].episode);
     ASSERT(k >= 0);
-    ASSERT_EQ_FMT(k + 1, pool_index(at, 0, l.items[1].episode), "%lld");
+    ASSERT_EQ_FMT((long long)(k + 1), (long long)(pool_index(at, 0, l.items[1].episode)), "%lld");
     ASSERT(has_warning(&l, 1, CTW_W_PARTIAL, 0, 0));
     CHECK_CALL(assert_contiguous(&l, 25200000, 25200000 + TL_DAY_MS));
     ctw_lineup_free(&l);
@@ -722,7 +722,7 @@ TEST timed_deterministic(void)
     ASSERT_EQ(0, build_day(TL_PINNED("1"), tl_day, &a));
     ASSERT_EQ(0, build_day(TL_PINNED("1"), tl_day, &b));
     ASSERT_EQ(a.count, b.count);
-    ASSERT_EQ_FMT(ctw_lineup_hash(&a), ctw_lineup_hash(&b), "%llx");
+    ASSERT_EQ_FMT((unsigned long long)(ctw_lineup_hash(&a)), (unsigned long long)(ctw_lineup_hash(&b)), "%llx");
     ctw_lineup_free(&a);
     ctw_lineup_free(&b);
     PASS();
@@ -770,10 +770,10 @@ TEST timed_known_lineup_pinned(void)
         const ctw_airing *a = &l.items[i];
         ASSERT_EQ(exp[i].kind, a->kind);
         ASSERT_STR_EQ(exp[i].path, a->kind == CTW_AIR_AD ? a->ad->path : a->episode->path);
-        ASSERT_EQ_FMT(exp[i].start, a->start_ms, "%lld");
+        ASSERT_EQ_FMT((long long)(exp[i].start), (long long)(a->start_ms), "%lld");
         ASSERT_EQ(exp[i].dur, a->duration_ms);
     }
-    ASSERT_EQ_FMT(0x66360a2105c3f9adULL, ctw_lineup_hash(&l), "%016llx");
+    ASSERT_EQ_FMT((unsigned long long)(0x66360a2105c3f9adULL), (unsigned long long)(ctw_lineup_hash(&l)), "%016llx");
     ctw_lineup_free(&l);
     PASS();
 }
@@ -919,9 +919,9 @@ TEST lineup_hash_encoding(void)
         n += sizeof a2;
     }
     h = ctw_fnv1a(CTW_FNV_OFFSET, buf, n);
-    ASSERT_EQ_FMT(h, ctw_lineup_hash(&l), "%016llx");
+    ASSERT_EQ_FMT((unsigned long long)h, (unsigned long long)(ctw_lineup_hash(&l)), "%016llx");
     l.count = 0;
-    ASSERT_EQ_FMT(CTW_FNV_OFFSET, ctw_lineup_hash(&l), "%016llx");
+    ASSERT_EQ_FMT((unsigned long long)CTW_FNV_OFFSET, (unsigned long long)(ctw_lineup_hash(&l)), "%016llx");
     PASS();
 }
 

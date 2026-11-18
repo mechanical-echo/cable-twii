@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { baseName, formatBytes, formatDuration } from "../src/web/format.js";
 import { describeRejected, isUsable } from "../src/web/importing.js";
 import { buildTree, descriptionKey, seasonLabel, type WebLibrary } from "../src/web/tree.js";
+import { batches, crumbs, joinRel, rejectedLine, uploadRatio } from "../src/web/uploading.js";
 
 const ep = (season: number, episode: number, title: string) => ({ season, episode, title, description: "", path: `C/S/${title}.mpg`, duration_ms: 30000 });
 
@@ -93,6 +94,64 @@ describe("describeRejected", () => {
   it("lists skipped files with reasons", () => {
     expect(describeRejected(2, [{ source: "/a/b.mp4", reason: "too short" }, { source: "/c.mp4", reason: "bad" }])).toBe(
       "Imported 2. Skipped: b.mp4 (too short); c.mp4 (bad)",
+    );
+  });
+});
+
+describe("uploadRatio", () => {
+  it("is the sent share of the total", () => {
+    expect(uploadRatio(50, 200)).toBe(0.25);
+    expect(uploadRatio(200, 200)).toBe(1);
+  });
+
+  it("is 0 when the total is unknown", () => {
+    expect(uploadRatio(0, 0)).toBe(0);
+    expect(uploadRatio(10, 0)).toBe(0);
+  });
+
+  it("stays within 0 and 1 when multipart framing overshoots", () => {
+    expect(uploadRatio(210, 200)).toBe(1);
+    expect(uploadRatio(-5, 200)).toBe(0);
+  });
+});
+
+describe("crumbs", () => {
+  it("starts at the imports root", () => {
+    expect(crumbs("")).toEqual([{ name: "imports", rel: "" }]);
+  });
+
+  it("adds one crumb per folder with its path from the root", () => {
+    expect(crumbs("a/b")).toEqual([
+      { name: "imports", rel: "" },
+      { name: "a", rel: "a" },
+      { name: "b", rel: "a/b" },
+    ]);
+  });
+});
+
+describe("joinRel", () => {
+  it("adds a folder name to a path from the imports root", () => {
+    expect(joinRel("", "a")).toBe("a");
+    expect(joinRel("a", "b c")).toBe("a/b c");
+  });
+});
+
+describe("batches", () => {
+  it("splits a list into runs of at most the given size, keeping order", () => {
+    expect(batches([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(batches([1, 2], 2)).toEqual([[1, 2]]);
+  });
+
+  it("gives no batches for an empty list", () => {
+    expect(batches([], 50)).toEqual([]);
+  });
+});
+
+describe("rejectedLine", () => {
+  it("shows the file name and the first line of the reason", () => {
+    expect(rejectedLine({ name: "a.mp4", reason: "not a video" })).toBe("a.mp4: not a video");
+    expect(rejectedLine({ name: "b.mp4", reason: "could not read the video: moov atom not found\nfile:/srv/library/.uploads/x/b.mp4: Invalid data" })).toBe(
+      "b.mp4: could not read the video: moov atom not found",
     );
   });
 });

@@ -257,6 +257,12 @@ ul.plain {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  z-index: 10;
+}
+
+.overlay > .card {
+  width: min(360px, 100%);
+  margin: 0;
 }
 
 .dialog {
@@ -726,4 +732,73 @@ button.mini {
 .guide-footer {
   margin: 10px 0 0;
   font-size: 12px;
+}
+
+.login {
+  max-width: 360px;
+  margin: 12vh auto 0;
+  padding: 0 16px;
+}
+
+.picker {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.entry {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+button.entry {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+button.entry:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+@media (max-width: 700px) {
+  .shell.server {
+    grid-template-columns: 1fr;
+  }
+
+  .shell.server .tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .shell.server .tabs h1 {
+    width: 100%;
+    margin: 0 0 4px;
+  }
+
+  .shell.server .content {
+    padding: 14px 12px;
+  }
+
+  .shell.server .facts {
+    grid-template-columns: 110px 1fr;
+  }
+
+  .shell.server .facts dd {
+    overflow-wrap: anywhere;
+  }
+
+  .shell.server input,
+  .shell.server select,
+  .login input {
+    font-size: 16px;
+  }
 }

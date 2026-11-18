@@ -8,6 +8,7 @@ import { readSources, writeSources } from "../src/server/sources.js";
 import { convert as realConvert } from "../src/server/ffmpeg.js";
 import type { convert, probe } from "../src/server/ffmpeg.js";
 import type { Job, SourceRecord } from "../src/server/types.js";
+import { waitFor } from "./helpers.js";
 
 let dir: string;
 let srcFile: string;
@@ -157,6 +158,20 @@ function until(q: ConversionQueue, check: (jobs: Job[]) => boolean): Promise<voi
   });
 }
 
+// persist() queues atomic writes behind each other, so the file lags the in-memory jobs
+async function storedWith(file: string, count: number): Promise<string> {
+  let text = "";
+  let seen = 0;
+  await waitFor(async () => {
+    text = await readFile(file, "utf8").catch(() => "");
+    seen = text.match(/\[\[job\]\]/g)?.length ?? 0;
+    return seen === count;
+  }).catch(() => {
+    throw new Error(`queue.toml never reached ${count} jobs, last saw ${seen}`);
+  });
+  return text;
+}
+
 test("queue pauses while the root is gone and resumes when it is back", async () => {
   const root = path.join(dir, "root");
   const away = path.join(dir, "away");
@@ -177,13 +192,11 @@ test("queue pauses while the root is gone and resumes when it is back", async ()
   q.start();
   for (const n of ["a", "b", "c"]) q.enqueue(srcFile, `Show/${n}.mpg`, "4:3");
   await until(q, (jobs) => jobs[0]?.state === "running");
-  await sleep(30);
-  const stored = await readFile(path.join(root, ".studio", "queue.toml"), "utf8");
+  const stored = await storedWith(path.join(root, ".studio", "queue.toml"), 3);
   expect(stored.match(/\[\[job\]\]/g)).toHaveLength(3);
   await rename(root, away);
   release();
   await until(q, (jobs) => jobs[0]?.state === "queued");
-  await sleep(30);
   expect(q.list().map((j) => j.state)).toEqual(["queued", "queued", "queued"]);
   expect(states).not.toContain("failed");
   expect(q.isPaused()).toBe(true);
@@ -231,7 +244,7 @@ test("parallel successes all recorded in sources.toml", async () => {
   expect((await readSources(dir)).map((r) => r.target)).toEqual(["t0.mpg", "t1.mpg", "t2.mpg", "t3.mpg", "t4.mpg"]);
 });
 
-test("queue write failure emits error and continues", async () => {
+test.skipIf(process.getuid?.() === 0)("queue write failure emits error and continues", async () => {
   const q = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn });
   const errors: Error[] = [];
   q.on("error", (e: Error) => errors.push(e));

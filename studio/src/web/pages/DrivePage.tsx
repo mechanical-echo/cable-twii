@@ -1,13 +1,59 @@
 import { useState } from "react";
-import { type DriveInfo, driveDone, initDrive, pickDrive, setDrive } from "../api";
+import { type DriveInfo, driveDone, initDrive, logout, pickDrive, setDrive } from "../api";
 import { formatBytes } from "../format";
+
+export interface ServerInfo {
+  name: string | null;
+  onSignedOut: () => void;
+}
 
 interface Props {
   drive: DriveInfo | null;
   onDrive: (info: DriveInfo | null) => void;
+  server: ServerInfo | null;
 }
 
-export function DrivePage({ drive, onDrive }: Props) {
+export function DrivePage({ drive, onDrive, server }: Props) {
+  return server === null ? <DriveSetup drive={drive} onDrive={onDrive} /> : <ServerPage drive={drive} server={server} />;
+}
+
+function ServerPage({ drive, server }: { drive: DriveInfo | null; server: ServerInfo }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function signOut() {
+    setBusy(true);
+    setError(null);
+    try {
+      await logout();
+      server.onSignedOut();
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2>Server</h2>
+      {error !== null && <div className="banner error">{error}</div>}
+      <div className="card">
+        <h3>{server.name ?? "cable-twii server"}</h3>
+        <dl className="facts">
+          <dt>Library folder</dt>
+          <dd>{drive?.path ?? "…"}</dd>
+          <dt>Free space</dt>
+          <dd>{drive === null ? "…" : formatBytes(drive.freeBytes)}</dd>
+        </dl>
+        <button disabled={busy} onClick={signOut}>
+          Sign out
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function DriveSetup({ drive, onDrive }: Pick<Props, "drive" | "onDrive">) {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

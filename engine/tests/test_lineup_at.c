@@ -90,7 +90,7 @@ TEST at_spill_from_yesterday(void)
     ASSERT(a >= yest.items && a < yest.items + yest.count);
     ASSERT(a->start_ms - AT_DAY_MS <= 10800000);
     ASSERT(10800000 < a->start_ms - AT_DAY_MS + (int64_t)a->duration_ms);
-    ASSERT_EQ_FMT(10800000 - (a->start_ms - AT_DAY_MS), (int64_t)off, "%lld");
+    ASSERT_EQ_FMT((long long)(10800000 - (a->start_ms - AT_DAY_MS)), (long long)((int64_t)off), "%lld");
     ctw_lineup_free(&today);
     ctw_lineup_free(&yest);
     PASS();
@@ -170,7 +170,7 @@ TEST at_spill_edges(void)
     a = ctw_lineup_at(&today, &yest, 25199999u, &off);
     ASSERT(a);
     ASSERT(a >= yest.items && a < yest.items + yest.count);
-    ASSERT_EQ_FMT(25199999 + AT_DAY_MS, a->start_ms + (int64_t)off, "%lld");
+    ASSERT_EQ_FMT((long long)(25199999 + AT_DAY_MS), (long long)(a->start_ms + (int64_t)off), "%lld");
     ASSERT_EQ(a->duration_ms - 1u, off);
     ctw_lineup_free(&today);
     ctw_lineup_free(&yest);
@@ -221,7 +221,7 @@ TEST at_matches_linear_scan(void)
         ASSERT_EQ(expect, got);
         if (expect) {
             int64_t t = linear_at(&today, ms) ? (int64_t)ms : (int64_t)ms + AT_DAY_MS;
-            ASSERT_EQ_FMT(t - base, (int64_t)off, "%lld");
+            ASSERT_EQ_FMT((long long)(t - base), (long long)((int64_t)off), "%lld");
         }
     }
     ctw_lineup_free(&today);

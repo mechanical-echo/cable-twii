@@ -26,3 +26,15 @@ export function mergeResync(current: Map<string, Job>, fetched: Job[], seenSince
   }
   return { jobs, finished };
 }
+
+export const STREAM_CLOSED = 2;
+
+export function streamLost(readyState: number, checkSession: () => Promise<unknown>): boolean {
+  const closed = readyState === STREAM_CLOSED;
+  if (closed) checkSession().catch(() => undefined);
+  return closed;
+}
+
+export function streamProblem(closed: boolean): string {
+  return closed ? "Lost connection to job updates. Reload the page to reconnect." : "Lost connection to job updates. Reconnecting…";
+}

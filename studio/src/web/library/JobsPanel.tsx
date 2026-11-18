@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type Job, getJobs, retryJobs, subscribeJobs } from "../api";
 import { baseName } from "../format";
-import { mergeResync } from "../jobs";
+import { mergeResync, streamProblem } from "../jobs";
 
 interface Props {
   onFinished: () => void;
@@ -45,8 +45,8 @@ export function JobsPanel({ onFinished }: Props) {
       },
       {
         onOpen: () => void resync(),
-        onError: () => {
-          if (alive) setProblem("Lost connection to job updates. Reconnecting…");
+        onError: (closed) => {
+          if (alive) setProblem(streamProblem(closed));
         },
       },
     );

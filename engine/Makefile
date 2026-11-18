@@ -5,7 +5,7 @@ SDKROOT ?= $(shell xcrun --sdk macosx --show-sdk-path)
 export SDKROOT
 endif
 
-CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -Iinclude -Ivendor -Isrc
+CFLAGS = -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -pedantic -Iinclude -Ivendor -Isrc
 BUILD = build
 
 LIB_SRC = src/rng.c src/hash.c src/timeutil.c src/arena.c src/issues.c src/library.c src/tomlutil.c src/config.c src/pool.c src/lineup.c src/lineup_place.c src/lineup_timed.c src/lineup_loop.c src/db.c

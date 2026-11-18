@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { createReadStream, existsSync } from "node:fs";
-import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
+import { createReadStream, existsSync, realpathSync } from "node:fs";
+import { lstat, readFile, readdir, realpath, rm, rmdir, stat, statfs } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -8,18 +9,30 @@ import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ConfigConflictError, ConfigShapeError, configMtime, randomSeed, readConfig, toConfig, writeConfig } from "./config.js";
-import { type DriveDeps, type DriveInfo, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
+import { type DriveDeps, type DriveInfo, type ScanResult, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
 import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
-import { ContainmentError, assertContained } from "./contain.js";
+import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
+import { isAllowedSource, listImports, resolveImportsDir } from "./imports.js";
 import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
-import { episodeFileName, fatSafe, fileStem, uniqueName } from "./names.js";
+import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
-import { readShowMeta, writeShowMeta } from "./showMeta.js";
-import { atomicWriteFile, needsConversion, readSources } from "./sources.js";
+import { uploadsDir } from "./serverSettings.js";
+import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
+import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
+import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { UPLOAD_LIMIT, convertedUpload, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
+import { registerWiiApi } from "./wiiApi.js";
+
+export interface ServerModeOptions {
+  library: string;
+  password: string;
+  imports: string;
+  name: string;
+}
 
 export interface AppOptions {
   schedBin: string;
@@ -32,12 +45,20 @@ export interface AppOptions {
   webDir?: string;
   logger?: boolean;
   port?: number;
+  server?: ServerModeOptions;
+  uploadLimit?: number;
+  now?: () => number;
 }
 
 type Aspect = "16:9" | "4:3";
 
 interface Rejected {
   source: string;
+  reason: string;
+}
+
+interface UploadRejected {
+  name: string;
   reason: string;
 }
 
@@ -56,10 +77,15 @@ const CHANNEL_QUERY = /^[1-9][0-9]*$/;
 const DATE_QUERY = /^\d{4}-\d{2}-\d{2}$/;
 const RESERVED = new Set(["ads"]);
 const ALREADY_CONVERTED = "already on the drive";
+const ALREADY_UPLOADED = "already on the server";
+const OUTSIDE_SOURCES = "Videos must come from the imports folder or an upload.";
+const UPLOAD_FILES = 50;
 const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
 const API_HEADER = "x-cable-twii";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
+const SESSION_GUARDED = /^\/(?:api|media)\//;
+const SESSION_OPEN = new Set(["/api/mode", "/api/login", "/api/logout"]);
 
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string, readonly issues?: Issue[]) {
@@ -125,9 +151,44 @@ function inside(root: string, ...parts: string[]): string {
   return full;
 }
 
-function contained(root: string, full: string): boolean {
-  const rel = path.relative(root, full);
-  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+async function inImports<T>(task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") throw new HttpError(404, "That folder does not exist.");
+    throw err;
+  }
+}
+
+async function editableShowMeta(showDir: string): Promise<ShowMeta> {
+  try {
+    return await readShowMeta(showDir);
+  } catch (err) {
+    if (err instanceof ShowMetaDamagedError) return { episodes: {} };
+    throw err;
+  }
+}
+
+function uploadPlan(sent: string, kept: ReadonlyMap<string, string>): { name: string } | { reason: string } {
+  if (!isVideoFile(sent)) return { reason: "not a video" };
+  const name = uploadName(sent);
+  if (name === null) return { reason: "not a usable file name" };
+  if (kept.has(name.toLowerCase())) return { reason: "already in this upload" };
+  return { name };
+}
+
+function tooShortReason(durationMs: number): string {
+  return `too short (${durationMs} ms, needs at least ${MIN_DURATION_MS} ms)`;
+}
+
+function unreadableReason(message: string): string {
+  return `could not read the video: ${message}`;
+}
+
+function scanProblem(entry: ScanResult): string | null {
+  if (entry.error !== undefined) return unreadableReason(entry.error);
+  return entry.tooShort ? tooShortReason(entry.durationMs) : null;
 }
 
 function two(n: number): string {
@@ -176,6 +237,28 @@ function sendNull(reply: FastifyReply): FastifyReply {
   return reply.type("application/json; charset=utf-8").send("null");
 }
 
+async function freeBytesIn(dir: string): Promise<number> {
+  try {
+    const s = await statfs(dir);
+    return Number(s.bavail) * Number(s.bsize);
+  } catch {
+    return 0;
+  }
+}
+
+async function serverDrive(library: string): Promise<DriveInfo> {
+  return {
+    path: library,
+    rootPath: path.join(library, "cable-twii"),
+    isVolumeRoot: false,
+    fsType: null,
+    freeBytes: await freeBytesIn(library),
+    hasRoot: true,
+    hasWbfs: false,
+    usable: true,
+  };
+}
+
 export function buildApp(opts: AppOptions): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: BODY_LIMIT });
   const settingsPath = opts.settingsPath ?? DEFAULT_SETTINGS;
@@ -185,6 +268,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const rebuildDelay = opts.rebuildDelayMs ?? REBUILD_DELAY_MS;
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
   const bin = opts.schedBin;
+  const server = opts.server && { ...opts.server, library: realpathSync.native(opts.server.library), imports: realpathSync.native(opts.server.imports) };
+  const sessions = server && new Sessions(server.password, undefined, opts.now);
+  const uploads = server && uploadsDir(server.library);
+  const uploadLimit = opts.uploadLimit ?? UPLOAD_LIMIT;
 
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
@@ -192,6 +279,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const rebuildTimers = new Map<string, NodeJS.Timeout>();
   const rebuildChains = new Map<string, Promise<unknown>>();
   const streams = new Set<{ raw: ServerResponse; cleanup: () => void }>();
+  const retiring = new Set<Promise<void>>();
   let configChain: Promise<unknown> = Promise.resolve();
 
   async function readSettings(): Promise<Settings> {
@@ -209,6 +297,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   async function currentDrive(): Promise<DriveInfo | null> {
+    if (server) return serverDrive(server.library);
     const { drive } = await readSettings();
     if (drive === undefined) return null;
     return inspectDrive(drive, deps);
@@ -271,12 +360,30 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await rebuildChains.get(root);
   }
 
+  function retireUpload(root: string, rec: SourceRecord): void {
+    if (!uploads || !isUploadPath(uploads, rec.source)) return;
+    const stillNeeded = queues.get(root)?.list().some((j) => j.source === rec.source && (j.state === "queued" || j.state === "running"));
+    const task: Promise<void> = (async () => {
+      assertContained(uploads, rec.source);
+      await upsertSource(root, { ...rec, source: uploadSource(path.basename(rec.source)) });
+      if (stillNeeded) return;
+      await rm(rec.source, { force: true });
+      await rmdir(path.dirname(rec.source)).catch(() => undefined);
+    })()
+      .catch((err: unknown) => app.log.warn(err))
+      .finally(() => retiring.delete(task));
+    retiring.add(task);
+  }
+
   function queueFor(root: string): ConversionQueue {
     let queue = queues.get(root);
     if (queue) return queue;
     queue = opts.queueFactory ? opts.queueFactory(root) : new ConversionQueue(root);
     queue.on("change", (job: Job) => jobEvents.emit("change", job));
-    queue.on("converted", () => scheduleRebuild(root));
+    queue.on("converted", (rec: SourceRecord) => {
+      scheduleRebuild(root);
+      retireUpload(root, rec);
+    });
     queue.on("error", (err: unknown) => app.log.warn(err));
     queue.start();
     queues.set(root, queue);
@@ -301,10 +408,16 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   async function checkSource(source: string): Promise<string | null> {
     try {
       const { durationMs } = await probeFn(source);
-      if (isTooShort(durationMs)) return `too short (${durationMs} ms, needs at least ${MIN_DURATION_MS} ms)`;
-      return null;
+      return isTooShort(durationMs) ? tooShortReason(durationMs) : null;
     } catch (err) {
-      return `could not read the video: ${errorText(err)}`;
+      return unreadableReason(errorText(err));
+    }
+  }
+
+  async function requireImportable(sources: string[]): Promise<void> {
+    if (!server || !uploads) return;
+    for (const source of sources) {
+      if (!(await isAllowedSource(server.imports, uploads, source))) throw bad(OUTSIDE_SOURCES);
     }
   }
 
@@ -361,6 +474,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.setErrorHandler((error: unknown, request, reply) => {
     if (error instanceof ConfigConflictError) return reply.code(409).send({ error: error.message });
+    if (error instanceof ShowMetaConflictError) return reply.code(409).send({ error: error.message });
     if (error instanceof ConfigShapeError) return reply.code(422).send({ error: error.message });
     if (error instanceof ContainmentError) return reply.code(400).send({ error: error.message });
     if (error instanceof NotImageError) return reply.code(400).send({ error: error.message });
@@ -385,14 +499,24 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   app.addHook("onRequest", async (request, reply) => {
-    const hosts = allowedHosts();
     const host = request.headers.host?.toLowerCase();
-    if (host === undefined || !hosts.has(host)) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
+    if (!server && (host === undefined || !allowedHosts().has(host))) return reply.code(403).send({ error: "Open cable-twii Studio at http://127.0.0.1:4747/." });
     if (SAFE_METHODS.has(request.method)) return;
     if (request.headers[API_HEADER] !== "1") return reply.code(403).send({ error: "This request did not come from cable-twii Studio." });
     const origin = request.headers.origin;
-    if (origin !== undefined && !hosts.has(originHost(origin) ?? "")) return reply.code(403).send({ error: "This request came from another site." });
+    if (origin === undefined) return;
+    const from = originHost(origin);
+    const sameSite = server ? from === host : from !== null && allowedHosts().has(from);
+    if (!sameSite) return reply.code(403).send({ error: "This request came from another site." });
   });
+
+  if (sessions) {
+    app.addHook("onRequest", async (request, reply) => {
+      const route = request.routeOptions.url;
+      if (route === undefined || !SESSION_GUARDED.test(route) || SESSION_OPEN.has(route)) return;
+      if (!sessions.isValid(sessionToken(request.headers.cookie))) return reply.code(401).send({ error: "Sign in first." });
+    });
+  }
 
   app.register(multipart, { limits: { fileSize: ICON_LIMIT, files: 1, fields: 10 } });
 
@@ -406,57 +530,176 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     streams.clear();
   });
 
+  if (server) {
+    app.addHook("onReady", async () => {
+      try {
+        queueFor(await requireRoot());
+      } catch (err) {
+        app.log.warn(err);
+      }
+    });
+  }
+
+  if (uploads) {
+    app.addHook("onListen", async () => {
+      const jobs = queueFor(await requireRoot()).list();
+      const queued = new Set(jobs.filter((j) => j.state === "queued" || j.state === "running").map((j) => path.resolve(j.source)));
+      await sweepUploads(uploads, queued, (opts.now ?? Date.now)());
+    });
+  }
+
   app.addHook("onClose", async () => {
-    for (const timer of rebuildTimers.values()) clearTimeout(timer);
-    rebuildTimers.clear();
+    if (!server) {
+      for (const timer of rebuildTimers.values()) clearTimeout(timer);
+      rebuildTimers.clear();
+    }
     await Promise.allSettled([...queues.values()].map((q) => q.stop()));
+    await Promise.allSettled([...retiring]);
+    if (server) await Promise.all([...rebuildTimers.keys()].map((root) => flushRebuild(root).catch((err: unknown) => app.log.warn(err))));
     await Promise.allSettled([...rebuildChains.values()]);
   });
+
+  app.get("/api/mode", async (request) => ({
+    mode: server ? "server" : "drive",
+    name: server?.name ?? null,
+    signedIn: sessions?.isValid(sessionToken(request.headers.cookie)) ?? true,
+  }));
+
+  if (sessions) {
+    app.post("/api/login", async (request, reply) => {
+      if (sessions.isLocked()) throw new HttpError(429, "Too many tries. Wait a minute and try again.");
+      const token = sessions.signIn(stringField(objectBody(request.body), "password"));
+      if (token === null) throw new HttpError(401, "Wrong password.");
+      reply.header("set-cookie", sessions.cookieFor(token));
+      return { ok: true };
+    });
+
+    app.post("/api/logout", async (request, reply) => {
+      sessions.signOut(sessionToken(request.headers.cookie));
+      reply.header("set-cookie", clearedSessionCookie());
+      return { ok: true };
+    });
+  }
 
   app.get("/api/drive", async (_request, reply) => {
     const info = await currentDrive();
     return info ?? sendNull(reply);
   });
 
-  app.post("/api/drive", async (request) => {
-    const input = stringField(objectBody(request.body), "path");
-    if (input === "" || !path.isAbsolute(input)) throw bad("path must be an absolute path.");
-    return rememberDrive(input);
-  });
+  if (!server) {
+    app.post("/api/drive", async (request) => {
+      const input = stringField(objectBody(request.body), "path");
+      if (input === "" || !path.isAbsolute(input)) throw bad("path must be an absolute path.");
+      return rememberDrive(input);
+    });
 
-  app.post("/api/drive/pick", async (_request, reply) => {
-    const picked = await pick("Choose your cable-twii drive");
-    if (picked === null) return sendNull(reply);
-    return rememberDrive(picked);
-  });
+    app.post("/api/drive/pick", async (_request, reply) => {
+      const picked = await pick("Choose your cable-twii drive");
+      if (picked === null) return sendNull(reply);
+      return rememberDrive(picked);
+    });
 
-  app.post("/api/drive/init", async () => {
-    const info = await requireDrive();
-    if (!info.usable) throw bad(info.reason ?? "This drive cannot be used.");
-    try {
-      await initRoot(info, deps);
-    } catch (err) {
-      throw bad(errorText(err));
-    }
-    return inspectDrive(info.path, deps);
-  });
+    app.post("/api/drive/init", async () => {
+      const info = await requireDrive();
+      if (!info.usable) throw bad(info.reason ?? "This drive cannot be used.");
+      try {
+        await initRoot(info, deps);
+      } catch (err) {
+        throw bad(errorText(err));
+      }
+      return inspectDrive(info.path, deps);
+    });
 
-  app.post("/api/drive/done", async () => {
-    const info = await requireDrive();
-    await resumeIfReady(info);
-    const pending = (queues.get(info.rootPath)?.list() ?? []).filter((j) => j.state === "queued" || j.state === "running").length;
-    if (pending > 0) throw new HttpError(409, `${pending} ${pending === 1 ? "conversion" : "conversions"} still running`);
-    if (info.usable && info.hasRoot) await flushRebuild(info.rootPath);
-    if (!(info.usable && info.isVolumeRoot && info.fsType !== null)) return { ok: true, skipped: true };
-    await dotClean(info.path, deps);
-    return { ok: true };
-  });
+    app.post("/api/drive/done", async () => {
+      const info = await requireDrive();
+      await resumeIfReady(info);
+      const pending = (queues.get(info.rootPath)?.list() ?? []).filter((j) => j.state === "queued" || j.state === "running").length;
+      if (pending > 0) throw new HttpError(409, `${pending} ${pending === 1 ? "conversion" : "conversions"} still running`);
+      if (info.usable && info.hasRoot) await flushRebuild(info.rootPath);
+      if (!(info.usable && info.isVolumeRoot && info.fsType !== null)) return { ok: true, skipped: true };
+      await dotClean(info.path, deps);
+      return { ok: true };
+    });
 
-  app.post("/api/import/pick-source", async (_request, reply) => {
-    const dir = await pick("Choose a folder with videos");
-    if (dir === null) return sendNull(reply);
-    return { dir, files: await scanSource(dir) };
-  });
+    app.post("/api/import/pick-source", async (_request, reply) => {
+      const dir = await pick("Choose a folder with videos");
+      if (dir === null) return sendNull(reply);
+      return { dir, files: await scanSource(dir, probeFn) };
+    });
+  }
+
+  if (uploads) {
+    app.post("/api/upload", async (request) => {
+      const root = await requireRoot();
+      const batch = randomUUID();
+      const dir = path.join(uploads, batch);
+      const records = await sourceRecords(root);
+      const kept = new Map<string, string>();
+      const rejected: UploadRejected[] = [];
+      const files: ScanResult[] = [];
+      try {
+        for await (const part of request.parts({ limits: { fileSize: uploadLimit, files: UPLOAD_FILES } })) {
+          if (part.type !== "file") continue;
+          const sent = part.filename;
+          const plan = uploadPlan(sent, kept);
+          if ("reason" in plan) {
+            rejected.push({ name: sent, reason: plan.reason });
+            part.file.resume();
+            continue;
+          }
+          const { name } = plan;
+          let file: string;
+          try {
+            file = await saveUpload(uploads, batch, name, part.file);
+          } catch (err) {
+            // a destroyed part stream ends the whole multipart parse, so only an untouched or finished one can be skipped
+            if (part.file.destroyed && !part.file.readableEnded) throw err;
+            request.log.warn(err);
+            rejected.push({ name: sent, reason: "could not be saved" });
+            part.file.resume();
+            continue;
+          }
+          if (part.file.truncated) throw new HttpError(413, `${sent} is larger than the upload limit.`);
+          if (await convertedUpload(root, records, name, (await stat(file)).size)) {
+            await rm(file);
+            rejected.push({ name: sent, reason: ALREADY_UPLOADED });
+            continue;
+          }
+          kept.set(name.toLowerCase(), sent);
+        }
+        for (const entry of kept.size === 0 ? [] : await scanSource(dir, probeFn)) {
+          const problem = scanProblem(entry);
+          if (problem === null) {
+            files.push(entry);
+            continue;
+          }
+          await rm(entry.source);
+          rejected.push({ name: kept.get(path.basename(entry.source).toLowerCase()) ?? path.basename(entry.source), reason: problem });
+        }
+        if (files.length === 0) await rm(dir, { recursive: true, force: true });
+      } catch (err) {
+        await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+        throw err;
+      }
+      return { dir, files, rejected };
+    });
+  }
+
+  if (server) {
+    app.get("/api/imports", async (request) => {
+      const dir = (request.query as Record<string, unknown>).dir ?? "";
+      if (typeof dir !== "string") throw bad("dir must be a string.");
+      return inImports(() => listImports(server.imports, dir));
+    });
+
+    app.post("/api/import/scan", async (request) => {
+      const rel = stringField(objectBody(request.body), "dir");
+      return inImports(async () => {
+        const dir = await resolveImportsDir(server.imports, rel);
+        return { dir, files: await scanSource(dir, probeFn) };
+      });
+    });
+  }
 
   app.post("/api/import/show", async (request) => {
     const body = objectBody(request.body);
@@ -475,6 +718,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         aspect: aspectField(e),
       };
     });
+    await requireImportable(episodes.map((e) => e.source));
     const root = await requireRoot();
     const queue = queueFor(root);
     const taken = takenNames(root, queue);
@@ -507,9 +751,11 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
     if (jobs.length > 0) {
       const showDir = inside(root, channelFolder, showFolder);
-      const meta = await readShowMeta(showDir);
-      const name = showName.trim() !== "" ? showName.trim() : meta.name;
-      await writeShowMeta(root, showDir, { ...(name !== undefined ? { name } : {}), episodes: { ...meta.episodes, ...descriptions } });
+      await withConfigLock(async () => {
+        const meta = await readShowMeta(showDir);
+        const name = showName.trim() !== "" ? showName.trim() : meta.name;
+        await writeShowMeta(root, showDir, { ...(name !== undefined ? { name } : {}), episodes: { ...meta.episodes, ...descriptions } });
+      });
       scheduleRebuild(root);
     }
     return { jobs, rejected };
@@ -524,6 +770,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const f = objectBody(raw);
       return { source: sourceField(f), aspect: aspectField(f) };
     });
+    await requireImportable(files.map((f) => f.source));
     const root = await requireRoot();
     const queue = queueFor(root);
     const dirRel = channelFolder === "" ? "ads" : `${channelFolder}/ads`;
@@ -590,10 +837,22 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   app.post("/api/library/rebuild", async () => rebuildNow(await requireRoot()));
 
+  app.get("/api/show-meta", async (request) => {
+    const query = request.query as Record<string, unknown>;
+    const channelFolder = folderName(query.channelFolder, "channelFolder");
+    const showFolder = folderName(query.showFolder, "showFolder");
+    const root = await requireRoot();
+    const showDir = inside(root, channelFolder, showFolder);
+    if (!(await isDirectory(showDir))) throw new HttpError(404, "That show folder does not exist.");
+    const mtimeMs = await showMetaMtime(showDir);
+    return { meta: await editableShowMeta(showDir), mtimeMs };
+  });
+
   app.put("/api/show-meta", async (request) => {
     const body = objectBody(request.body);
     const channelFolder = folderName(body.channelFolder, "channelFolder");
     const showFolder = folderName(body.showFolder, "showFolder");
+    const mtimeMs = mtimeField(body);
     const name = body.name === undefined ? "" : stringField(body, "name");
     const rawEpisodes = body.episodes === undefined ? {} : objectBody(body.episodes);
     const episodes: Record<string, string> = {};
@@ -604,7 +863,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const root = await requireRoot();
     const showDir = inside(root, channelFolder, showFolder);
     if (!(await isDirectory(showDir))) throw new HttpError(404, "That show folder does not exist.");
-    await writeShowMeta(root, showDir, { ...(name.trim() !== "" ? { name: name.trim() } : {}), episodes });
+    await withConfigLock(async () => {
+      if ((await showMetaMtime(showDir)) !== mtimeMs) throw new ShowMetaConflictError();
+      await writeShowMeta(root, showDir, { ...(name.trim() !== "" ? { name: name.trim() } : {}), episodes });
+    });
     return (await rebuildNow(root)).library;
   });
 
@@ -694,6 +956,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
     return reply.type("image/png").header("cache-control", "no-cache").send(createReadStream(real));
   });
+
+  if (server) registerWiiApi(app, path.join(server.library, "cable-twii"), server.name);
 
   return app;
 }

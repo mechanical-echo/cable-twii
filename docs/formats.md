@@ -340,6 +340,8 @@ Top level: `version` (integer, required, `1`) and `source` (array of tables `[[s
 
 A source needs converting again when there is no record, or the original's `size` or `mtimeMs` changed, or the target file is missing.
 
+In server mode `source` can also be `upload:<name>` for a video uploaded from a browser; see Uploads.
+
 ### Complete example
 
 ```toml
@@ -370,6 +372,8 @@ Top level: `version` (integer, required, `1`) and `job` (array of tables `[[job]
 | `aspect` | string | yes | none | `"16:9"` or `"4:3"` |
 
 `state`, `progress` and `error` are runtime only and not stored.
+
+In server mode `source` can also be the absolute path of an uploaded file in `<library>/.uploads/`; see Uploads.
 
 ### Complete example
 
@@ -468,3 +472,129 @@ cable-twii-sched hash <root> --channel N --date YYYY-MM-DD
 ```
 
 Prints only the 16-digit hash (same encoding as above), for example `0123456789abcdef`, and a newline. It equals `hash` in the `lineup` output.
+
+---
+
+## Server settings file
+
+**Purpose:** tells Studio's server mode which folder holds the library, the editing password and where to listen. Spec: `docs/superpowers/specs/2026-11-02-server-source-design.md` sections 5 and 7.
+**Location:** the file named by the `CTW_SERVER_SETTINGS` environment variable, otherwise `.cable-twii-server.toml` in the home folder of the user who runs the server (`~/.cable-twii-server.toml`; on Windows `C:\Users\<name>\.cable-twii-server.toml`). It lives outside the library. **Writer:** the owner, by hand. **Reader:** Studio in server mode (`npm run serve`) only, once at start.
+
+| Key | Type | Required | Default | Allowed |
+|---|---|---|---|---|
+| `library` | string | yes | none | absolute path of an existing folder. The library root is its `cable-twii/` subfolder, laid out exactly like a drive. |
+| `password` | string | yes | none | at least 8 characters. Everyone who knows it can edit everything. |
+| `imports` | string | no | `<library>/imports` | absolute path of the folder that big batches of videos are copied into |
+| `port` | integer | no | `4747` | 1 to 65535 |
+| `name` | string | no | the computer's host name | any text that is not empty. Shown on the sign-in page and returned as `name` by `/wii/v1/info`. |
+
+Rules:
+
+- Paths must be absolute. On Windows write them as a TOML literal string (`'D:\library'`) or with forward slashes (`"D:/library"`), because a backslash starts an escape inside `"..."`.
+- Studio refuses to start, and says why, if the file is missing or not valid TOML, a required key is missing or wrong, `library` is not an existing folder, or `imports` is inside `<library>/cable-twii/` or `<library>/.uploads/` (also when a link or another name for the same folder leads there).
+- On start Studio creates what is missing inside `library`: `cable-twii/`, `cable-twii/ads/`, `cable-twii/.studio/` and `.uploads/`, and creates the `imports` folder. Once the server is listening, it also cleans up `.uploads/` (see Uploads).
+- The server listens on every network address (`0.0.0.0`), on plain HTTP.
+- Unknown keys are ignored.
+
+There is no `version` key in this file; it is version 1 by definition and the next format change adds `version`.
+
+### Complete example
+
+```toml
+library  = 'D:\cable-twii-library'
+password = "a long password"
+imports  = 'D:\cable-twii-imports'
+port     = 4747
+name     = "Home PC"
+```
+
+---
+
+## Wii interface `/wii/v1/`
+
+**Purpose:** read-only access to the library for the Wii app, over the home network. Spec: `docs/superpowers/specs/2026-11-02-server-source-design.md` sections 5.4 and 7.
+**Served by:** Studio in server mode, on the same port as the web UI (default 4747). **Reader:** the Wii app.
+
+For both routes:
+
+- Plain HTTP/1.1, `GET` (and `HEAD`, which returns the same headers without a body). No password and no cookie. Nothing can be changed through it.
+- Every response has a `Content-Length`. The server never uses chunked encoding.
+- Requests must be HTTP/1.1 with a `Host` header. An HTTP/1.1 request without `Host` gets `400` from Node before Studio sees it.
+- Raw non-ASCII bytes in the path also get `400` from Node before Studio sees them. Percent-encode every path byte outside `A–Z a–z 0–9 - . _ ~ /`.
+- The `v1` in the path is the interface version. Any change to this interface changes the path (`/wii/v2/`) and the `version` in `info`.
+
+### `GET /wii/v1/info`
+
+Answers `200` with `Content-Type: application/toml` and `Cache-Control: no-cache`. The body is a TOML document:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | integer | the interface version, `1` |
+| `name` | string | the server's `name` from its settings file |
+| `revision` | string | the library revision, `<config>-<library>`: the modified time of `config.toml` and of `library.toml`, each in whole milliseconds since 1970 (`0` if the file does not exist). It changes whenever either file is saved or rebuilt. Compare it for equality only. |
+
+```toml
+version = 1
+name = "Home PC"
+revision = "1793629061034-1793629061034"
+```
+
+### `GET /wii/v1/files/<path>`
+
+Returns one file from the library root (the `cable-twii/` folder). `<path>` is a path as written in `library.toml`: relative to the root, `/` as the separator, percent-encoded UTF-8 (a space is `%20`; names with accents are served byte for byte). Example: `/wii/v1/files/Cartoon%20Network/Gumball/Season%201/S01E01%20-%20The%20DVD.mpg`.
+
+Path rules. The path is percent-decoded first. The server answers `404` for a path that:
+
+- is empty, or has an empty segment (`//`, a trailing `/`);
+- has a segment that starts with `.` (so `.`, `..`, `.studio/` and hidden files such as `._x` and `.DS_Store` are all refused);
+- contains a backslash or a NUL byte (also when it was sent percent-encoded, as `%5C` or `%00`);
+- names a folder or anything that is not a regular file;
+- resolves, after following symbolic links, to a place outside the library root, or to a real path that breaks the rules above.
+
+A missing file and a refused path get the same answer: `404` with the JSON body `{"error":"Not found"}`.
+
+| Extension (any case) | `Content-Type` |
+|---|---|
+| `.mpg` | `video/mpeg` |
+| `.png` | `image/png` |
+| `.toml` | `application/toml` |
+| anything else | `application/octet-stream` |
+
+Every answer for an existing file has `Accept-Ranges: bytes` and a `Content-Length`.
+
+**Ranges.** One `Range: bytes=...` header is understood, in three forms: `bytes=<first>-<last>`, `bytes=<first>-` and `bytes=-<count>` (the last `<count>` bytes).
+
+| Request | Answer |
+|---|---|
+| `<first>-<last>` or `<first>-` with `<first>` inside the file, or `bytes=-<count>` with a `<count>` of at least 1 on a file that is not empty | `206` with `Content-Range: bytes <first>-<last>/<size>` and the `Content-Length` of the part. A `<last>` past the end is cut to the last byte, and `bytes=-<count>` with a `<count>` larger than the file gives the whole file. |
+| `<first>` at or past the end of the file (with or without `<last>`), `bytes=-0`, or `bytes=-<count>` on an empty file | `416` with `Content-Range: bytes */<size>` and a small JSON body |
+| no `Range`, several ranges, another unit, `<last>` before `<first>` (with `<first>` inside the file), or anything else malformed, such as `bytes=-` | the range is ignored and the whole file comes back with `200` |
+
+**Compression.** If the file's extension is `.toml` and the request has `Accept-Encoding` with `gzip`, the whole file comes back gzip-compressed with `Content-Encoding: gzip`, and `Content-Length` is the compressed size. `Range` is ignored then. Other files are never compressed.
+
+---
+
+## Uploads
+
+**Purpose:** videos that people add from a browser wait here until they are converted. Spec: `docs/superpowers/specs/2026-11-02-server-source-design.md` section 5.3.
+**Location:** `<library>/.uploads/<batch>/<name>`, next to the `cable-twii/` folder and not inside it, so the Wii interface never serves it. **Writer and reader:** Studio in server mode only.
+
+- `<batch>` is a random id, one per upload request. A request holds at most 50 files, and a file may be at most 20 GiB. The web page sends longer lists in several requests.
+- A file is written as `<name>.part` and renamed to `<name>` only when it has arrived completely. An upload that is cut off, or over the limit, leaves nothing behind.
+- When it starts, once it is listening, Studio cleans up `.uploads/`: it removes every `.part` file, every stored file whose modified time is more than 24 hours old and that no queued or running job in `.studio/queue.toml` has as its `source`, and then every empty batch folder. It does not follow links, and leaves `.uploads/` alone if it is itself a link.
+- `<name>` is the uploaded file's name made safe for Windows and FAT: `:` and `|` become `-`; `* ? " < >` and control characters are removed; runs of spaces become one; spaces at the start and spaces and dots at the end are removed; a Windows device name (`CON`, `NUL`, `COM1` and the like) gets an underscore added; the name and the extension are each cut to 120 characters. A file is refused when its name is not a video file name (`.mkv`, `.mp4`, `.avi`, `.mov`, `.m4v`, `.mpg`, `.mpeg`, `.ts`, `.webm`, `.wmv` or `.flv`), has a `/`, a `\` or a NUL byte, starts with `.`, is longer than 250 bytes, or is empty once cleaned, and when its safe name equals an earlier file's in the same request, ignoring case.
+- While a conversion is waiting or running, `.studio/queue.toml` has the absolute path of the file in `.uploads/` as its `source`.
+- After a file is converted, its entry in `.studio/sources.toml` is rewritten with `source = "upload:<name>"` instead of a path, and the stored file and its batch folder are deleted. The entry's `size` is the size of the stored file in bytes. The uploader still has the original.
+- Uploading a file again is refused with the reason `already on the server` when `sources.toml` has an `upload:<name>` entry with the same safe name and the same `size` whose converted file is still on the server.
+- Files in the imports folder are the other kind of source. They keep their absolute path in `source`, and Studio never changes or deletes them.
+
+```toml
+version = 1
+
+[[source]]
+target = "Cartoon Network/Gumball/Season 1/S01E01 - The DVD.mpg"
+source = "upload:Gumball S01E01.mkv"
+size = 412345678
+mtimeMs = 1760000000000
+durationMs = 665120
+```

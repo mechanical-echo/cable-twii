@@ -6,11 +6,13 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { buildApp, type AppOptions } from "../src/server/app.js";
 import { parseConfig } from "../src/server/config.js";
-import type { convert, probe } from "../src/server/ffmpeg.js";
+import type { convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
+import { readShowMeta } from "../src/server/showMeta.js";
 import { writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
+import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
 
 const FIXTURE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_basic");
 
@@ -20,18 +22,6 @@ let root: string;
 let app: FastifyInstance;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const fakeProbe: typeof probe = async (file) => {
-  const base = path.basename(file);
-  if (base.startsWith("broken")) throw new Error("no video stream");
-  const durationMs = base.startsWith("short") ? 500 : 60000;
-  return { durationMs, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0 };
-};
-
-const fakeConvert: typeof convert = async (_src, dst) => {
-  await sleep(5);
-  await writeFile(dst, "converted");
-};
 
 function bare(extra: Partial<AppOptions> = {}): FastifyInstance {
   return buildApp({
@@ -82,31 +72,14 @@ async function getConfig(): Promise<{ config: ReturnType<typeof parseConfig>; mt
   return res.json();
 }
 
-function multipart(fields: Record<string, string>, file?: { name: string; data: Buffer; type?: string }) {
-  const boundary = "----ctwboundary" + Math.random().toString(16).slice(2);
-  const chunks: Buffer[] = [];
-  for (const [k, v] of Object.entries(fields)) {
-    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`));
-  }
-  if (file) {
-    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: ${file.type ?? "application/octet-stream"}\r\n\r\n`));
-    chunks.push(file.data, Buffer.from("\r\n"));
-  }
-  chunks.push(Buffer.from(`--${boundary}--\r\n`));
-  return { payload: Buffer.concat(chunks), headers: { "content-type": `multipart/form-data; boundary=${boundary}` } };
+async function getShowMeta(showFolder: string): Promise<{ meta: { name?: string; episodes: Record<string, string> }; mtimeMs: number }> {
+  const res = await app.inject({ method: "GET", url: "/api/show-meta", query: { channelFolder: "Cartoon Network", showFolder } });
+  expect(res.statusCode).toBe(200);
+  return res.json();
 }
 
 async function png(width: number, height: number): Promise<Buffer> {
   return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 128, b: 255, alpha: 1 } } }).png().toBuffer();
-}
-
-async function waitFor(check: () => Promise<boolean>, ms = 3000): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    if (await check()) return;
-    await sleep(20);
-  }
-  throw new Error("condition not met in time");
 }
 
 test("requests with a foreign Host are refused", async () => {
@@ -699,21 +672,86 @@ test("POST /api/library/rebuild returns the build result", async () => {
   expect(Array.isArray(body.warnings)).toBe(true);
 });
 
+test("GET /api/show-meta returns meta and mtime", async () => {
+  await useFixture();
+  expect(await getShowMeta("Ben 10")).toEqual({ meta: { episodes: {} }, mtimeMs: 0 });
+  const { mtimeMs } = await getShowMeta("Ben 10");
+  const put = await app.inject({
+    method: "PUT",
+    url: "/api/show-meta",
+    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" }, mtimeMs },
+  });
+  expect(put.statusCode).toBe(200);
+  const saved = await getShowMeta("Ben 10");
+  expect(saved.meta).toEqual({ name: "Ben Ten!", episodes: { S01E05: "Aliens" } });
+  expect(saved.mtimeMs).toBe(Math.trunc((await stat(path.join(root, "Cartoon Network", "Ben 10", "show.toml"))).mtimeMs));
+  const missing = await app.inject({ method: "GET", url: "/api/show-meta", query: { channelFolder: "Cartoon Network", showFolder: "Nope" } });
+  expect(missing.statusCode).toBe(404);
+  const noFolder = await app.inject({ method: "GET", url: "/api/show-meta", query: { channelFolder: "Cartoon Network" } });
+  expect(noFolder.statusCode).toBe(400);
+});
+
 test("PUT /api/show-meta writes show.toml and returns the rebuilt library", async () => {
   await useFixture();
+  const { mtimeMs } = await getShowMeta("Ben 10");
   const res = await app.inject({
     method: "PUT",
     url: "/api/show-meta",
-    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" } },
+    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" }, mtimeMs },
   });
   expect(res.statusCode).toBe(200);
   const show = (res.json() as { show: { folder: string; name: string; episode: { description: string }[] }[] }).show.find((s) => s.folder === "Ben 10");
   expect(show?.name).toBe("Ben Ten!");
   expect(show?.episode[0]!.description).toBe("Aliens");
-  const missing = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Nope", name: "", episodes: {} } });
+  const missing = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Nope", name: "", episodes: {}, mtimeMs: 0 } });
   expect(missing.statusCode).toBe(404);
-  const bad = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: { S01E05: 3 } } });
+  const bad = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: { S01E05: 3 }, mtimeMs: 0 } });
   expect(bad.statusCode).toBe(400);
+  const noMtime = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "", episodes: {} } });
+  expect(noMtime.statusCode).toBe(400);
+});
+
+test("a damaged show.toml opens as empty meta and a save rewrites it", async () => {
+  await useFixture();
+  const file = path.join(root, "Cartoon Network", "Ben 10", "show.toml");
+  await writeFile(file, "name = [[[");
+  const loaded = await getShowMeta("Ben 10");
+  expect(loaded).toEqual({ meta: { episodes: {} }, mtimeMs: Math.trunc((await stat(file)).mtimeMs) });
+  const res = await app.inject({
+    method: "PUT",
+    url: "/api/show-meta",
+    payload: { channelFolder: "Cartoon Network", showFolder: "Ben 10", name: "Ben Ten!", episodes: { S01E05: "Aliens" }, mtimeMs: loaded.mtimeMs },
+  });
+  expect(res.statusCode).toBe(200);
+  expect(await readShowMeta(path.dirname(file))).toEqual({ name: "Ben Ten!", episodes: { S01E05: "Aliens" } });
+});
+
+test("show-meta conflict keeps the first save", async () => {
+  await useFixture();
+  const first = await getShowMeta("Ben 10");
+  const second = await getShowMeta("Ben 10");
+  const target = { channelFolder: "Cartoon Network", showFolder: "Ben 10" };
+  const a = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name A", episodes: {}, mtimeMs: first.mtimeMs } });
+  expect(a.statusCode).toBe(200);
+  const b = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name B", episodes: {}, mtimeMs: second.mtimeMs } });
+  expect(b.statusCode).toBe(409);
+  expect(b.json()).toEqual({ error: "show.toml was changed somewhere else. Reload it and try again." });
+  expect((await getShowMeta("Ben 10")).meta.name).toBe("Name A");
+  expect(await readFile(path.join(root, "Cartoon Network", "Ben 10", "show.toml"), "utf8")).toContain('name = "Name A"');
+});
+
+test("show-meta conflict also catches an edit made outside Studio", async () => {
+  await useFixture();
+  const target = { channelFolder: "Cartoon Network", showFolder: "Ben 10" };
+  const first = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name A", episodes: {}, mtimeMs: 0 } });
+  expect(first.statusCode).toBe(200);
+  const { mtimeMs } = await getShowMeta("Ben 10");
+  const later = new Date(mtimeMs + 5000);
+  await utimes(path.join(root, "Cartoon Network", "Ben 10", "show.toml"), later, later);
+  const stale = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name B", episodes: {}, mtimeMs } });
+  expect(stale.statusCode).toBe(409);
+  const fresh = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { ...target, name: "Name B", episodes: {}, mtimeMs: (await getShowMeta("Ben 10")).mtimeMs } });
+  expect(fresh.statusCode).toBe(200);
 });
 
 test("POST /api/jobs/retry requeues failed conversions", async () => {
@@ -917,7 +955,7 @@ test("import show into a symlinked channel or show folder is refused and writes 
 test("PUT /api/show-meta on a symlinked show folder is 400 and writes nothing outside", async () => {
   await useFixture();
   const outside = await symlinkedOutside(path.join(root, "Cartoon Network", "LinkedShow"));
-  const res = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "LinkedShow", name: "N", episodes: { S01E01: "d" } } });
+  const res = await app.inject({ method: "PUT", url: "/api/show-meta", payload: { channelFolder: "Cartoon Network", showFolder: "LinkedShow", name: "N", episodes: { S01E01: "d" }, mtimeMs: 0 } });
   expect(res.statusCode).toBe(400);
   expect(await readdir(outside)).toEqual([]);
 });

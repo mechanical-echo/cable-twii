@@ -1,0 +1,99 @@
+import { mkdir, readFile, realpath, stat } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { parse } from "smol-toml";
+import { contained } from "./contain.js";
+
+export interface ServerSettings {
+  library: string;
+  password: string;
+  imports: string;
+  port: number;
+  name: string;
+}
+
+const DEFAULT_FILE = path.join(os.homedir(), ".cable-twii-server.toml");
+const DEFAULT_PORT = 4747;
+const MIN_PASSWORD = 8;
+const MAX_PORT = 65535;
+
+function fail(file: string, key: string, problem: string): never {
+  throw new Error(`${file}: ${key} ${problem}`);
+}
+
+function absolutePath(doc: Record<string, unknown>, key: string, file: string): string | undefined {
+  const v = doc[key];
+  if (v === undefined) return undefined;
+  if (typeof v !== "string" || !path.isAbsolute(v)) fail(file, key, "must be an absolute path");
+  return v;
+}
+
+export function parseServerSettings(text: string, file: string): ServerSettings {
+  let doc: Record<string, unknown>;
+  try {
+    doc = parse(text);
+  } catch (err) {
+    throw new Error(`${file} is not valid TOML: ${(err as Error).message}`);
+  }
+  const library = absolutePath(doc, "library", file);
+  if (library === undefined) fail(file, "library", "is required");
+  const password = doc.password;
+  if (typeof password !== "string" || password.length < MIN_PASSWORD) fail(file, "password", `is required and must be at least ${MIN_PASSWORD} characters`);
+  const port = doc.port ?? DEFAULT_PORT;
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > MAX_PORT) fail(file, "port", `must be a whole number from 1 to ${MAX_PORT}`);
+  const name = doc.name ?? os.hostname();
+  if (typeof name !== "string" || name.trim() === "") fail(file, "name", "must not be empty");
+  return { library, password, imports: absolutePath(doc, "imports", file) ?? path.join(library, "imports"), port, name };
+}
+
+export function serverSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
+  const file = env.CTW_SERVER_SETTINGS;
+  return file !== undefined && file !== "" ? file : DEFAULT_FILE;
+}
+
+export async function readServerSettings(file: string): Promise<ServerSettings> {
+  let text: string;
+  try {
+    text = await readFile(file, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`${file} was not found. Create it with a library and a password, or point CTW_SERVER_SETTINGS at it.`);
+    throw err;
+  }
+  return parseServerSettings(text, file);
+}
+
+export function uploadsDir(library: string): string {
+  return path.join(library, ".uploads");
+}
+
+async function isDirectory(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function resolvedPath(p: string): Promise<string> {
+  try {
+    return await realpath(p);
+  } catch {
+    const parent = path.dirname(p);
+    return parent === p ? p : path.join(await resolvedPath(parent), path.basename(p));
+  }
+}
+
+export async function initServerLibrary(s: ServerSettings): Promise<void> {
+  if (!(await isDirectory(s.library))) throw new Error(`library ${s.library} must be an existing folder`);
+  const root = path.join(s.library, "cable-twii");
+  const uploads = uploadsDir(s.library);
+  for (const dir of [root, path.join(root, "ads"), path.join(root, ".studio"), uploads]) {
+    await mkdir(dir, { recursive: true });
+  }
+  const imports = await resolvedPath(s.imports);
+  for (const dir of [uploads, root]) {
+    const real = await resolvedPath(dir);
+    if (imports === real || contained(real, imports)) throw new Error(`imports ${s.imports} must not be inside ${dir}`);
+  }
+  await mkdir(s.imports, { recursive: true });
+}
