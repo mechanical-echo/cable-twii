@@ -8,12 +8,16 @@
 #include "storage.h"
 #include "quit.h"
 #include "state.h"
+#include "settings.h"
 
 typedef enum { SCR_LOGO, SCR_GUIDE, SCR_FULL, SCR_ERROR } screen_id;
 
 typedef struct {
     char root[256];
+    char state_dir[64];
     st_volume drive;
+    ctw_settings settings;
+    bool settings_saveable;
     ctw_db *db;
     tuner tuner;
     screen_id screen;

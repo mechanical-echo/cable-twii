@@ -11,6 +11,7 @@
 #include "storage.h"
 #include "quit.h"
 #include "state.h"
+#include "settings.h"
 #include "video.h"
 #include "ui/draw.h"
 #include "ui/text.h"
@@ -60,7 +61,9 @@ static ctw_state current_state(const app *a)
 
 static bool can_save(const app *a)
 {
-    return a->drive.found && a->drive.writable && a->db != NULL && a->screen != SCR_ERROR;
+    if (a->db == NULL || a->screen == SCR_ERROR || a->state_dir[0] == '\0') return false;
+    if (strcmp(a->state_dir, SETTINGS_DIR) == 0) return st_config_writable();
+    return a->drive.found && a->drive.writable;
 }
 
 static void save_state(app *a, bool force)
@@ -69,7 +72,7 @@ static void save_state(app *a, bool force)
     ctw_state s = current_state(a);
     bool changed = state_changed(&s, &a->saved);
     if (force ? !changed : !state_save_due(changed, a->saved_ms, a->now_ms)) return;
-    state_save(a->root, &s);
+    state_save(a->state_dir, &s);
     a->saved = s;
     a->saved_ms = a->now_ms;
 }
@@ -90,6 +93,7 @@ void app_quit(app *a, quit_dest dest)
     ASND_End();
     WPAD_Shutdown();
     st_release(&a->drive);
+    st_config_release();
     GRRLIB_Exit();
     switch (quit_route_for(dest, quit_stub_present((const unsigned char *)0x80001800), emulator)) {
     case QUIT_POWER_OFF:
@@ -131,11 +135,17 @@ static int start_channel(const ctw_db *db, int last_channel)
 
 static void boot(app *a)
 {
+    st_config_mount();
+    settings_load(SETTINGS_DIR, &a->settings);
+    a->settings_saveable = st_config_writable();
+
     if (st_find_root(a->root, sizeof a->root, &a->drive) != 0) {
         app_fail(a, "No cable-twii drive found",
                   "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.");
         return;
     }
+    int n = snprintf(a->state_dir, sizeof a->state_dir, "%s", a->root);
+    if (n < 0 || (size_t)n >= sizeof a->state_dir) a->state_dir[0] = '\0';
 
 #ifdef CTW_DEBUG_SCRIPT
     dbg_script_load(a->root);
@@ -164,7 +174,7 @@ static void boot(app *a)
     tn_init(&a->tuner, a->db);
 
     ctw_state saved;
-    state_load(a->root, &saved);
+    state_load(a->state_dir, &saved);
     a->volume = saved.volume;
     a->current_channel = start_channel(a->db, saved.last_channel);
     a->saved = current_state(a);

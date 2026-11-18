@@ -132,7 +132,12 @@ bool vol_scan_failed(int err)
 
 bool vol_write_allowed(bool has_root, bool has_games, bool scan_error)
 {
-    return has_root && !has_games && !scan_error;
+    return has_root && vol_config_write_allowed(has_games, scan_error);
+}
+
+bool vol_config_write_allowed(bool has_games, bool scan_error)
+{
+    return !has_games && !scan_error;
 }
 
 bool vol_device_spec(const char *name, char *out, size_t out_size)

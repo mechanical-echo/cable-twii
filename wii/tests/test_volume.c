@@ -348,6 +348,15 @@ TEST writes_only_on_clean_root_without_games(void)
     PASS();
 }
 
+TEST config_write_needs_clean_sd(void)
+{
+    ASSERT(vol_config_write_allowed(false, false));
+    ASSERT(!vol_config_write_allowed(true, false));
+    ASSERT(!vol_config_write_allowed(false, true));
+    ASSERT(!vol_config_write_allowed(true, true));
+    PASS();
+}
+
 SUITE(volume_suite)
 {
     RUN_TEST(pick_flash_drive_after_games_drive);
@@ -375,4 +384,5 @@ SUITE(volume_suite)
     RUN_TEST(games_folder_next_to_root_blocks_writes);
     RUN_TEST(scan_end_versus_error);
     RUN_TEST(writes_only_on_clean_root_without_games);
+    RUN_TEST(config_write_needs_clean_sd);
 }
