@@ -29,7 +29,7 @@ Skip this if your flash drive or SD card is already FAT32 (MS-DOS) and empty or 
 
 **Warning: erasing deletes everything on the selected drive. Before you click Erase, double-check the drive name and its size. Make sure it is your small flash drive and not your games drive. If you are not sure, unplug the games drive first.**
 
-Studio adds a second safety net. It refuses any drive that has a `wbfs` folder or `.wbfs` files, and any drive that is not FAT32. Studio itself never formats, erases or repartitions anything.
+Studio adds a second safety net. It refuses any drive that has a `wbfs` or `games` folder or `.wbfs` files, and any drive that is not FAT32. Studio itself never formats, erases or repartitions anything.
 
 ## 3. Start Studio
 
@@ -156,7 +156,7 @@ Point the Wii Remote at the screen to see the cursor. If you do not point it at 
 - **Power** (on the remote or the console) saves your place and turns the Wii off.
 - **Reset** saves your place and returns to the Homebrew Channel.
 
-The app remembers the last channel and the volume and picks them up next time. They are saved in `state.toml` in the `cable-twii` folder, and only on the cable-twii drive. The app never saves anything to a drive with a `wbfs` or `games` folder, or to any drive that has no `cable-twii` folder.
+The app remembers the last channel and the volume and picks them up next time. They are saved in `state.toml` in the `cable-twii` folder, and only on the cable-twii drive. The app never saves anything to a drive with a `wbfs` or `games` folder or `.wbfs` files at its top level, or to any drive that has no `cable-twii` folder.
 
 ## 14. Troubleshooting
 
@@ -194,7 +194,7 @@ Point the remote at the screen and move it. Check the sensor bar is on.
 - "That folder doesn't exist." The path you typed is wrong. Use **Choose drive…** instead.
 - "Pick the drive itself, not a folder inside it." Choose the drive's top level (for example `/Volumes/CABLETV`).
 - "Choose your media drive or a test folder, not a system folder." Pick the flash drive or SD card.
-- "This looks like your games drive (it has a wbfs folder). cable-twii will never write to it." You picked the games drive or a drive that contains game files. Choose the flash drive instead. Do not try to bypass this.
+- "This looks like your games drive (it has a wbfs or games folder, or .wbfs files). cable-twii will never write to it." You picked the games drive or a drive that contains game files. Choose the flash drive instead. Do not try to bypass this.
 - "This drive is ... cable-twii needs a FAT32 (MS-DOS) drive." Format only the flash drive as described in section 2, then choose it again.
 - "... is on a different drive". A folder inside the chosen drive actually points to another drive. Remove the shortcut or alias.
 
