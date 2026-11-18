@@ -129,3 +129,11 @@ export function folderSuggestions(library: Pick<WebLibrary, "show" | "ad">): str
   for (const ad of library.ad) if (ad.channel !== "") found.add(ad.channel);
   return [...found].sort((a, b) => a.localeCompare(b));
 }
+
+export function channelChoices(config: Config | null, libraryChannels: string[]): string[] {
+  const found = new Set(libraryChannels);
+  for (const channel of config?.channel ?? []) found.add(effectiveFolder(channel));
+  return [...found].filter((c) => c !== "").sort((a, b) => a.localeCompare(b));
+}
+
+export const NEW_CHANNEL = "\u0000new";

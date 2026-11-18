@@ -442,3 +442,28 @@ Videos converted before Task 9 use the drive profile (about 1.7 Mbit/s), which t
 - [ ] **Step 5: Docs:** `SERVER.md` explains the button and that the Wii may briefly miss a video while it's being replaced; `formats.md` documents the `kind` key.
 - [ ] **Step 6: Real check on the Mac:** shrink one 1500 kbit/s file in a scratch server library; `ffprobe` shows about 1 Mbit/s afterwards, the duration is unchanged, and the library still lists it.
 - [ ] **Step 7: Commit** `wip | shrink older server videos`
+
+---
+
+### Task 11: Choose files before uploading, and a channel dropdown (owner feedback, 2026-11-18)
+
+The owner unticked two episodes in the import dialog but had already waited for them to upload, and the leftovers stayed on the server for a day. The channel box only suggested channel folders that already hold shows, so it was empty on the first import even though channels existed on the Channels page.
+
+**Files:**
+- Modify: `studio/src/web/library/AddVideosDialog.tsx`, `studio/src/web/library/ImportShowDialog.tsx`, `studio/src/web/library/ImportAdsDialog.tsx`, `studio/src/web/pages/LibraryPage.tsx`, `studio/src/web/api.ts`, `studio/src/web/uploading.ts`, `studio/src/server/uploads.ts`, `studio/src/server/app.ts`, `studio/test/web.test.ts`, `studio/test/uploads.test.ts`, `docs/SERVER.md`
+- Create: `studio/src/web/channels.ts` additions if a helper fits there better (check the existing file first)
+
+**Interfaces:**
+- Upload tab: after files are picked, it lists them with a checkbox each (all ticked) and the total size of the ticked ones; **Upload** sends only the ticked files. Pure helper in `uploading.ts`: `export function tickedFiles<T>(files: T[], ticked: boolean[]): T[]`.
+- Server, server mode only: `POST /api/upload/discard { dir, names }` deletes the named files inside that upload batch folder (the `dir` returned by the upload; it must resolve inside `.uploads/`, names go through `uploadName` and must exist in that batch) and removes the batch folder if it is then empty; returns `{ removed: number }`. Pure helper in `uploads.ts`: `export async function discardUploads(uploads: string, dir: string, names: string[]): Promise<number>`.
+- Import dialogs, when the files came from an upload: **Import** sends the ticked files, then discards the unticked ones; **Cancel** asks "Delete the uploaded files?" and discards them all on yes (on no it just closes and they stay until the daily sweep). Files from the imports folder are never discarded.
+- Channel picker in both import dialogs: a dropdown listing every channel from the Channels page (its folder: `folder` or else `name`) and every channel folder already in the library, de-duplicated and sorted, with **New channel…** last; choosing it shows a text box for the new name. The default selection is the first entry. Pure helper: `export function channelChoices(config: Config | null, libraryChannels: string[]): string[]`.
+
+- [ ] **Step 1: Write the failing tests**:
+  - `web.test.ts`: `tickedFiles(["a","b","c"], [true,false,true])` is `["a","c"]`; `channelChoices` merges `{ name: "Cartoon Network" }` and `{ name: "MTV", folder: "mtv-00s" }` from the config with library channels `["Cartoon Network", "Nickelodeon"]` into `["Cartoon Network", "Nickelodeon", "mtv-00s"]`; `channelChoices(null, [])` is `[]`.
+  - `uploads.test.ts`: discard removes only the named files in the batch and the then-empty batch folder; a `dir` outside `.uploads/`, a name with `..`, and a name not in the batch are refused (400) and nothing is deleted; drive mode gives 404.
+- [ ] **Step 2: Run and see them fail.**
+- [ ] **Step 3: Implement** the helpers, the route and the dialogs (match the existing dialog and form idioms; no new dependencies).
+- [ ] **Step 4: Run** `cd studio && npm test && npm run typecheck`. Expected: PASS.
+- [ ] **Step 5: Docs:** `SERVER.md` says you choose files before uploading, and unticked or cancelled uploads are deleted.
+- [ ] **Step 6: Commit** `wip | choose files before uploading, channel dropdown`

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type WebBuildResult, getLibrary, mediaUrl, pickSource, rebuildLibrary } from "../api";
+import { type Config, type WebBuildResult, getConfig, getLibrary, mediaUrl, pickSource, rebuildLibrary } from "../api";
 import { baseName, formatDuration } from "../format";
 import { AddVideosDialog, type Picked } from "../library/AddVideosDialog";
 import { ImportAdsDialog } from "../library/ImportAdsDialog";
 import { ImportShowDialog } from "../library/ImportShowDialog";
 import { JobsPanel } from "../library/JobsPanel";
 import { ShowMetaDialog } from "../library/ShowMetaDialog";
+import { channelChoices } from "../channels";
 import { type ShowNode, type WebLibrary, buildTree, seasonLabel } from "../tree";
 
 type Target = "show" | "ads";
@@ -21,6 +22,7 @@ interface Props {
 export function LibraryPage({ server, session }: Props) {
   const [library, setLibrary] = useState<WebLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<Config | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Pick<WebBuildResult, "skipped" | "warnings"> | null>(null);
@@ -42,8 +44,14 @@ export function LibraryPage({ server, session }: Props) {
     return () => clearTimeout(timer.current);
   }, [load]);
 
+  useEffect(() => {
+    getConfig()
+      .then((res) => setConfig(res.config))
+      .catch(() => setConfig(null));
+  }, [session]);
+
   const tree = useMemo(() => (library ? buildTree(library) : []), [library]);
-  const channels = tree.map((c) => c.channel).filter((c) => c !== "");
+  const channels = useMemo(() => channelChoices(config, tree.map((c) => c.channel)), [config, tree]);
 
   async function pick(kind: Target) {
     setError(null);
@@ -157,10 +165,10 @@ export function LibraryPage({ server, session }: Props) {
         <AddVideosDialog onPicked={(picked) => setDialog({ kind: dialog.target, picked })} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "show" && (
-        <ImportShowDialog dir={dialog.picked.dir} files={dialog.picked.files} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
+        <ImportShowDialog dir={dialog.picked.dir} files={dialog.picked.files} uploaded={dialog.picked.uploaded === true} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
       )}
       {dialog?.kind === "ads" && (
-        <ImportAdsDialog dir={dialog.picked.dir} files={dialog.picked.files} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
+        <ImportAdsDialog dir={dialog.picked.dir} files={dialog.picked.files} uploaded={dialog.picked.uploaded === true} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
       )}
       {dialog?.kind === "meta" && <ShowMetaDialog node={dialog.node} onClose={() => setDialog(null)} onSaved={setLibrary} />}
     </section>

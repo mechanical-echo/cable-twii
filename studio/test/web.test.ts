@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { baseName, formatBytes, formatDuration } from "../src/web/format.js";
 import { describeRejected, isUsable } from "../src/web/importing.js";
 import { buildTree, descriptionKey, seasonLabel, type WebLibrary } from "../src/web/tree.js";
-import { batches, crumbs, joinRel, rejectedLine, uploadRatio } from "../src/web/uploading.js";
+import { channelChoices } from "../src/web/channels.js";
+import { batches, crumbs, joinRel, rejectedLine, tickedFiles, uploadGroups, uploadRatio } from "../src/web/uploading.js";
+import type { Config } from "../src/server/types.js";
 
 const ep = (season: number, episode: number, title: string) => ({ season, episode, title, description: "", path: `C/S/${title}.mpg`, duration_ms: 30000 });
 
@@ -153,5 +155,32 @@ describe("rejectedLine", () => {
     expect(rejectedLine({ name: "b.mp4", reason: "could not read the video: moov atom not found\nfile:/srv/library/.uploads/x/b.mp4: Invalid data" })).toBe(
       "b.mp4: could not read the video: moov atom not found",
     );
+  });
+});
+
+describe("tickedFiles", () => {
+  it("keeps the ticked files in order", () => {
+    expect(tickedFiles(["a", "b", "c"], [true, false, true])).toEqual(["a", "c"]);
+  });
+});
+
+describe("channelChoices", () => {
+  const config = { channel: [{ name: "Cartoon Network" }, { name: "MTV", folder: "mtv-00s" }] } as Config;
+
+  it("merges config folders and library channels, de-duplicated and sorted", () => {
+    expect(channelChoices(config, ["Cartoon Network", "Nickelodeon"])).toEqual(["Cartoon Network", "mtv-00s", "Nickelodeon"]);
+  });
+
+  it("is empty without a config or channels", () => {
+    expect(channelChoices(null, [])).toEqual([]);
+  });
+});
+
+describe("uploadGroups", () => {
+  it("groups files by their batch folder", () => {
+    expect(uploadGroups(["/lib/.uploads/a/x.mp4", "/lib/.uploads/b/y.mp4", "/lib/.uploads/a/z.mp4"])).toEqual([
+      { dir: "/lib/.uploads/a", names: ["x.mp4", "z.mp4"] },
+      { dir: "/lib/.uploads/b", names: ["y.mp4"] },
+    ]);
   });
 });

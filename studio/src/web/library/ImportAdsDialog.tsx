@@ -1,19 +1,23 @@
 import { useState } from "react";
-import { type ScanResult, importAds } from "../api";
+import { type ScanResult, discardUploaded, importAds } from "../api";
+import { NEW_CHANNEL } from "../channels";
 import { baseName, formatDuration } from "../format";
 import { describeRejected, isUsable } from "../importing";
+import { ChannelPicker } from "./ChannelPicker";
 import { Dialog } from "./Dialog";
 
 interface Props {
   dir: string;
   files: ScanResult[];
+  uploaded: boolean;
   channels: string[];
   onClose: () => void;
   onImported: () => void;
 }
 
-export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: Props) {
+export function ImportAdsDialog({ dir, files, uploaded, channels, onClose, onImported }: Props) {
   const [channel, setChannel] = useState("");
+  const [newChannel, setNewChannel] = useState("");
   const [picked, setPicked] = useState(() => new Set(files.filter(isUsable).map((f) => f.source)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,15 +31,25 @@ export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: P
       return next;
     });
 
+  const channelFolder = (channel === NEW_CHANNEL ? newChannel : channel).trim();
+
   async function submit() {
     setBusy(true);
     setError(null);
     try {
       const chosen = files.filter((f) => picked.has(f.source));
-      const result = await importAds({ channelFolder: channel, files: chosen.map((f) => ({ source: f.source, aspect: f.aspect })) });
+      const result = await importAds({ channelFolder, files: chosen.map((f) => ({ source: f.source, aspect: f.aspect })) });
       setImported(true);
       onImported();
-      const skipped = describeRejected(result.jobs.length, result.rejected);
+      let skipped = describeRejected(result.jobs.length, result.rejected);
+      if (uploaded) {
+        try {
+          const unticked = files.filter((f) => !picked.has(f.source)).map((f) => f.source);
+          await discardUploaded([...unticked, ...result.rejected.map((r) => r.source)]);
+        } catch (err) {
+          skipped = `${skipped ?? "Imported."} The unticked uploads could not be deleted: ${(err as Error).message}`;
+        }
+      }
       if (skipped === null) {
         onClose();
         return;
@@ -48,19 +62,26 @@ export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: P
     }
   }
 
+  async function close() {
+    if (uploaded && !imported && window.confirm("Delete the uploaded files?")) {
+      setBusy(true);
+      try {
+        await discardUploaded(files.map((f) => f.source));
+      } catch (err) {
+        setError(`Some uploads could not be deleted: ${(err as Error).message}`);
+        setBusy(false);
+        return;
+      }
+    }
+    onClose();
+  }
+
   return (
-    <Dialog title="Add ads" onClose={onClose}>
+    <Dialog title="Add ads" busy={busy} onClose={close}>
       <div className="form-grid">
         <label>
           Play on
-          <select value={channel} onChange={(e) => setChannel(e.target.value)}>
-            <option value="">All channels</option>
-            {channels.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <ChannelPicker all choices={channels} value={channel} newName={newChannel} onChange={setChannel} onNewName={setNewChannel} />
         </label>
       </div>
       <p className="muted">{dir}</p>
@@ -77,8 +98,8 @@ export function ImportAdsDialog({ dir, files, channels, onClose, onImported }: P
       </ul>
       {error !== null && <div className="banner error">{error}</div>}
       <div className="row end">
-        <button onClick={onClose}>{imported ? "Close" : "Cancel"}</button>
-        <button className="primary" disabled={busy || imported || picked.size === 0} onClick={submit}>
+        <button disabled={busy} onClick={close}>{imported ? "Close" : "Cancel"}</button>
+        <button className="primary" disabled={busy || imported || picked.size === 0 || (channel === NEW_CHANNEL && channelFolder === "")} onClick={submit}>
           Import
         </button>
       </div>

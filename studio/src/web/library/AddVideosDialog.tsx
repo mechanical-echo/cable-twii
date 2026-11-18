@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { type ImportEntry, type ScanResult, type UploadResult, getImports, scanImports, uploadVideos } from "../api";
 import { formatBytes } from "../format";
-import { crumbs, joinRel, rejectedLine } from "../uploading";
+import { crumbs, joinRel, rejectedLine, tickedFiles } from "../uploading";
 import { Dialog } from "./Dialog";
 
 export interface Picked {
   dir: string;
   files: ScanResult[];
+  uploaded?: boolean;
 }
 
 interface Props {
@@ -55,12 +56,15 @@ export function AddVideosDialog({ onPicked, onClose }: Props) {
 
 function UploadTab({ busy, onBusy, onPicked }: TabProps) {
   const [files, setFiles] = useState<File[]>([]);
+  const [ticked, setTicked] = useState<boolean[]>([]);
   const [ratio, setRatio] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
   const controller = useRef<AbortController>();
 
   useEffect(() => () => controller.current?.abort(), []);
+
+  const chosen = tickedFiles(files, ticked);
 
   async function submit() {
     const abort = new AbortController();
@@ -70,9 +74,9 @@ function UploadTab({ busy, onBusy, onPicked }: TabProps) {
     setResult(null);
     setRatio(0);
     try {
-      const uploaded = await uploadVideos(files, setRatio, abort.signal);
+      const uploaded = await uploadVideos(chosen, setRatio, abort.signal);
       if (abort.signal.aborted) return;
-      if (uploaded.files.length > 0 && uploaded.rejected.length === 0) onPicked({ dir: "", files: uploaded.files });
+      if (uploaded.files.length > 0 && uploaded.rejected.length === 0) onPicked({ dir: "", files: uploaded.files, uploaded: true });
       else setResult(uploaded);
     } catch (err) {
       if (!abort.signal.aborted) setError((err as Error).message);
@@ -81,7 +85,7 @@ function UploadTab({ busy, onBusy, onPicked }: TabProps) {
     }
   }
 
-  const total = files.reduce((sum, file) => sum + file.size, 0);
+  const total = chosen.reduce((sum, file) => sum + file.size, 0);
   const keptAny = result !== null && result.files.length > 0;
   return (
     <div>
@@ -94,7 +98,9 @@ function UploadTab({ busy, onBusy, onPicked }: TabProps) {
             accept="video/*"
             disabled={busy}
             onChange={(e) => {
-              setFiles(Array.from(e.target.files ?? []));
+              const picked = Array.from(e.target.files ?? []);
+              setFiles(picked);
+              setTicked(picked.map(() => true));
               setResult(null);
               setError(null);
             }}
@@ -102,9 +108,26 @@ function UploadTab({ busy, onBusy, onPicked }: TabProps) {
         </label>
       </div>
       {files.length > 0 && (
-        <p className="muted">
-          {files.length} {files.length === 1 ? "file" : "files"} · {formatBytes(total)}
-        </p>
+        <>
+          <ul className="plain">
+            {files.map((file, i) => (
+              <li key={i}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={ticked[i] === true}
+                    disabled={busy || result !== null}
+                    onChange={(e) => setTicked((prev) => prev.map((on, k) => (k === i ? e.target.checked : on)))}
+                  />{" "}
+                  {file.name} <span className="muted">{formatBytes(file.size)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p className="muted">
+            {chosen.length} of {files.length} {files.length === 1 ? "file" : "files"} · {formatBytes(total)}
+          </p>
+        </>
       )}
       {busy && (
         <div className="job">
@@ -128,11 +151,11 @@ function UploadTab({ busy, onBusy, onPicked }: TabProps) {
       )}
       <div className="row end">
         {keptAny && (
-          <button className="primary" onClick={() => onPicked({ dir: "", files: result.files })}>
+          <button className="primary" onClick={() => onPicked({ dir: "", files: result.files, uploaded: true })}>
             Continue with {result.files.length} {result.files.length === 1 ? "video" : "videos"}
           </button>
         )}
-        <button className={result === null ? "primary" : undefined} disabled={busy || files.length === 0 || result !== null} onClick={submit}>
+        <button className={result === null ? "primary" : undefined} disabled={busy || chosen.length === 0 || result !== null} onClick={submit}>
           Upload
         </button>
       </div>

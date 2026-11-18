@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { type ImportEpisode, type ScanResult, importShow, uploadIcon } from "../api";
+import { type ImportEpisode, type ScanResult, discardUploaded, importShow, uploadIcon } from "../api";
+import { NEW_CHANNEL } from "../channels";
 import { baseName } from "../format";
 import { describeRejected, isUsable } from "../importing";
+import { ChannelPicker } from "./ChannelPicker";
 import { Dialog } from "./Dialog";
 
 interface Props {
   dir: string;
   files: ScanResult[];
+  uploaded: boolean;
   channels: string[];
   onClose: () => void;
   onImported: () => void;
@@ -37,8 +40,10 @@ function whole(text: string): number | null {
   return /^\d+$/.test(t) ? Number(t) : null;
 }
 
-export function ImportShowDialog({ dir, files, channels, onClose, onImported }: Props) {
-  const [channel, setChannel] = useState(channels[0] ?? "");
+export function ImportShowDialog({ dir, files, uploaded, channels, onClose, onImported }: Props) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const channel = picked ?? channels[0] ?? NEW_CHANNEL;
+  const [newChannel, setNewChannel] = useState("");
   const [showName, setShowName] = useState(baseName(dir));
   const [rows, setRows] = useState(() => files.map(toRow));
   const [icon, setIcon] = useState<File | null>(null);
@@ -48,13 +53,13 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
 
   const patch = (i: number, change: Partial<Row>) => setRows((prev) => prev.map((r, k) => (k === i ? { ...r, ...change } : r)));
   const chosen = rows.filter((r) => r.include);
-  const canImport = !busy && !imported && channel.trim() !== "" && showName.trim() !== "" && chosen.length > 0;
+  const channelFolder = (channel === NEW_CHANNEL ? newChannel : channel).trim();
+  const canImport = !busy && !imported && channelFolder !== "" && showName.trim() !== "" && chosen.length > 0;
 
   async function submit() {
     setBusy(true);
     setError(null);
     const folder = showName.trim();
-    const channelFolder = channel.trim();
     const episodes: ImportEpisode[] = chosen.map((r) => ({
       source: r.scan.source,
       season: whole(r.season),
@@ -75,6 +80,14 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
     setBusy(false);
     onImported();
     const notes: string[] = [];
+    if (uploaded) {
+      try {
+        const unticked = rows.filter((r) => !r.include).map((r) => r.scan.source);
+        await discardUploaded([...unticked, ...result.rejected.map((r) => r.source)]);
+      } catch (err) {
+        notes.push(`Imported, but the unticked uploads could not be deleted: ${(err as Error).message}`);
+      }
+    }
     const skipped = describeRejected(result.jobs.length, result.rejected);
     if (skipped !== null) notes.push(skipped);
     if (icon !== null && result.jobs.length > 0) {
@@ -88,17 +101,26 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
     else setError(notes.join(" "));
   }
 
+  async function close() {
+    if (uploaded && !imported && window.confirm("Delete the uploaded files?")) {
+      setBusy(true);
+      try {
+        await discardUploaded(rows.map((r) => r.scan.source));
+      } catch (err) {
+        setError(`Some uploads could not be deleted: ${(err as Error).message}`);
+        setBusy(false);
+        return;
+      }
+    }
+    onClose();
+  }
+
   return (
-    <Dialog title="Add show" onClose={onClose}>
+    <Dialog title="Add show" busy={busy} onClose={close}>
       <div className="form-grid">
         <label>
           Channel
-          <input list="channel-options" value={channel} onChange={(e) => setChannel(e.target.value)} />
-          <datalist id="channel-options">
-            {channels.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <ChannelPicker choices={channels} value={channel} newName={newChannel} onChange={setPicked} onNewName={setNewChannel} />
         </label>
         <label>
           Show name
@@ -151,7 +173,7 @@ export function ImportShowDialog({ dir, files, channels, onClose, onImported }: 
       </div>
       {error !== null && <div className="banner error">{error}</div>}
       <div className="row end">
-        <button onClick={onClose}>{imported ? "Close" : "Cancel"}</button>
+        <button disabled={busy} onClick={close}>{imported ? "Close" : "Cancel"}</button>
         <button className="primary" disabled={!canImport} onClick={submit}>
           Import
         </button>
