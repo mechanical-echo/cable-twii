@@ -198,7 +198,7 @@ size_t ns_read(ns_source *s, uint8_t *dst, size_t len)
         LWP_MutexLock(s->lock);
     }
     s->pos += n;
-    if (!blocked || n == 0) s->waiting = false;
+    if ((n > 0 && !blocked) || s->pos >= s->length) s->waiting = false;
     LWP_MutexUnlock(s->lock);
     return n;
 }

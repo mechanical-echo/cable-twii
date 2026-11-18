@@ -12,6 +12,7 @@
 #include "../ui/icons.h"
 #include "../ui/text.h"
 #include "../ui/theme.h"
+#include "notice.h"
 
 #define FRAME_PX 5.0f
 #define ICON_PX 48.0f
@@ -114,6 +115,7 @@ void ginfo_draw_preview(app *a, asp_rect r, float expand)
         } else {
             draw_upnext_card(a, in);
         }
+        if (live_weak()) notice_weak(in);
     }
     if (keep > 0.0f) ui_corner_mask(in.x, in.y, in.w, in.h, in_radius, THEME_PANEL_FILL);
     if (keep >= 1.0f && live) draw_hint(in);

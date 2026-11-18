@@ -179,6 +179,7 @@ void full_draw(app *a)
 {
     icons_frame();
     pl_draw(0, 0, 640, 480, 1.0f);
+    if (live_weak()) notice_weak((asp_rect){ 0.0f, 0.0f, 640.0f, 480.0f });
 
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, a->current_channel, a->today, a->ms_of_day, &offset);

@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "clock.h"
+#include "loader.h"
 #include "playback.h"
 #include "storage.h"
 #include "media/player.h"
@@ -13,12 +14,21 @@ static int64_t current_start_ms = -1;
 static bool end_probed;
 static bool playing;
 static uint32_t playing_since_ms;
+static bool streaming;
+static bool stalled;
+static bool lost;
+static bool probing;
+static bool probed;
+static uint32_t probe_ms;
 
 static void play_airing(app *a, int channel, const ctw_airing *air, uint32_t offset_ms)
 {
     end_probed = false;
     playing = false;
-    if (air == NULL || air->kind == CTW_AIR_UPNEXT) {
+    lost = lost || stalled;
+    stalled = false;
+    streaming = air != NULL && air->kind != CTW_AIR_UPNEXT;
+    if (!streaming || lost) {
         pl_close();
         current_start_ms = air != NULL ? tn_airing_start(&a->tuner, channel, air) : -1;
         pl_set_volume(a->volume);
@@ -48,6 +58,9 @@ void live_stop(void)
     pl_close();
     tuned = false;
     playing = false;
+    streaming = false;
+    stalled = false;
+    lost = false;
     current_start_ms = -1;
 }
 
@@ -69,6 +82,47 @@ static bool drive_lost(app *a, const ctw_airing *air, uint32_t offset)
     return true;
 }
 
+static bool probe_answered(app *a)
+{
+    if (probing) {
+        ld_state st = ld_poll();
+        if (st == LD_RUNNING) return false;
+        probing = false;
+        srv_info info;
+        return st == LD_DONE && ld_take_info(&info) == SRV_OK;
+    }
+    if (lost && pb_probe_due(probed, a->now_ms - probe_ms) && ld_poll() == LD_IDLE) {
+        ld_info(&a->server);
+        probing = true;
+        probed = true;
+        probe_ms = a->now_ms;
+    }
+    return false;
+}
+
+static void server_update(app *a, const ctw_airing *air, uint32_t offset)
+{
+    pl_state st = pl_status();
+    uint32_t played = playing ? a->now_ms - playing_since_ms : 0;
+    uint32_t waiting = pb_play_waiting(st, st == PL_PLAYING ? pl_waiting_ms() : 0, played);
+    if (pb_lost(st, waiting)) {
+        lost = true;
+        stalled = false;
+    }
+    if (probe_answered(a) && lost) {
+        lost = false;
+        play_airing(a, tuned_channel, air, offset);
+        return;
+    }
+    if (lost || st != PL_PLAYING) {
+        stalled = false;
+        return;
+    }
+    pb_stall act = pb_stall_action(waiting, stalled, pl_position_ms(), offset);
+    stalled = act == PB_STALL_NOTE;
+    if (act == PB_STALL_REJOIN) play_airing(a, tuned_channel, air, offset);
+}
+
 bool live_update(app *a)
 {
     clk_now(&a->today, &a->ms_of_day);
@@ -83,7 +137,14 @@ bool live_update(app *a)
         play_airing(a, tuned_channel, air, offset);
         return true;
     }
-    return a->from_server || !drive_lost(a, air, offset);
+    if (!a->from_server) return !drive_lost(a, air, offset);
+    server_update(a, air, offset);
+    return true;
+}
+
+bool live_weak(void)
+{
+    return tuned && streaming && (lost || stalled);
 }
 
 float live_fade_in(const app *a, uint32_t fade_ms)
