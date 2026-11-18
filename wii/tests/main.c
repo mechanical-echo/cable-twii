@@ -28,6 +28,8 @@ SUITE_EXTERN(vmode_suite);
 SUITE_EXTERN(press_suite);
 SUITE_EXTERN(sysbar_layout_suite);
 SUITE_EXTERN(addr_suite);
+SUITE_EXTERN(httpparse_suite);
+SUITE_EXTERN(http_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -62,5 +64,7 @@ int main(int argc, char **argv)
     RUN_SUITE(press_suite);
     RUN_SUITE(sysbar_layout_suite);
     RUN_SUITE(addr_suite);
+    RUN_SUITE(httpparse_suite);
+    RUN_SUITE(http_suite);
     GREATEST_MAIN_END();
 }
