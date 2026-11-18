@@ -11,9 +11,8 @@ static void rescale(void)
     if (!p.rescale || rmode->aa) return;
 
     rmode->efbHeight = (u16)p.efb_height;
-    f32 yscale = GX_GetYScaleFactor(rmode->efbHeight, rmode->xfbHeight);
-    u32 xfb_height = GX_SetDispCopyYScale(yscale);
     GX_SetDispCopySrc(0, 0, rmode->fbWidth, rmode->efbHeight);
+    u32 xfb_height = GX_SetDispCopyYScale(256.0f / ((f32)p.scale_reg + 0.5f));
     GX_SetDispCopyDst(rmode->fbWidth, xfb_height);
 
     Mtx44 ortho;
