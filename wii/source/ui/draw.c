@@ -618,8 +618,15 @@ GRRLIB_texImg *ui_load_png_file(const char *path)
         free(buf);
         return NULL;
     }
-    GRRLIB_texImg *tex = GRRLIB_LoadTexturePNG(buf);
+    GRRLIB_texImg *tex = ui_load_png_buffer(buf, (size_t)size);
     free(buf);
+    return tex;
+}
+
+GRRLIB_texImg *ui_load_png_buffer(const uint8_t *data, size_t len)
+{
+    if (data == NULL || len == 0) return NULL;
+    GRRLIB_texImg *tex = GRRLIB_LoadTexturePNG(data);
     if (tex == NULL) return NULL;
     if (tex->data == NULL || tex->w == 0 || tex->h == 0 || tex->w > 128 || tex->h > 128) {
         GRRLIB_FreeTexture(tex);

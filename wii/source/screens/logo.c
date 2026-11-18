@@ -7,9 +7,13 @@
 #include "logo_png.h"
 #include "../input.h"
 #include "../logoanim.h"
+#include "../srcpick.h"
+#include "../net/addr.h"
 #include "../ui/draw.h"
+#include "../ui/text.h"
 #include "../ui/theme.h"
 #include "guide.h"
+#include "notice.h"
 
 #define BLOOM_CX 320.0f
 #define BLOOM_CY 216.0f
@@ -28,11 +32,18 @@
 #define DOT_STEP 12.67f
 #define DOT_RING 2.2f
 #define DOTS 3
+#define CONNECT_X 320.0f
+#define CONNECT_Y 356.0f
+#define CONNECT_PX 15
+#define CONNECT_MAX_W 560.0f
 
 static GRRLIB_texImg *tex_logo;
 static uint32_t start_ms;
+static uint32_t held_ms;
 static bool skipped;
+static bool holding;
 static logo_frame frame;
+static char connecting[TF_LINE_BYTES];
 
 static void ensure_loaded(void)
 {
@@ -60,15 +71,35 @@ void logo_enter(app *a)
 {
     ensure_loaded();
     start_ms = a->now_ms;
+    held_ms = 0;
     skipped = false;
+    holding = false;
+    connecting[0] = '\0';
+    if (a->loading) {
+        char address[sizeof a->server.host + 8];
+        char text[TF_LINE_BYTES];
+        addr_format(&a->server, address, sizeof address);
+        sp_connecting(address, text, sizeof text);
+        ui_text_fit(FONT_BODY, CONNECT_PX, text, CONNECT_MAX_W, connecting, sizeof connecting);
+    }
     frame = logo_frame_at(0, false, logo_w(), logo_h());
 }
 
 void logo_update(app *a)
 {
     if (in_pressed(WPAD_BUTTON_A)) skipped = true;
-    frame = logo_frame_at(a->now_ms - start_ms, skipped, logo_w(), logo_h());
-    if (frame.done) app_go(a, SCR_GUIDE);
+    uint32_t t = a->now_ms - start_ms - held_ms;
+    holding = a->loading && t >= LOGO_SHINE_END_MS;
+    if (holding) {
+        held_ms += t - LOGO_SHINE_END_MS;
+        t = LOGO_SHINE_END_MS;
+    }
+    frame = logo_frame_at(t, skipped && !a->loading, logo_w(), logo_h());
+    if (holding) frame.dot = (int)(((a->now_ms - start_ms) / THEME_INTRO_DOT_MS) % DOTS);
+    if (frame.done) {
+        notice_restart(a);
+        app_go(a, SCR_GUIDE);
+    }
 }
 
 static uint32_t faded(uint32_t color, float alpha)
@@ -134,6 +165,7 @@ void logo_draw(app *a)
     ui_image(tex_logo, frame.x, frame.y, frame.w, frame.h, frame.alpha);
     draw_shine();
     draw_dots();
+    if (holding) ui_text(FONT_BODY, CONNECT_PX, CONNECT_X, CONNECT_Y, connecting, THEME_TEXT_LABEL, ALIGN_CENTER);
 }
 
 void logo_draw_header(void)

@@ -83,7 +83,7 @@ bool live_update(app *a)
         play_airing(a, tuned_channel, air, offset);
         return true;
     }
-    return !drive_lost(a, air, offset);
+    return a->from_server || !drive_lost(a, air, offset);
 }
 
 float live_fade_in(const app *a, uint32_t fade_ms)

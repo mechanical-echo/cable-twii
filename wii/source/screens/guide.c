@@ -23,6 +23,7 @@
 #include "guide_list.h"
 #include "header.h"
 #include "homemenu.h"
+#include "notice.h"
 #include "sysbar.h"
 
 #define SCROLL_MS 200u
@@ -286,10 +287,11 @@ void guide_draw(app *a)
     ui_stripes();
     if (row_count == 0) {
         draw_empty(a);
-        return;
+    } else {
+        draw_body(a, 1.0f);
+        if (mode != G_IDLE) draw_transition(a);
     }
-    draw_body(a, 1.0f);
-    if (mode != G_IDLE) draw_transition(a);
+    notice_draw(a);
 }
 
 void guide_draw_intro(app *a, float progress)

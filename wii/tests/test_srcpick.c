@@ -37,10 +37,50 @@ TEST try_server_needs_server_source_and_valid_address(void)
     PASS();
 }
 
+TEST fallback_notice_names_the_drive(void)
+{
+    ASSERT_STR_EQ("Server not reachable, playing from USB", sp_fallback_notice(VOL_USB));
+    ASSERT_STR_EQ("Server not reachable, playing from the SD card", sp_fallback_notice(VOL_SD));
+    PASS();
+}
+
+TEST fail_body_names_the_address(void)
+{
+    char out[256];
+    const char *expected = "cable-twii couldn't connect to 192.168.1.20:4747. Check that the server is running and the Wii is online, or change the address in Settings.";
+    sp_fail_body(SRV_NO_ANSWER, "192.168.1.20:4747", out, sizeof out);
+    ASSERT_STR_EQ(expected, out);
+    sp_fail_body(SRV_NOT_CABLE_TWII, "192.168.1.20:4747", out, sizeof out);
+    ASSERT_STR_EQ(expected, out);
+    sp_fail_body(SRV_BAD_LIBRARY, "192.168.1.20:4747", out, sizeof out);
+    ASSERT_STR_EQ(expected, out);
+    PASS();
+}
+
+TEST fail_body_without_network(void)
+{
+    char out[256];
+    sp_fail_body(SRV_NO_NETWORK, "192.168.1.20:4747", out, sizeof out);
+    ASSERT_STR_EQ("Can't reach the network. Check the Wii's internet settings, or start cable-twii again.", out);
+    PASS();
+}
+
+TEST connecting_names_the_address(void)
+{
+    char out[128];
+    sp_connecting("192.168.1.20:4747", out, sizeof out);
+    ASSERT_STR_EQ("Connecting to 192.168.1.20:4747\xE2\x80\xA6", out);
+    PASS();
+}
+
 SUITE(srcpick_suite)
 {
     RUN_TEST(after_server_ok_uses_server);
     RUN_TEST(after_server_failure_falls_back_to_drive);
     RUN_TEST(after_server_failure_without_drive_fails);
     RUN_TEST(try_server_needs_server_source_and_valid_address);
+    RUN_TEST(fallback_notice_names_the_drive);
+    RUN_TEST(fail_body_names_the_address);
+    RUN_TEST(fail_body_without_network);
+    RUN_TEST(connecting_names_the_address);
 }

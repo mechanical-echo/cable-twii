@@ -1,6 +1,7 @@
 #ifndef CTW_UI_DRAW_H
 #define CTW_UI_DRAW_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <grrlib.h>
 
@@ -45,5 +46,6 @@ void ui_disc(float x, float y, float h, uint32_t inner, uint32_t mid, uint32_t e
 void ui_dashed_rounded(float x, float y, float w, float h, float radius, float thickness, float dash, float gap, uint32_t color);
 void ui_image(GRRLIB_texImg *img, float x, float y, float w, float h, float alpha);
 GRRLIB_texImg *ui_load_png_file(const char *path);
+GRRLIB_texImg *ui_load_png_buffer(const uint8_t *data, size_t len);
 
 #endif

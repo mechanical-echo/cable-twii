@@ -8,11 +8,14 @@
 
 #include "app.h"
 #include "input.h"
+#include "loader.h"
 #include "storage.h"
 #include "quit.h"
+#include "srcpick.h"
 #include "state.h"
 #include "settings.h"
 #include "video.h"
+#include "net/addr.h"
 #include "ui/draw.h"
 #include "ui/text.h"
 #include "ui/cursor.h"
@@ -25,6 +28,7 @@
 #include "screens/guide.h"
 #include "screens/homemenu.h"
 #include "screens/logo.h"
+#include "screens/notice.h"
 #ifdef CTW_DEBUG_OVERLAY
 #include "debug/overlay.h"
 #endif
@@ -90,6 +94,7 @@ void app_quit(app *a, quit_dest dest)
     save_state(a, true);
     bool emulator = running_in_emulator();
     pl_close();
+    icons_stop();
     ASND_End();
     WPAD_Shutdown();
     st_release(&a->drive);
@@ -133,17 +138,21 @@ static int start_channel(const ctw_db *db, int last_channel)
     return channel;
 }
 
-static void boot(app *a)
+static void start_guide(app *a)
 {
-    st_config_mount();
-    settings_load(SETTINGS_DIR, &a->settings);
-    a->settings_saveable = st_config_writable();
+    tn_init(&a->tuner, a->db);
 
-    if (st_find_root(a->root, sizeof a->root, &a->drive) != 0) {
-        app_fail(a, "No cable-twii drive found",
-                  "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.");
-        return;
-    }
+    ctw_state saved;
+    state_load(a->state_dir, &saved);
+    a->volume = saved.volume;
+    a->current_channel = start_channel(a->db, saved.last_channel);
+    a->saved = current_state(a);
+    a->saved_ms = a->now_ms;
+    guide_prepare(a);
+}
+
+static bool load_drive(app *a)
+{
     int n = snprintf(a->state_dir, sizeof a->state_dir, "%s", a->root);
     if (n < 0 || (size_t)n >= sizeof a->state_dir) a->state_dir[0] = '\0';
 
@@ -167,20 +176,73 @@ static void boot(app *a)
         ctw_db_free(a->db);
         a->db = NULL;
         app_fail(a, "There's a problem with the schedule", body);
-        return;
+        return false;
     }
     ctw_issues_free(&issues);
+    start_guide(a);
+    return true;
+}
 
-    tn_init(&a->tuner, a->db);
+static void start_server(app *a, ctw_db *db, const srv_info *info)
+{
+    a->db = db;
+    a->from_server = true;
+    srv_root(&a->server, a->root, sizeof a->root);
+    snprintf(a->state_dir, sizeof a->state_dir, "%s", SETTINGS_DIR);
+    snprintf(a->revision, sizeof a->revision, "%s", info->revision);
+    start_guide(a);
+}
 
-    ctw_state saved;
-    state_load(a->state_dir, &saved);
-    a->volume = saved.volume;
-    a->current_channel = start_channel(a->db, saved.last_channel);
-    a->saved = current_state(a);
-    a->saved_ms = a->now_ms;
-    guide_prepare(a);
-    app_go(a, SCR_LOGO);
+static void fail_server(app *a, srv_result r)
+{
+    char address[sizeof a->server.host + 8];
+    char body[sizeof a->error_body];
+    addr_format(&a->server, address, sizeof address);
+    sp_fail_body(r, address, body, sizeof body);
+    app_fail(a, "Can't reach the server", body);
+}
+
+static void finish_loading(app *a)
+{
+    ctw_db *db;
+    ctw_issues issues;
+    srv_info info;
+    srv_result r = ld_take_db(&db, &issues, &info);
+    ctw_issues_free(&issues);
+    a->loading = false;
+    bool drive_found = r != SRV_OK && st_find_root(a->root, sizeof a->root, &a->drive) == 0;
+    switch (sp_after_server(r, drive_found)) {
+    case SP_SERVER:
+        start_server(a, db, &info);
+        break;
+    case SP_DRIVE_WITH_NOTICE:
+        if (load_drive(a)) notice_show(a, sp_fallback_notice(a->drive.source));
+        break;
+    case SP_FAIL:
+        fail_server(a, r);
+        break;
+    }
+}
+
+static void boot(app *a)
+{
+    st_config_mount();
+    settings_load(SETTINGS_DIR, &a->settings);
+    a->settings_saveable = st_config_writable();
+
+    if (sp_try_server(&a->settings)) {
+        addr_parse(a->settings.server, &a->server);
+        a->loading = true;
+        ld_load(&a->server);
+        app_go(a, SCR_LOGO);
+        return;
+    }
+    if (st_find_root(a->root, sizeof a->root, &a->drive) != 0) {
+        app_fail(a, "No cable-twii drive found",
+                  "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.");
+        return;
+    }
+    if (load_drive(a)) app_go(a, SCR_LOGO);
 }
 
 int main(int argc, char **argv)
@@ -212,6 +274,7 @@ int main(int argc, char **argv)
         g_app.now_ms += 16;
         if (in_power_requested()) app_quit(&g_app, QUIT_DEST_POWER_OFF);
         if (in_reset_requested()) app_quit(&g_app, QUIT_DEST_HOMEBREW);
+        if (g_app.loading && ld_poll() == LD_DONE) finish_loading(&g_app);
 
         bool was_open = g_app.home_open;
         home_update(&g_app);

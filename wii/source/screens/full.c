@@ -19,6 +19,7 @@
 #include "../ui/cursor.h"
 #include "../ui/sfx.h"
 #include "../ui/theme.h"
+#include "notice.h"
 #include "panel.h"
 #include "upnext.h"
 
@@ -197,4 +198,5 @@ void full_draw(app *a)
         osd_layout l = panel_layout(a, 0.0f);
         panel_draw_volume(&l, a->volume, hot_btn, (osd_btn)ps_pressed(&press, (int)hot_btn));
     }
+    notice_draw(a);
 }
