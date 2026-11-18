@@ -1,6 +1,7 @@
 #include "volume.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 static uint32_t le32(const uint8_t *p)
@@ -112,9 +113,16 @@ static bool name_is(const char *name, const char *want)
     return name[i] == '\0';
 }
 
+static bool ends_with(const char *name, const char *suffix)
+{
+    size_t n = strlen(name);
+    size_t m = strlen(suffix);
+    return n >= m && name_is(name + n - m, suffix);
+}
+
 bool vol_is_games_name(const char *name)
 {
-    return name_is(name, "wbfs") || name_is(name, "games");
+    return name_is(name, "wbfs") || name_is(name, "games") || ends_with(name, ".wbfs");
 }
 
 bool vol_scan_failed(int err)
@@ -125,4 +133,15 @@ bool vol_scan_failed(int err)
 bool vol_write_allowed(bool has_root, bool has_games, bool scan_error)
 {
     return has_root && !has_games && !scan_error;
+}
+
+bool vol_device_spec(const char *name, char *out, size_t out_size)
+{
+    int n = snprintf(out, out_size, "%s:", name);
+    return n > 0 && (size_t)n < out_size;
+}
+
+bool vol_sector_supported(uint32_t sector_size)
+{
+    return sector_size == 512;
 }

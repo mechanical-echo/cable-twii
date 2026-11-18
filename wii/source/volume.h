@@ -31,5 +31,7 @@ bool vol_write_in_range(uint32_t start, uint32_t span, uint64_t sector, uint64_t
 bool vol_is_games_name(const char *name);
 bool vol_scan_failed(int err);
 bool vol_write_allowed(bool has_root, bool has_games, bool scan_error);
+bool vol_device_spec(const char *name, char *out, size_t out_size);
+bool vol_sector_supported(uint32_t sector_size);
 
 #endif

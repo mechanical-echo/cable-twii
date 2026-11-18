@@ -272,6 +272,37 @@ TEST games_names_case_insensitive(void)
     PASS();
 }
 
+TEST wbfs_files_mark_games(void)
+{
+    ASSERT(vol_is_games_name("Mario Kart [RMCP01].wbfs"));
+    ASSERT(vol_is_games_name("GAME.WBFS"));
+    ASSERT(vol_is_games_name(".wbfs"));
+    ASSERT(!vol_is_games_name("wbfs.txt"));
+    ASSERT(!vol_is_games_name("notes.wbfs2"));
+    ASSERT(!vol_is_games_name("game.wbf"));
+    PASS();
+}
+
+TEST device_spec_adds_colon(void)
+{
+    char buf[16];
+    ASSERT(vol_device_spec("usb0", buf, sizeof buf));
+    ASSERT_STR_EQ("usb0:", buf);
+    ASSERT(vol_device_spec("sd", buf, sizeof buf));
+    ASSERT_STR_EQ("sd:", buf);
+    ASSERT(!vol_device_spec("usb0", buf, 5));
+    PASS();
+}
+
+TEST only_512_byte_sectors(void)
+{
+    ASSERT(vol_sector_supported(512));
+    ASSERT(!vol_sector_supported(4096));
+    ASSERT(!vol_sector_supported(1024));
+    ASSERT(!vol_sector_supported(0));
+    PASS();
+}
+
 static bool listing_writable(const char *const *names, size_t n)
 {
     bool has_root = false, has_games = false;
@@ -338,6 +369,9 @@ SUITE(volume_suite)
     RUN_TEST(write_straddling_end_refused);
     RUN_TEST(write_empty_or_zero_span_refused);
     RUN_TEST(games_names_case_insensitive);
+    RUN_TEST(wbfs_files_mark_games);
+    RUN_TEST(device_spec_adds_colon);
+    RUN_TEST(only_512_byte_sectors);
     RUN_TEST(games_folder_next_to_root_blocks_writes);
     RUN_TEST(scan_end_versus_error);
     RUN_TEST(writes_only_on_clean_root_without_games);
