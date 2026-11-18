@@ -63,7 +63,15 @@ test("refuses volume with wbfs folder", async () => {
   expect(info.isVolumeRoot).toBe(true);
   expect(info.hasWbfs).toBe(true);
   expect(info.usable).toBe(false);
-  expect(info.reason).toBe("This looks like your games drive (it has a wbfs folder). cable-twii will never write to it.");
+  expect(info.reason).toBe("This looks like your games drive (it has a wbfs or games folder, or .wbfs files). cable-twii will never write to it.");
+});
+
+test("refuses volume with a games folder", async () => {
+  await mkdir(path.join(dir, "Games"));
+  const info = await inspectDrive(dir, volumeDeps(FAT));
+  expect(info.hasWbfs).toBe(true);
+  expect(info.usable).toBe(false);
+  expect(info.reason).toBe("This looks like your games drive (it has a wbfs or games folder, or .wbfs files). cable-twii will never write to it.");
 });
 
 test("refuses volume with uppercase WBFS folder", async () => {

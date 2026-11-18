@@ -38,7 +38,6 @@ static FILE *fh;
 static char cur_path[320];
 static int has_audio_s;
 static int samplerate_s;
-static double duration_s;
 static int vid_w, vid_h;
 
 static slot_meta slots[YG_SLOTS];
@@ -233,7 +232,6 @@ int pl_open(const char *path, uint32_t offset_ms)
     vid_h = plm_get_height(plm);
     has_audio_s = plm_get_audio_enabled(plm) && plm_get_samplerate(plm) > 0;
     samplerate_s = plm_get_samplerate(plm);
-    duration_s = plm_get_duration(plm);
 
     if (yg_init(vid_w, vid_h) != 0) {
         plm_destroy(plm);
@@ -357,8 +355,6 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         uint8_t fade = (uint8_t)((1.0f - (alpha < 0.0f ? 0.0f : alpha)) * 255.0f);
         GRRLIB_Rectangle(dx, dy, qw, qh, RGBA(0, 0, 0, fade), 1);
     }
-
-    (void)duration_s;
 }
 
 #ifdef CTW_DEBUG_OVERLAY

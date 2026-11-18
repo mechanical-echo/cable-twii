@@ -55,7 +55,7 @@ export interface ScanResult {
 const MISSING_REASON = "That folder doesn't exist.";
 const NOT_ROOT_REASON = "Pick the drive itself, not a folder inside it.";
 const SYSTEM_REASON = "Choose your media drive or a test folder, not a system folder.";
-const WBFS_REASON = "This looks like your games drive (it has a wbfs folder). cable-twii will never write to it.";
+const WBFS_REASON = "This looks like your games drive (it has a wbfs or games folder, or .wbfs files). cable-twii will never write to it.";
 const PROBE_CONCURRENCY = 4;
 const VOLUME_PATH_VAR = "CTW_VOLUME_PATH";
 const VOLUME_SCRIPT = [
@@ -250,7 +250,7 @@ async function looksLikeWbfs(roots: string[]): Promise<boolean> {
     const top = await safeReaddir(root);
     for (const entry of top) {
       const lower = entry.name.toLowerCase();
-      if (entry.isDirectory() && lower === "wbfs") return true;
+      if (entry.isDirectory() && (lower === "wbfs" || lower === "games")) return true;
       if (lower.endsWith(".wbfs")) return true;
     }
     for (const entry of top) {

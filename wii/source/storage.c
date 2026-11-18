@@ -60,6 +60,8 @@ static u32 write_start;
 static u32 write_span;
 static DISC_INTERFACE write_iface;
 
+unsigned g_dvmOgcUsbMount = 0;
+
 static bool usb_read(int d, sec_t sector, sec_t count, void *buffer)
 {
     disk *k = &disks[d];
@@ -169,7 +171,7 @@ static void open_usb(void)
             u32 sector_size = 0, sectors = 0;
             if (USBStorage_MountLUN(&dv->handle, (u8)lun) < 0) continue;
             if (USBStorage_ReadCapacity(&dv->handle, (u8)lun, &sector_size, &sectors) < 0) continue;
-            if (sector_size < 512 || sector_size > CHUNK_BYTES) continue;
+            if (!vol_sector_supported(sector_size)) continue;
 
             disk *k = &disks[disk_count];
             memset(k, 0, sizeof *k);
@@ -285,6 +287,12 @@ static void mount_parts(void)
     }
 }
 
+static void unmount_name(const char *name)
+{
+    char spec[24];
+    if (vol_device_spec(name, spec, sizeof spec)) fatUnmount(spec);
+}
+
 static void release_unchosen(int chosen)
 {
     int keep_dev = -1;
@@ -297,7 +305,7 @@ static void release_unchosen(int chosen)
 
     for (int i = 0; i < part_count; i++) {
         if (i == chosen || !parts[i].mounted) continue;
-        fatUnmount(parts[i].name);
+        unmount_name(parts[i].name);
         parts[i].mounted = false;
     }
     for (int i = 0; i < dev_count; i++) {
@@ -352,7 +360,7 @@ static bool enable_writes(int chosen)
     write_start = p->start;
     write_span = p->span;
 
-    fatUnmount(p->name);
+    unmount_name(p->name);
     if (fatMount(p->name, &write_iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE)) return true;
     write_disk = -1;
     p->mounted = fatMount(p->name, &k->iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE);
@@ -362,6 +370,9 @@ static bool enable_writes(int chosen)
 int st_find_root(char *out, size_t out_size, st_volume *vol)
 {
     memset(vol, 0, sizeof *vol);
+    unmount_name("sd");
+    unmount_name("carda");
+    unmount_name("cardb");
     write_disk = -1;
     dev_count = 0;
     disk_count = 0;
