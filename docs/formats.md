@@ -574,6 +574,17 @@ Every answer for an existing file has `Accept-Ranges: bytes` and a `Content-Leng
 
 ---
 
+## Server conversion profile
+
+In server mode Studio converts every video with a smaller profile than a drive, because the Wii's Wi-Fi is too slow for the drive bitrate. Spec: `docs/decisions/0004-server-streaming.md`.
+
+| | Drive | Server |
+|---|---|---|
+| Video `mpeg1video` bitrate / maxrate / bufsize | `1500k` / `2000k` / `1000k` | `900k` / `1100k` / `600k` |
+| Audio `mp2` bitrate | `192k` | `128k` |
+
+Frame sizes (640x360, 480x360), 30 fps, GOP 15, codecs and loudness are the same in both. A server library only gets server-profile conversions. The overall bitrate of a converted file is about 1 Mbit/s.
+
 ## Uploads
 
 **Purpose:** videos that people add from a browser wait here until they are converted. Spec: `docs/superpowers/specs/2026-11-02-server-source-design.md` section 5.3.

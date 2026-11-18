@@ -7,6 +7,7 @@ import { ConversionQueue } from "../src/server/queue.js";
 import { readSources, writeSources } from "../src/server/sources.js";
 import { convert as realConvert } from "../src/server/ffmpeg.js";
 import type { convert, probe } from "../src/server/ffmpeg.js";
+import { DRIVE_PROFILE, SERVER_PROFILE } from "../src/server/videoSettings.js";
 import type { Job, SourceRecord } from "../src/server/types.js";
 import { waitFor } from "./helpers.js";
 
@@ -466,4 +467,32 @@ test("a symlinked .studio folder gets no queue or sources writes", async () => {
   } finally {
     await rm(outside, { recursive: true, force: true });
   }
+});
+
+test("the queue passes its profile to every conversion", async () => {
+  const seen: unknown[] = [];
+  const convertFn: typeof convert = async (_s, dst, _a, _p, _sig, _g, profile) => {
+    seen.push(profile);
+    await writeFile(dst, "x");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn, profile: SERVER_PROFILE });
+  q.enqueue(srcFile, "A/a.mpg", "4:3");
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(seen).toEqual([SERVER_PROFILE]);
+});
+
+test("the queue converts with the drive profile by default", async () => {
+  const seen: unknown[] = [];
+  const convertFn: typeof convert = async (_s, dst, _a, _p, _sig, _g, profile) => {
+    seen.push(profile);
+    await writeFile(dst, "x");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+  q.enqueue(srcFile, "A/a.mpg", "4:3");
+  q.start();
+  await idle(q, 1);
+  await q.stop();
+  expect(seen).toEqual([DRIVE_PROFILE]);
 });

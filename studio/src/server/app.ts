@@ -18,6 +18,7 @@ import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./lib
 import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
+import { DRIVE_PROFILE, SERVER_PROFILE, type VideoProfile } from "./videoSettings.js";
 import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
 import { uploadsDir } from "./serverSettings.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
@@ -36,7 +37,7 @@ export interface ServerModeOptions {
 
 export interface AppOptions {
   schedBin: string;
-  queueFactory?: (root: string) => ConversionQueue;
+  queueFactory?: (root: string, profile: VideoProfile) => ConversionQueue;
   settingsPath?: string;
   inspectDeps?: DriveDeps;
   probeFn?: typeof probe;
@@ -378,7 +379,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   function queueFor(root: string): ConversionQueue {
     let queue = queues.get(root);
     if (queue) return queue;
-    queue = opts.queueFactory ? opts.queueFactory(root) : new ConversionQueue(root);
+    const profile = server ? SERVER_PROFILE : DRIVE_PROFILE;
+    queue = opts.queueFactory ? opts.queueFactory(root, profile) : new ConversionQueue(root, { profile });
     queue.on("change", (job: Job) => jobEvents.emit("change", job));
     queue.on("converted", (rec: SourceRecord) => {
       scheduleRebuild(root);

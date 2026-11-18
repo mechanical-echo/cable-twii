@@ -16,7 +16,7 @@ Read this first:
 - A computer that stays on whenever the Wii is used: the Windows 11 PC (section 3), a Raspberry Pi with an SSD (section 4), or a Mac for testing (section 5).
 - Node 22, Git and ffmpeg (which includes `ffprobe`) on that computer.
 - A C compiler and `make`. Studio builds its schedule tool, `cable-twii-sched`, from the engine source. On Linux and Mac the first start does it by itself. On Windows you build it once by hand.
-- Room on the disk: converted video takes about 0.8 GB per hour. A video that is uploaded from a browser also needs room until it is converted.
+- Room on the disk: converted video takes about 0.5 GB per hour. The server converts videos smaller than a drive does, because the Wii's Wi-Fi is too slow for the drive size. A video that is uploaded from a browser also needs room until it is converted.
 - The Wii joined to the same home network, with its own Internet settings.
 
 ## 2. The settings file

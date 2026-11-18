@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { DRIVE_PROFILE, SERVER_PROFILE } from "../src/server/videoSettings.js";
 import { aspectFor, conversionArgs, convert, displayAspectOf, isTooShort, probe } from "../src/server/ffmpeg.js";
 import { MIN_DURATION_MS } from "../src/server/videoSettings.js";
 
@@ -41,6 +42,13 @@ test("args 16:9", () => {
   expect(a.at(-1)).toBe("file:out.mpg.part");
   expect(a).toEqual(expect.arrayContaining(["-i", "file:in.mkv", "-map", "0:0", "0:a:0?", "-sn", "-dn"]));
 });
+test("args for the server profile use the smaller bitrates", () => {
+  const a = conversionArgs("in.mkv", "out.mpg.part", "16:9", 0, SERVER_PROFILE);
+  expect(a).toEqual(expect.arrayContaining(["-b:v", "900k", "-maxrate", "1100k", "-bufsize", "600k", "-b:a", "128k"]));
+  expect(a).not.toContain("1500k");
+  expect(conversionArgs("in.mkv", "out.mpg.part", "16:9", 0, DRIVE_PROFILE)).toEqual(conversionArgs("in.mkv", "out.mpg.part", "16:9", 0));
+});
+
 test("args 4:3", () => expect(conversionArgs("a", "b", "4:3", 0).join(" ")).toContain("scale=480:360:force_original_aspect_ratio=decrease,pad=480:360"));
 test("aspectFor", () => {
   expect(aspectFor(16 / 9)).toBe("16:9");

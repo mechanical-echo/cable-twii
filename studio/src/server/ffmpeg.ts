@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
 import {
-  AUDIO_BITRATE,
   AUDIO_CHANNELS,
   AUDIO_CODEC,
   AUDIO_SAMPLE_RATE,
   CONTAINER_FORMAT,
+  DRIVE_PROFILE,
   FRAME_RATE,
   FRAME_SIZE,
   GOP_SIZE,
@@ -13,12 +13,10 @@ import {
   LOUDNORM,
   MIN_DURATION_MS,
   STDERR_TAIL_LINES,
-  VIDEO_BITRATE,
-  VIDEO_BUFSIZE,
   VIDEO_CODEC,
-  VIDEO_MAXRATE,
   WIDE_ASPECT_THRESHOLD,
   type Aspect,
+  type VideoProfile,
 } from "./videoSettings.js";
 
 export { MIN_DURATION_MS };
@@ -113,7 +111,7 @@ export function aspectFor(displayAspect: number): Aspect {
   return displayAspect >= WIDE_ASPECT_THRESHOLD ? "16:9" : "4:3";
 }
 
-export function conversionArgs(src: string, dst: string, aspect: Aspect, videoStreamIndex: number): string[] {
+export function conversionArgs(src: string, dst: string, aspect: Aspect, videoStreamIndex: number, profile: VideoProfile = DRIVE_PROFILE): string[] {
   const { width, height } = FRAME_SIZE[aspect];
   const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,fps=${FRAME_RATE}`;
   return [
@@ -135,11 +133,11 @@ export function conversionArgs(src: string, dst: string, aspect: Aspect, videoSt
     "-c:v",
     VIDEO_CODEC,
     "-b:v",
-    VIDEO_BITRATE,
+    profile.videoBitrate,
     "-maxrate",
-    VIDEO_MAXRATE,
+    profile.videoMaxrate,
     "-bufsize",
-    VIDEO_BUFSIZE,
+    profile.videoBufsize,
     "-g",
     String(GOP_SIZE),
     "-af",
@@ -151,7 +149,7 @@ export function conversionArgs(src: string, dst: string, aspect: Aspect, videoSt
     "-ac",
     String(AUDIO_CHANNELS),
     "-b:a",
-    AUDIO_BITRATE,
+    profile.audioBitrate,
     "-f",
     CONTAINER_FORMAT,
     `file:${dst}`,
@@ -170,6 +168,7 @@ export async function convert(
   onProgress: (ratio: number) => void,
   signal?: AbortSignal,
   guard?: ConvertGuard,
+  profile: VideoProfile = DRIVE_PROFILE,
 ): Promise<void> {
   const abortError = () => new Error("conversion aborted");
   if (signal?.aborted) throw abortError();
@@ -179,7 +178,7 @@ export async function convert(
   await guard?.beforeWrite(part);
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("ffmpeg", conversionArgs(src, part, aspect, videoStreamIndex));
+    const child = spawn("ffmpeg", conversionArgs(src, part, aspect, videoStreamIndex, profile));
     let stdoutBuffer = "";
     let stderrBuffer = "";
     let aborted = false;

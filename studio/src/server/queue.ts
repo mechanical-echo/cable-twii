@@ -7,6 +7,7 @@ import path from "node:path";
 import { parse, stringify } from "smol-toml";
 import { convert, probe } from "./ffmpeg.js";
 import { assertContained, atomicWriteContained, checkRename, mkdirContained, prepareScratchFile } from "./contain.js";
+import { DRIVE_PROFILE, type VideoProfile } from "./videoSettings.js";
 import { upsertSource } from "./sources.js";
 import type { Job, SourceRecord } from "./types.js";
 
@@ -16,6 +17,7 @@ export interface QueueOptions {
   concurrency?: number;
   convertFn?: typeof convert;
   probeFn?: typeof probe;
+  profile?: VideoProfile;
 }
 
 type Aspect = "16:9" | "4:3";
@@ -47,6 +49,7 @@ export class ConversionQueue extends EventEmitter {
   private readonly concurrency: number;
   private readonly convertFn: typeof convert;
   private readonly probeFn: typeof probe;
+  private readonly profile: VideoProfile;
   private started = false;
   private stopping = false;
   private paused = false;
@@ -60,6 +63,7 @@ export class ConversionQueue extends EventEmitter {
     this.concurrency = Math.max(1, opts.concurrency ?? defaultConcurrency());
     this.convertFn = opts.convertFn ?? convert;
     this.probeFn = opts.probeFn ?? probe;
+    this.profile = opts.profile ?? DRIVE_PROFILE;
     this.load();
     const pending = this.loadErrors;
     queueMicrotask(() => pending.forEach((e) => this.emit("error", e)));
@@ -258,6 +262,7 @@ export class ConversionQueue extends EventEmitter {
           beforeWrite: (part) => prepareScratchFile(this.root, part),
           beforeRename: (part, final) => checkRename(this.root, part, final),
         },
+        this.profile,
       );
       const { durationMs } = await this.probeFn(dst);
       const st = await stat(job.source);

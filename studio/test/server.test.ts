@@ -9,6 +9,7 @@ import { readLibrary } from "../src/server/library.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { initServerLibrary } from "../src/server/serverSettings.js";
+import { SERVER_PROFILE, type VideoProfile } from "../src/server/videoSettings.js";
 import { fakeConvert, fakeProbe, waitFor } from "./helpers.js";
 
 const LAN_HOST = "192.168.1.20:4747";
@@ -23,7 +24,7 @@ function build(extra: Partial<AppOptions> = {}): FastifyInstance {
   return buildApp({
     schedBin: schedBinPath(),
     settingsPath: path.join(dir, "settings.json"),
-    queueFactory: (r) => new ConversionQueue(r, { convertFn: fakeConvert, probeFn: fakeProbe, concurrency: 1 }),
+    queueFactory: (r, profile) => new ConversionQueue(r, { convertFn: fakeConvert, probeFn: fakeProbe, concurrency: 1, profile }),
     probeFn: fakeProbe,
     rebuildDelayMs: 20,
     webDir: path.join(dir, "no-web"),
@@ -315,4 +316,25 @@ test("closing right after a conversion still writes it to library.toml", async (
   await started.close();
   const library = await readLibrary(path.join(dir, "cable-twii"));
   expect(library?.show.flatMap((show) => show.episode.map((ep) => ep.path))).toEqual([EPISODE]);
+});
+
+test("server mode converts with the server profile", async () => {
+  const target = await queueEpisode();
+  const seen: (VideoProfile | undefined)[] = [];
+  const started = build({
+    queueFactory: (r, profile) => {
+      const convertFn: typeof fakeConvert = (src, dst, aspect, onProgress, signal, guard, used) => {
+        seen.push(used);
+        return fakeConvert(src, dst, aspect, onProgress, signal, guard, used);
+      };
+      return new ConversionQueue(r, { convertFn, probeFn: fakeProbe, concurrency: 1, profile });
+    },
+  });
+  try {
+    await started.ready();
+    await waitFor(() => converted(target));
+    expect(seen).toEqual([SERVER_PROFILE]);
+  } finally {
+    await started.close();
+  }
 });

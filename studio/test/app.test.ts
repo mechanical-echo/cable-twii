@@ -12,6 +12,7 @@ import { schedBinPath } from "../src/server/sched.js";
 import { readShowMeta } from "../src/server/showMeta.js";
 import { writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
+import { DRIVE_PROFILE, type VideoProfile } from "../src/server/videoSettings.js";
 import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
 
 const FIXTURE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_basic");
@@ -27,7 +28,7 @@ function bare(extra: Partial<AppOptions> = {}): FastifyInstance {
   return buildApp({
     schedBin: schedBinPath(),
     settingsPath: path.join(dir, "settings.json"),
-    queueFactory: (r) => new ConversionQueue(r, { convertFn: fakeConvert, probeFn: fakeProbe, concurrency: 1 }),
+    queueFactory: (r, profile) => new ConversionQueue(r, { convertFn: fakeConvert, probeFn: fakeProbe, concurrency: 1, profile }),
     probeFn: fakeProbe,
     rebuildDelayMs: 20,
     webDir: path.join(dir, "no-web"),
@@ -967,4 +968,31 @@ test("icon upload where a channel folder should be a file is 400", async () => {
   const res = await app.inject({ method: "POST", url: "/api/icon", payload, headers });
   expect(res.statusCode).toBe(400);
   expect((await stat(path.join(root, "Blocked"))).isFile()).toBe(true);
+});
+
+test("drive mode converts with the drive profile", async () => {
+  const seen: (VideoProfile | undefined)[] = [];
+  await app.close();
+  app = make({
+    queueFactory: (r, profile) => {
+      const convertFn: typeof fakeConvert = (src, dst, aspect, onProgress, signal, guard, used) => {
+        seen.push(used);
+        return fakeConvert(src, dst, aspect, onProgress, signal, guard, used);
+      };
+      return new ConversionQueue(r, { convertFn, probeFn: fakeProbe, concurrency: 1, profile });
+    },
+  });
+  await useFixture();
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  const body = {
+    channelFolder: "Cartoons",
+    showFolder: "Profile Show",
+    showName: "Profile Show",
+    episodes: [{ source: path.join(src, "a.mkv"), season: 1, episode: 1, title: "Pilot", description: "", aspect: "4:3" }],
+  };
+  const res = await app.inject({ method: "POST", url: "/api/import/show", payload: body });
+  expect(res.statusCode).toBe(200);
+  await waitFor(async () => seen.length === 1);
+  expect(seen).toEqual([DRIVE_PROFILE]);
 });
