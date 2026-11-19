@@ -194,10 +194,16 @@ def config_toml(channels):
 
 
 def main(argv):
-    if len(argv) != 2:
-        print("usage: make-big-library.py <dir>", file=sys.stderr)
+    force = "--force" in argv[1:]
+    folders = [a for a in argv[1:] if a != "--force"]
+    if len(folders) != 1:
+        print("usage: make-big-library.py [--force] <dir>", file=sys.stderr)
         return 2
-    root = Path(argv[1]) / "cable-twii"
+    root = Path(folders[0]) / "cable-twii"
+    existing = [name for name in ("library.toml", "config.toml") if (root / name).exists()]
+    if existing and not force:
+        print(f"{root} already has {' and '.join(existing)}; pass --force to overwrite", file=sys.stderr)
+        return 1
     root.mkdir(parents=True, exist_ok=True)
     channels, ads = build(random.Random(SEED))
     library = library_toml(channels, ads)
