@@ -391,22 +391,24 @@ void pl_draw(float x, float y, float w, float h, float alpha)
     }
 
     double now = av_clock();
+#ifdef CTW_DEBUG_OVERLAY
     int advanced = 0;
+#endif
     LWP_MutexLock(q_lock);
     while (q_r != q_w) {
         int idx = q_r;
         if (slots[idx].state != SLOT_READY) break;
         double frame_dur = samplerate_s > 0 ? 1.0 / 30.0 : 1.0 / 30.0;
-        if (slots[idx].time > now + 0.001 && advanced) break;
+        if (!pb_frame_due(shown >= 0, slots[idx].time, now)) break;
         if (shown >= 0 && slots[shown].state == SLOT_SHOWN) slots[shown].state = SLOT_FREE;
 #ifdef CTW_DEBUG_OVERLAY
         if (advanced) frames_dropped++;
         else frames_shown++;
+        advanced = 1;
 #endif
         shown = idx;
         slots[idx].state = SLOT_SHOWN;
         q_r = (q_r + 1) % YG_SLOTS;
-        advanced = 1;
         last_shown_time = slots[idx].time;
         if (slots[idx].time > now - LATE_FRAME_LIMIT * frame_dur) break;
     }
