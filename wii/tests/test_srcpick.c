@@ -52,10 +52,16 @@ TEST reload_notice_on_success(void)
 
 TEST manual_reload_failure_cant_reach_the_server(void)
 {
-    srv_result failures[] = { SRV_NO_ANSWER, SRV_BAD_LIBRARY, SRV_NOT_CABLE_TWII, SRV_NO_NETWORK };
+    srv_result failures[] = { SRV_NO_ANSWER, SRV_NOT_CABLE_TWII, SRV_NO_NETWORK };
     for (size_t i = 0; i < sizeof failures / sizeof failures[0]; i++) {
         ASSERT_STR_EQ("Can't reach the server", sp_reload_notice(failures[i], true));
     }
+    PASS();
+}
+
+TEST manual_reload_with_bad_channels_names_the_problem(void)
+{
+    ASSERT_STR_EQ("The server's channels have a problem. Open cable-twii Studio on the server to fix it.", sp_reload_notice(SRV_BAD_LIBRARY, true));
     PASS();
 }
 
@@ -256,6 +262,7 @@ SUITE(srcpick_suite)
     RUN_TEST(after_reload_failure_keeps_the_library);
     RUN_TEST(reload_notice_on_success);
     RUN_TEST(manual_reload_failure_cant_reach_the_server);
+    RUN_TEST(manual_reload_with_bad_channels_names_the_problem);
     RUN_TEST(automatic_reload_failure_is_silent);
     RUN_TEST(try_server_needs_server_source_and_valid_address);
     RUN_TEST(fallback_notice_names_the_drive);

@@ -20,7 +20,8 @@ sp_outcome sp_after_server(srv_result r, bool reload, bool drive_found)
 const char *sp_reload_notice(srv_result r, bool manual)
 {
     if (r == SRV_OK) return "Channels updated";
-    return manual ? "Can't reach the server" : NULL;
+    if (!manual) return NULL;
+    return r == SRV_BAD_LIBRARY ? "The server's channels have a problem. Open cable-twii Studio on the server to fix it." : "Can't reach the server";
 }
 
 const char *sp_fallback_notice(vol_source source)
