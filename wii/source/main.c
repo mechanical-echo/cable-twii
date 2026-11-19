@@ -32,6 +32,7 @@
 #include "screens/logo.h"
 #include "screens/notice.h"
 #include "screens/settings_screen.h"
+#include "screens/today.h"
 #ifdef CTW_DEBUG_OVERLAY
 #include "debug/overlay.h"
 #endif
@@ -173,6 +174,7 @@ static void drop_source(app *a)
 {
     save_state(a, true);
     live_stop();
+    today_reset(a);
     guide_reset();
     full_reset();
     tn_free(&a->tuner);
@@ -491,12 +493,15 @@ int main(int argc, char **argv)
         if (in_power_requested()) app_quit(&g_app, QUIT_DEST_POWER_OFF);
         if (in_reset_requested()) app_quit(&g_app, QUIT_DEST_HOMEBREW);
         loader_update(&g_app);
+        if (g_app.today_open && g_app.screen != SCR_GUIDE && g_app.screen != SCR_FULL) today_reset(&g_app);
 
         bool was_open = g_app.home_open;
         home_update(&g_app);
         bool paused = was_open || g_app.home_open;
-        in_block(paused);
-        cur_block(paused);
+        bool listing = !paused && g_app.today_open;
+        if (listing) today_update(&g_app);
+        in_block(paused || listing);
+        cur_block(paused || listing);
 
         switch (g_app.screen) {
         case SCR_ERROR:
@@ -525,12 +530,13 @@ int main(int argc, char **argv)
         in_block(false);
         cur_block(false);
         save_state(&g_app, false);
+        if (g_app.today_open) today_draw(&g_app);
         home_draw(&g_app);
 #ifdef CTW_DEBUG_OVERLAY
         overlay_draw();
 #endif
 
-        if (paused || g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();
+        if (paused || g_app.today_open || g_app.screen != SCR_FULL || full_cursor_visible(&g_app)) cur_draw();
         GRRLIB_Render();
     }
 }

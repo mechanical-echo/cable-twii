@@ -142,12 +142,19 @@ Point the Wii Remote at the screen to see the cursor. If you do not point it at 
 **Guide**
 - Move the cursor over a channel and press **A** to open it fullscreen. The channel previews after a moment when you rest on it.
 - **D-pad up and down** moves the highlight. **A** opens the highlighted channel.
+- **1** (or point at **1 Today** on the preview and press **A**) opens today's list for the highlighted channel.
 
 **Fullscreen**
-- **D-pad up or right**: next channel. **D-pad down or left**: previous channel.
+- **D-pad up**: next channel. **D-pad down**: previous channel.
+- **D-pad right** and **left** on a looping channel: jump to the start of the next or previous item in its schedule (an episode or an ad). Timed channels are live; they show *This channel is live*. A jump lasts until cable-twii restarts or reloads its channels.
+- **1** (or **1 Today** above the info panel) opens today's list.
 - **+** and **−**: volume (steps of 10, from 0 to 100).
 - **B**: back to the guide.
-- Point the remote at the screen to show the **info panel**. It has buttons for the previous channel, the next channel, back to the guide, and volume down and up. Click them with **A**. The panel hides itself after a few seconds without pointer movement.
+- Point the remote at the screen to show the **info panel**; it hides itself after a few seconds without pointer movement. While the volume panel shows, point at its **−** and **+** and press **A**.
+
+**Today's list**
+- It shows the channel's schedule for the day as Studio's Preview does: times, shows, episodes and titles, with ads grouped into breaks and what's on now in blue. On a timed channel after midnight it shows the schedule day that is still running.
+- **D-pad up and down** or the pointer moves the highlight. On a looping channel **A** plays from the highlighted item. **B** or **1** closes it.
 
 **HOME menu**
 - Press **HOME** to open it. Choose **Wii Menu**, **Homebrew Channel** or **Resume** by pointing and pressing **A**. Pressing **HOME** again also resumes. It shows the remote's battery level.

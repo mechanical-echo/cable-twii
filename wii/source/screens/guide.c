@@ -25,6 +25,7 @@
 #include "homemenu.h"
 #include "notice.h"
 #include "sysbar.h"
+#include "today.h"
 
 #define SCROLL_MS 200u
 
@@ -45,6 +46,7 @@ static g_mode mode;
 static uint32_t anim_start;
 static ps_state press;
 static ps_state empty_press;
+static bool today_hot;
 
 static void ensure_model(app *a)
 {
@@ -68,6 +70,7 @@ void guide_reset(void)
     last_hit = -1;
     scroll = 0.0f;
     scrolling = false;
+    today_hot = false;
     mode = G_IDLE;
     pv_reset(&pv, 0);
     glist_init(0);
@@ -130,6 +133,7 @@ void guide_enter(app *a)
     scroll = clamp_scroll(gm_scroll_to(rows, row_count, highlight, scroll, view_h()));
     scrolling = false;
     last_hit = pointer_row();
+    today_hot = false;
     anim_start = a->now_ms;
     if (a->prev_screen == SCR_FULL && live_on(a->current_channel)) {
         mode = G_RETURN;
@@ -189,6 +193,10 @@ static void handle_input(app *a)
         scroll = tw_value(&scroll_tw, a->now_ms);
         if (tw_done(&scroll_tw, a->now_ms)) scrolling = false;
     }
+    if (in_pressed(WPAD_BUTTON_1) && highlighted_channel() != 0) {
+        today_open(a, highlighted_channel());
+        return;
+    }
     if (in_pressed(WPAD_BUTTON_DOWN)) move_highlight(a, 1);
     else if (in_pressed(WPAD_BUTTON_UP)) move_highlight(a, -1);
     if (handle_sysbar(a, true)) return;
@@ -212,8 +220,16 @@ static void handle_input(app *a)
     }
     last_hit = hit;
 
+    bool hint = cur_visible() && in_rect(ginfo_today_hint(layout.preview), cur_x(), cur_y());
+    if (hint && !today_hot) {
+        sfx_play(SFX_HOVER);
+        in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
+    }
+    today_hot = hint;
+
     if (!in_pressed(WPAD_BUTTON_A)) return;
-    if (!cur_visible()) select_row(a, highlight);
+    if (today_hot) today_open(a, highlighted_channel());
+    else if (!cur_visible()) select_row(a, highlight);
     else if (hit >= 0) select_row(a, hit);
     else if (in_rect(layout.preview, cur_x(), cur_y())) select_row(a, highlight);
 }
@@ -261,7 +277,7 @@ static void draw_body(app *a, float progress)
 
     asp_rect preview = shifted(layout.preview, slide);
     asp_rect info = shifted(layout.info, slide);
-    if (mode == G_IDLE) ginfo_draw_preview(a, preview, 0.0f);
+    if (mode == G_IDLE) ginfo_draw_preview(a, preview, 0.0f, today_hot);
     ginfo_draw_info(a, highlight >= 0 && (size_t)highlight < row_count ? rows[highlight].channel : NULL, info);
 
     sysbar_layout bar = sysbar_layout_shift(&sysbar, slide);
@@ -286,7 +302,7 @@ static void draw_transition(app *a)
     float k = tw_ease_out(t);
     if (mode == G_RETURN) k = 1.0f - k;
     asp_rect full = { 0.0f, 0.0f, 640.0f, 480.0f };
-    ginfo_draw_preview(a, lerp_rect(layout.preview, full, k), k);
+    ginfo_draw_preview(a, lerp_rect(layout.preview, full, k), k, false);
 }
 
 static void draw_empty(app *a)

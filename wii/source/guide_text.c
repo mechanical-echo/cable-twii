@@ -5,6 +5,7 @@
 #define DAY_MS ((int64_t)CTW_DAY_MS)
 #define EN_DASH "\xE2\x80\x93"
 #define MIDDOT "\xC2\xB7"
+#define MINUS "\xE2\x88\x92"
 
 void gt_hhmm(int64_t ms, char *out, size_t out_size)
 {
@@ -107,4 +108,46 @@ void gt_icon_path(const char *root, const ctw_channel *ch, const ctw_show *show,
 {
     const char *rel = show != NULL && show->icon != NULL && show->icon[0] != '\0' ? show->icon : ch->icon;
     snprintf(out, out_size, "%s/%s", root, rel != NULL ? rel : "");
+}
+
+void gt_clock(int64_t ms, char *out, size_t out_size)
+{
+    int64_t day = ms >= 0 ? ms / DAY_MS : -((-ms + DAY_MS - 1) / DAY_MS);
+    char hhmm[8];
+    gt_hhmm(ms, hhmm, sizeof hhmm);
+    if (day > 0) {
+        snprintf(out, out_size, "%s +%lld", hhmm, (long long)day);
+    } else if (day < 0) {
+        snprintf(out, out_size, "%s " MINUS "%lld", hhmm, (long long)-day);
+    } else {
+        snprintf(out, out_size, "%s", hhmm);
+    }
+}
+
+void gt_span(int64_t start_ms, int64_t end_ms, char *out, size_t out_size)
+{
+    char from[24], to[24];
+    gt_clock(start_ms, from, sizeof from);
+    gt_clock(end_ms, to, sizeof to);
+    snprintf(out, out_size, "%s " EN_DASH " %s", from, to);
+}
+
+void gt_duration(uint32_t ms, char *out, size_t out_size)
+{
+    uint32_t s = (uint32_t)(((uint64_t)ms + 500u) / 1000u);
+    snprintf(out, out_size, "%u:%02u", (unsigned)(s / 60u), (unsigned)(s % 60u));
+}
+
+void gt_ad_break(size_t count, uint32_t total_ms, char *out, size_t out_size)
+{
+    char dur[16];
+    gt_duration(total_ms, dur, sizeof dur);
+    snprintf(out, out_size, "Ad break (%u %s, %s)", (unsigned)count, count == 1 ? "ad" : "ads", dur);
+}
+
+void gt_today(ctw_date d, char *out, size_t out_size)
+{
+    char date[24];
+    gt_date(d, date, sizeof date);
+    snprintf(out, out_size, "Today " MIDDOT " %s", date);
 }

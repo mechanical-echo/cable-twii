@@ -42,6 +42,7 @@ void ui_bar(float x, float y, float w, float h, float fraction);
 void ui_segments(float x, float y, float w, float h, int count, float gap, int lit, bool ring_newest);
 float ui_number_pill_w(const char *text, int px);
 void ui_number_pill(float x, float y, float h, const char *text, int px, bool tuned);
+void ui_key_hint(float x, float y, float w, const char *key, const char *label, bool hot);
 void ui_accent_tile(float x, float y, float w, float h, float radius);
 void ui_battery(float x, float y, float pill_h, int lit, int label_px, float *out_w);
 void ui_radial(float cx, float cy, float rx, float ry, uint32_t color);

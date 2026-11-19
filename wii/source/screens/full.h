@@ -5,6 +5,7 @@
 
 void full_reset(void);
 void tune(app *a, int channel);
+void full_jumped(app *a);
 void full_enter(app *a);
 void full_update(app *a);
 void full_draw(app *a);

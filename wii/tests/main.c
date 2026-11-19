@@ -38,6 +38,8 @@ SUITE_EXTERN(keyboard_suite);
 SUITE_EXTERN(settings_layout_suite);
 SUITE_EXTERN(ldqueue_suite);
 SUITE_EXTERN(notice_layout_suite);
+SUITE_EXTERN(today_model_suite);
+SUITE_EXTERN(today_layout_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -82,5 +84,7 @@ int main(int argc, char **argv)
     RUN_SUITE(settings_layout_suite);
     RUN_SUITE(ldqueue_suite);
     RUN_SUITE(notice_layout_suite);
+    RUN_SUITE(today_model_suite);
+    RUN_SUITE(today_layout_suite);
     GREATEST_MAIN_END();
 }
