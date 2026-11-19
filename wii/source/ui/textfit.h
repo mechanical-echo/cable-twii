@@ -12,6 +12,7 @@ typedef struct {
 } tf_line;
 
 size_t tf_fit(const char *utf8, float max_w, tf_width_fn width, void *ctx, char *out, size_t out_size);
+size_t tf_fit_tail(const char *utf8, float max_w, tf_width_fn width, void *ctx, char *out, size_t out_size);
 size_t tf_wrap(const char *utf8, float max_w, size_t max_lines, tf_width_fn width, void *ctx, tf_line *lines);
 
 #endif

@@ -134,6 +134,52 @@ TEST settings_save_into_missing_folder_fails(void)
     PASS();
 }
 
+TEST settings_equal_compares_source_and_address(void)
+{
+    ctw_settings a = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings same = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings other_source = { SRC_DRIVE, "192.168.1.20" };
+    ctw_settings other_address = { SRC_SERVER, "192.168.1.21" };
+    ASSERT(settings_equal(&a, &same));
+    ASSERT_FALSE(settings_equal(&a, &other_source));
+    ASSERT_FALSE(settings_equal(&a, &other_address));
+    PASS();
+}
+
+TEST settings_restarts_when_the_source_changes(void)
+{
+    ctw_settings drive = { SRC_DRIVE, "192.168.1.20" };
+    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
+    ASSERT(settings_restarts(&drive, &server));
+    ASSERT(settings_restarts(&server, &drive));
+    PASS();
+}
+
+TEST settings_restarts_when_the_server_address_changes(void)
+{
+    ctw_settings was = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings now = { SRC_SERVER, "http://192.168.1.20" };
+    ASSERT(settings_restarts(&was, &now));
+    PASS();
+}
+
+TEST settings_keeps_the_drive_when_only_the_address_changes(void)
+{
+    ctw_settings was = { SRC_DRIVE, "" };
+    ctw_settings now = { SRC_DRIVE, "192.168.1.20" };
+    ASSERT_FALSE(settings_restarts(&was, &now));
+    ASSERT_FALSE(settings_equal(&was, &now));
+    PASS();
+}
+
+TEST settings_nothing_changed_keeps_the_source(void)
+{
+    ctw_settings was = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings now = { SRC_SERVER, "192.168.1.20" };
+    ASSERT_FALSE(settings_restarts(&was, &now));
+    PASS();
+}
+
 SUITE(settings_suite)
 {
     RUN_TEST(settings_round_trip);
@@ -145,4 +191,9 @@ SUITE(settings_suite)
     RUN_TEST(settings_format_escapes_quotes);
     RUN_TEST(settings_format_too_small);
     RUN_TEST(settings_save_into_missing_folder_fails);
+    RUN_TEST(settings_equal_compares_source_and_address);
+    RUN_TEST(settings_restarts_when_the_source_changes);
+    RUN_TEST(settings_restarts_when_the_server_address_changes);
+    RUN_TEST(settings_keeps_the_drive_when_only_the_address_changes);
+    RUN_TEST(settings_nothing_changed_keeps_the_source);
 }

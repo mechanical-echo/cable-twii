@@ -86,6 +86,9 @@ static void choose(app *a, home_btn btn)
         app_reload(a);
         break;
     case HOME_BTN_SETTINGS:
+        dismiss(a);
+        app_open_settings(a);
+        break;
     case HOME_BTN_NONE:
         break;
     }

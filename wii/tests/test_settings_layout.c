@@ -64,6 +64,43 @@ TEST setl_keys_match_the_mockup(void)
     PASS();
 }
 
+TEST setl_card_and_labels_match_the_mockup(void)
+{
+    for (int i = 0; i < 2; i++) {
+        settings_layout l = setl_make(i == 0 ? 1.0f : WIDE);
+        ASSERT_RECT(l.card, 60, 47, 520, 386);
+        ASSERT_RECT(l.title, 84, 71, 472, 20);
+        ASSERT_RECT(l.source_label, 84, 127.5f, 120, 15);
+        ASSERT_RECT(l.track, 216, 115, 240, 40);
+        ASSERT_RECT(l.address_label, 84, 181.5f, 120, 15);
+        ASSERT_RECT(l.field_text, 228, 181, 230, 16);
+        ASSERT_RECT(l.divider, 84, 325, 472, 1);
+        ASSERT_RECT(l.kb_card, 43, 68, 554, 344);
+        ASSERT_RECT(l.kb_label, 63, 86, 514, 15);
+        ASSERT_RECT(l.typed, 77, 122, 486, 20);
+    }
+    PASS();
+}
+
+TEST setl_dots_and_thumbs_follow_pixel_x(void)
+{
+    settings_layout l = setl_make(1.0f);
+    ASSERT_RECT(l.drive_thumb, 220, 119, 112, 32);
+    ASSERT_RECT(l.server_thumb, 340, 119, 112, 32);
+    ASSERT_RECT(l.result_dot, 84, 278, 8, 8);
+    ASSERT_RECT(l.no_sd_dot, 84, 344, 8, 8);
+    ASSERT_RECT(l.no_sd, 100, 339, 456, 13);
+    ASSERT_RECT(l.caret, 77, 120, 2, 24);
+    l = setl_make(WIDE);
+    ASSERT_RECT(l.drive_thumb, 219, 119, 114, 32);
+    ASSERT_RECT(l.server_thumb, 339, 119, 114, 32);
+    ASSERT_RECT(l.result_dot, 84, 278, 6, 8);
+    ASSERT_RECT(l.no_sd_dot, 84, 344, 6, 8);
+    ASSERT_RECT(l.no_sd, 98, 339, 458, 13);
+    ASSERT_RECT(l.caret, 77, 120, 1.5f, 24);
+    PASS();
+}
+
 TEST setl_hit_finds_each_button_at_its_centre(void)
 {
     for (int i = 0; i < 2; i++) {
@@ -139,6 +176,8 @@ SUITE(settings_layout_suite)
     RUN_TEST(setl_match_the_mockup_at_4_3);
     RUN_TEST(setl_match_the_mockup_at_16_9);
     RUN_TEST(setl_keys_match_the_mockup);
+    RUN_TEST(setl_card_and_labels_match_the_mockup);
+    RUN_TEST(setl_dots_and_thumbs_follow_pixel_x);
     RUN_TEST(setl_hit_finds_each_button_at_its_centre);
     RUN_TEST(setl_hit_misses_the_card_and_the_outside);
     RUN_TEST(setl_key_hit_finds_every_key_at_its_centre);

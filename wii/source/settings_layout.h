@@ -16,7 +16,10 @@ typedef enum {
 } set_btn;
 
 typedef struct {
+    asp_rect card, title, source_label, track, address_label, field_text;
     asp_rect drive, server, field, edit, test, result, save, cancel;
+    asp_rect drive_thumb, server_thumb, result_dot, divider, no_sd_dot, no_sd;
+    asp_rect kb_card, kb_label, typed, caret;
     asp_rect keys[KB_ROWS][10];
     asp_rect text;
 } settings_layout;

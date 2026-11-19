@@ -31,6 +31,7 @@
 #include "screens/homemenu.h"
 #include "screens/logo.h"
 #include "screens/notice.h"
+#include "screens/settings_screen.h"
 #ifdef CTW_DEBUG_OVERLAY
 #include "debug/overlay.h"
 #endif
@@ -42,14 +43,18 @@ static app g_app;
 static lq_state jobs;
 static uint32_t seen_day;
 static bool reload_manual;
+static srv_addr test_addr;
 
 void app_go(app *a, screen_id s)
 {
+    if (a->screen == SCR_SETTINGS) lq_drop(&jobs, LQ_TEST);
     a->prev_screen = a->screen;
     a->screen = s;
     if (s == SCR_FULL) full_enter(a);
     if (s == SCR_GUIDE) guide_enter(a);
     if (s == SCR_LOGO) logo_enter(a);
+    if (s == SCR_ERROR) error_enter(a);
+    if (s == SCR_SETTINGS) settings_enter(a);
     if (s == SCR_GUIDE && a->from_server && a->prev_screen != SCR_GUIDE && a->prev_screen != SCR_LOGO) lq_want(&jobs, LQ_CHECK);
 }
 
@@ -59,6 +64,10 @@ void app_fail(app *a, const char *title, const char *body)
     a->error_title[sizeof(a->error_title) - 1] = '\0';
     strncpy(a->error_body, body, sizeof(a->error_body) - 1);
     a->error_body[sizeof(a->error_body) - 1] = '\0';
+    if (a->screen == SCR_SETTINGS) {
+        a->prev_screen = SCR_ERROR;
+        return;
+    }
     a->screen = SCR_ERROR;
     error_enter(a);
 }
@@ -173,10 +182,19 @@ static void drop_source(app *a)
     a->notice_until_ms = 0;
 }
 
+static screen_id rejoin(const app *a, screen_id s)
+{
+    return s == SCR_FULL && ctw_db_channel_count(a->db) > 0 ? SCR_FULL : SCR_GUIDE;
+}
+
 static void reenter(app *a)
 {
     if (a->screen == SCR_LOGO) return;
-    app_go(a, a->screen == SCR_FULL && ctw_db_channel_count(a->db) > 0 ? SCR_FULL : SCR_GUIDE);
+    if (a->screen == SCR_SETTINGS) {
+        if (a->prev_screen != SCR_LOGO) a->prev_screen = rejoin(a, a->prev_screen);
+        return;
+    }
+    app_go(a, rejoin(a, a->screen));
 }
 
 static void reload_notice(app *a, srv_result r, bool manual)
@@ -331,6 +349,32 @@ void app_reload(app *a)
     start_reload(a, true);
 }
 
+void app_open_settings(app *a)
+{
+    if (a->screen == SCR_SETTINGS) return;
+    live_stop();
+    app_go(a, SCR_SETTINGS);
+}
+
+void app_switch_source(app *a, const ctw_settings *s)
+{
+    lq_reset(&jobs);
+    lq_drop(&jobs, LQ_TEST);
+    a->loading = false;
+    a->settings = *s;
+    addr_parse(a->settings.server, &a->server);
+    a->screen = a->prev_screen;
+    drop_source(a);
+    boot_source(a);
+}
+
+void app_test_server(const srv_addr *addr)
+{
+    test_addr = *addr;
+    lq_drop(&jobs, LQ_TEST);
+    lq_want(&jobs, LQ_TEST);
+}
+
 static void finish_check(app *a)
 {
     srv_info info;
@@ -341,6 +385,13 @@ static void finish_probe(app *a)
 {
     srv_info info;
     live_probe_done(a, ld_take_info(&info) == SRV_OK);
+}
+
+static void finish_test(app *a)
+{
+    srv_info info;
+    srv_result r = ld_take_info(&info);
+    settings_test_done(a, r, &info);
 }
 
 static void watch_day(app *a)
@@ -363,6 +414,9 @@ static void loader_update(app *a)
         case LQ_PROBE:
             finish_probe(a);
             break;
+        case LQ_TEST:
+            finish_test(a);
+            break;
         case LQ_NONE:
             break;
         }
@@ -378,6 +432,9 @@ static void loader_update(app *a)
         break;
     case LQ_CHECK:
         ld_info(&a->server);
+        break;
+    case LQ_TEST:
+        ld_info(&test_addr);
         break;
     case LQ_NONE:
         break;
@@ -441,6 +498,10 @@ int main(int argc, char **argv)
         case SCR_LOGO:
             logo_update(&g_app);
             logo_draw(&g_app);
+            break;
+        case SCR_SETTINGS:
+            settings_update(&g_app);
+            settings_draw(&g_app);
             break;
         case SCR_GUIDE:
         default:

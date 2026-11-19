@@ -131,3 +131,14 @@ int settings_save(const char *dir, const ctw_settings *s)
     if (!state_replace_after_rename_error(errno) || remove(dst) != 0) return -1;
     return rename(tmp, dst) == 0 ? 0 : -1;
 }
+
+bool settings_equal(const ctw_settings *a, const ctw_settings *b)
+{
+    return a->source == b->source && strcmp(a->server, b->server) == 0;
+}
+
+bool settings_restarts(const ctw_settings *was, const ctw_settings *now)
+{
+    if (was->source != now->source) return true;
+    return now->source == SRC_SERVER && strcmp(was->server, now->server) != 0;
+}

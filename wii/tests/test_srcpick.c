@@ -115,6 +115,63 @@ TEST connecting_names_the_address(void)
     PASS();
 }
 
+TEST test_start_connects_to_the_parsed_address(void)
+{
+    srv_addr addr = { "", 0 };
+    char name[128], line[320];
+    ASSERT_EQ(SP_LINE_BUSY, sp_test_start("http://192.168.1.20/", &addr, name, sizeof name, line, sizeof line));
+    ASSERT_STR_EQ("192.168.1.20", addr.host);
+    ASSERT_EQ(4747, addr.port);
+    ASSERT_STR_EQ("192.168.1.20:4747", name);
+    ASSERT_STR_EQ("Connecting to 192.168.1.20:4747\xE2\x80\xA6", line);
+    PASS();
+}
+
+TEST test_start_without_a_valid_address_has_no_answer(void)
+{
+    srv_addr addr = { "", 0 };
+    char name[128], line[320];
+    ASSERT_EQ(SP_LINE_FAIL, sp_test_start("  https://pc  ", &addr, name, sizeof name, line, sizeof line));
+    ASSERT_STR_EQ("https://pc", name);
+    ASSERT_STR_EQ("No answer from https://pc. Check that the server is running, the address is right and the PC's firewall allows it.", line);
+    ASSERT_STR_EQ("", addr.host);
+    PASS();
+}
+
+TEST test_start_with_an_empty_address_shows_nothing(void)
+{
+    srv_addr addr = { "", 0 };
+    char name[128], line[320];
+    ASSERT_EQ(SP_LINE_NONE, sp_test_start("", &addr, name, sizeof name, line, sizeof line));
+    ASSERT_STR_EQ("", line);
+    ASSERT_EQ(SP_LINE_NONE, sp_test_start(" \t ", &addr, name, sizeof name, line, sizeof line));
+    ASSERT_STR_EQ("", name);
+    ASSERT_STR_EQ("", line);
+    PASS();
+}
+
+TEST test_result_connected_names_the_server(void)
+{
+    char line[320];
+    ASSERT_EQ(SP_LINE_OK, sp_test_result(SRV_OK, "192.168.1.20:4747", "Home PC", line, sizeof line));
+    ASSERT_STR_EQ("Connected to \"Home PC\".", line);
+    PASS();
+}
+
+TEST test_result_failures_use_the_test_copy(void)
+{
+    char line[320];
+    ASSERT_EQ(SP_LINE_FAIL, sp_test_result(SRV_NO_ANSWER, "192.168.1.20:4747", "", line, sizeof line));
+    ASSERT_STR_EQ("No answer from 192.168.1.20:4747. Check that the server is running, the address is right and the PC's firewall allows it.", line);
+    ASSERT_EQ(SP_LINE_FAIL, sp_test_result(SRV_NOT_CABLE_TWII, "192.168.1.20:4747", "", line, sizeof line));
+    ASSERT_STR_EQ("192.168.1.20:4747 answered, but it isn't a cable-twii server.", line);
+    ASSERT_EQ(SP_LINE_FAIL, sp_test_result(SRV_BAD_LIBRARY, "192.168.1.20:4747", "", line, sizeof line));
+    ASSERT_STR_EQ("The server's channels have a problem. Open cable-twii Studio on the server to fix it.", line);
+    ASSERT_EQ(SP_LINE_FAIL, sp_test_result(SRV_NO_NETWORK, "192.168.1.20:4747", "", line, sizeof line));
+    ASSERT_STR_EQ("Can't reach the network. Check the Wii's internet settings, or start cable-twii again.", line);
+    PASS();
+}
+
 SUITE(srcpick_suite)
 {
     RUN_TEST(after_server_ok_uses_server);
@@ -130,4 +187,9 @@ SUITE(srcpick_suite)
     RUN_TEST(fail_body_names_the_address);
     RUN_TEST(fail_body_without_network);
     RUN_TEST(connecting_names_the_address);
+    RUN_TEST(test_start_connects_to_the_parsed_address);
+    RUN_TEST(test_start_without_a_valid_address_has_no_answer);
+    RUN_TEST(test_start_with_an_empty_address_shows_nothing);
+    RUN_TEST(test_result_connected_names_the_server);
+    RUN_TEST(test_result_failures_use_the_test_copy);
 }

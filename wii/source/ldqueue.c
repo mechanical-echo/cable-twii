@@ -4,13 +4,22 @@ void lq_want(lq_state *q, lq_job job)
 {
     if (job == LQ_LOAD) q->load = true;
     if (job == LQ_CHECK) q->check = true;
+    if (job == LQ_TEST) q->test = true;
 }
 
 void lq_reset(lq_state *q)
 {
     q->load = false;
     q->check = false;
-    q->owner = LQ_NONE;
+    if (q->owner != LQ_TEST) q->owner = LQ_NONE;
+}
+
+void lq_drop(lq_state *q, lq_job job)
+{
+    if (job == LQ_LOAD) q->load = false;
+    if (job == LQ_CHECK) q->check = false;
+    if (job == LQ_TEST) q->test = false;
+    if (q->owner == job) q->owner = LQ_NONE;
 }
 
 lq_job lq_start(lq_state *q, bool busy, bool probe_due)
@@ -20,6 +29,9 @@ lq_job lq_start(lq_state *q, bool busy, bool probe_due)
         q->load = false;
         q->check = false;
         q->owner = LQ_LOAD;
+    } else if (q->test) {
+        q->test = false;
+        q->owner = LQ_TEST;
     } else if (q->check) {
         q->check = false;
         q->owner = LQ_CHECK;

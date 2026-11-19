@@ -267,6 +267,12 @@ void ui_text_fit(ui_font f, int px, const char *utf8, float max_w, char *out, si
     tf_fit(utf8, max_w, ttf_width_prefix, &fc, out, out_size);
 }
 
+void ui_text_fit_tail(ui_font f, int px, const char *utf8, float max_w, char *out, size_t out_size)
+{
+    struct fit_ctx fc = { f, px };
+    tf_fit_tail(utf8, max_w, ttf_width_prefix, &fc, out, out_size);
+}
+
 size_t ui_text_wrap(ui_font f, int px, const char *utf8, float max_w, size_t max_lines, tf_line *lines)
 {
     struct fit_ctx fc = { f, px };

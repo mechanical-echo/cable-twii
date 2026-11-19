@@ -1,6 +1,7 @@
 #include "srcpick.h"
 
 #include <stdio.h>
+#include <string.h>
 #include "net/addr.h"
 
 bool sp_try_server(const ctw_settings *s)
@@ -39,4 +40,41 @@ void sp_fail_body(srv_result r, const char *address, char *out, size_t out_size)
 void sp_connecting(const char *address, char *out, size_t out_size)
 {
     snprintf(out, out_size, "Connecting to %s\xE2\x80\xA6", address);
+}
+
+static bool is_space(char c)
+{
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+static void trimmed(const char *typed, char *out, size_t out_size)
+{
+    while (is_space(*typed)) typed++;
+    size_t len = strlen(typed);
+    while (len > 0 && is_space(typed[len - 1])) len--;
+    snprintf(out, out_size, "%.*s", (int)len, typed);
+}
+
+sp_line sp_test_start(const char *typed, srv_addr *addr, char *name, size_t name_size, char *out, size_t out_size)
+{
+    srv_addr parsed;
+    if (addr_parse(typed, &parsed) == 0) {
+        *addr = parsed;
+        addr_format(&parsed, name, name_size);
+        sp_connecting(name, out, out_size);
+        return SP_LINE_BUSY;
+    }
+    trimmed(typed, name, name_size);
+    if (name[0] == '\0') {
+        if (out_size > 0) out[0] = '\0';
+        return SP_LINE_NONE;
+    }
+    srv_test_message(SRV_NO_ANSWER, name, "", out, out_size);
+    return SP_LINE_FAIL;
+}
+
+sp_line sp_test_result(srv_result r, const char *name, const char *server_name, char *out, size_t out_size)
+{
+    srv_test_message(r, name, server_name, out, out_size);
+    return r == SRV_OK ? SP_LINE_OK : SP_LINE_FAIL;
 }

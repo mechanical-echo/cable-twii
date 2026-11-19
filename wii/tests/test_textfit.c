@@ -136,6 +136,38 @@ TEST wrap_caps_line_bytes(void)
     PASS();
 }
 
+TEST tail_fits_whole(void)
+{
+    char o[64];
+    tf_fit_tail("192.168", 100, fixed_width, NULL, o, sizeof o);
+    ASSERT_STR_EQ("192.168", o);
+    PASS();
+}
+
+TEST tail_fit_keeps_the_end(void)
+{
+    char o[64];
+    tf_fit_tail("http://192.168.1.20", 100, fixed_width, NULL, o, sizeof o);
+    ASSERT_STR_EQ("\xE2\x80\xA6.168.1.20", o);
+    PASS();
+}
+
+TEST tail_fit_keeps_utf8_whole(void)
+{
+    char o[64];
+    tf_fit_tail("ab\xC3\xA9" "cd", 40, fixed_width, NULL, o, sizeof o);
+    ASSERT_STR_EQ("\xE2\x80\xA6\xC3\xA9" "cd", o);
+    PASS();
+}
+
+TEST tail_fit_too_narrow_is_just_the_ellipsis(void)
+{
+    char o[64];
+    tf_fit_tail("abcdef", 15, fixed_width, NULL, o, sizeof o);
+    ASSERT_STR_EQ("\xE2\x80\xA6", o);
+    PASS();
+}
+
 SUITE(textfit_suite)
 {
     RUN_TEST(text_fits_whole);
@@ -151,4 +183,8 @@ SUITE(textfit_suite)
     RUN_TEST(wrap_lines_fit_width);
     RUN_TEST(wrap_keeps_utf8_whole);
     RUN_TEST(wrap_caps_line_bytes);
+    RUN_TEST(tail_fits_whole);
+    RUN_TEST(tail_fit_keeps_the_end);
+    RUN_TEST(tail_fit_keeps_utf8_whole);
+    RUN_TEST(tail_fit_too_narrow_is_just_the_ellipsis);
 }
