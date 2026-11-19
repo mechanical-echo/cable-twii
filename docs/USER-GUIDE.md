@@ -241,7 +241,7 @@ Instead of a drive, the Wii can play from a home server running Studio. Set the 
    - `No answer from <address>. Check that the server is running, the address is right and the PC's firewall allows it.`
    - `<address> answered, but it isn't a cable-twii server.`
    - `The server's channels have a problem. Open cable-twii Studio on the server to fix it.`
-5. Press **Save**. The Wii restarts the way it does at start-up. **Cancel** (or **B**) leaves without saving.
+5. Press **Save**. The Wii restarts the way it does at start-up when the source or the address changed, or when it isn't playing from the saved source (for example after `Can't reach the server`, or while it plays from the drive after the server didn't answer). Otherwise Save just closes Settings. **Cancel** (or **B**) leaves without saving.
 
 Save refuses if Server is picked and the address is empty (it opens the keyboard) or can't be read (it shows the "No answer" line).
 
@@ -257,22 +257,22 @@ The port is 4747 when you leave it out. `https://`, bad ports and `.local` names
 
 The choice is saved in `settings.toml` in `apps/cable-twii/` on the SD card (format in `docs/formats.md`). In server mode the last channel and volume are saved beside it in `state.toml`.
 
-The app saves there only when no partition on the SD card has a `wbfs` or `games` folder. If there is no SD card, or it holds games, nothing is saved: the settings last until cable-twii closes and the Settings screen says `No SD card. These settings last until cable-twii closes.`
+The app saves there only when no partition on the SD card has a `wbfs` or `games` folder. If there is no SD card, or it holds games, nothing is saved: the settings last until cable-twii closes and the Settings screen says `No SD card. These settings last until cable-twii closes.` If writing the file fails (for example the card is full), Save shows the same line and stays open; press **Save** again to use the settings until cable-twii closes.
 
 ### Start-up and the fallback
 
 The logo plays and holds with `Connecting to <address>…`, then the guide opens. Getting online tries up to three times, 10 seconds each.
 
-If the server does not answer, or its files are bad, the app plays from the drive and says `Server not reachable, playing from USB` or `Server not reachable, playing from the SD card`. With no drive it shows `Can't reach the server`, or `Can't reach the network. Check the Wii's internet settings, or start cable-twii again.` Both screens have a **Settings** pill, so you can fix the address from there.
+If the server does not answer, or its files are bad, the app plays from the drive and says `Server not reachable, playing from USB` or `Server not reachable, playing from the SD card`. With no drive it shows `Can't reach the server`, or `Can't reach the network. Check the Wii's internet settings, or start cable-twii again.` Both screens have a **Settings** pill, so you can fix the address from there. To try again once the server is running, press **Settings** and then **Save**, even without changing anything. While the app plays from the drive after a fallback, **HOME** → **Settings** → **Save** tries the server again the same way.
 
 ### Reload channels
 
-After you change channels or shows in Studio, press **HOME** and choose **Reload channels** (it is there in server mode only). It shows `Connecting to <address>…` and then `Channels updated`. If the server can't be reached, your current channels stay and it shows `Can't reach the server`.
+After you change channels or shows in Studio, press **HOME** and choose **Reload channels** (it is there in server mode only). It shows `Connecting to <address>…` and then `Channels updated`. If the server can't be reached, your current channels stay and it shows `Can't reach the server`. If the server answers but its channels have a problem, they stay too and it shows `The server's channels have a problem. Open cable-twii Studio on the server to fix it.`
 
 The app also checks the server when the guide opens and at midnight. If the library changed, it reloads quietly and shows `Channels updated`. If that check fails, nothing changes.
 
 ### Weak signal
 
-The video streams with about 10 seconds read ahead. If data stops for more than a second, `Weak signal` shows over the last frame. When data comes back far behind the schedule, the channel rejoins at the live point. If the stream is lost (an error, or 10 seconds without data), the frame holds with `Weak signal`, the app checks the server every 3 seconds and tunes back to live once it answers.
+The video streams with about 10 seconds read ahead. If data stops for more than a second, `Weak signal` shows over the last frame, or over black while a channel is still tuning in. When data comes back far behind the schedule, the channel rejoins at the live point. If the stream is lost (an error, or 10 seconds without data), the frame holds with `Weak signal`, the app checks the server every 3 seconds and tunes back to live once it answers.
 
 If it happens a lot, move the Wii closer to the router or use a Wii LAN adapter.
