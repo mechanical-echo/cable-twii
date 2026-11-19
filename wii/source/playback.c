@@ -43,3 +43,8 @@ bool pb_probe_due(bool probed, uint32_t since_probe_ms)
 {
     return !probed || since_probe_ms >= PB_PROBE_MS;
 }
+
+bool pb_frame_due(bool on_screen, double frame_time, double now)
+{
+    return !on_screen || frame_time <= now + PB_FRAME_EARLY_S;
+}

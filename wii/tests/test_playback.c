@@ -168,6 +168,27 @@ TEST server_probe_first_at_once_then_spaced(void)
     PASS();
 }
 
+TEST first_frame_shows_before_its_time(void)
+{
+    ASSERT(pb_frame_due(false, 10.5, 10.0));
+    PASS();
+}
+
+TEST next_frame_waits_for_its_time(void)
+{
+    ASSERT(!pb_frame_due(true, 10.5, 10.0));
+    ASSERT(!pb_frame_due(true, 10.0 + 1.0 / 30.0, 10.0));
+    PASS();
+}
+
+TEST due_frame_shows(void)
+{
+    ASSERT(pb_frame_due(true, 10.0, 10.0));
+    ASSERT(pb_frame_due(true, 9.9, 10.0));
+    ASSERT(pb_frame_due(true, 10.0 + PB_FRAME_EARLY_S / 2.0, 10.0));
+    PASS();
+}
+
 SUITE(playback_suite)
 {
     RUN_TEST(end_of_file_is_eof);
@@ -193,4 +214,7 @@ SUITE(playback_suite)
     RUN_TEST(seeking_never_rejoins);
     RUN_TEST(waiting_from_the_tune_is_not_a_stall);
     RUN_TEST(server_probe_first_at_once_then_spaced);
+    RUN_TEST(first_frame_shows_before_its_time);
+    RUN_TEST(next_frame_waits_for_its_time);
+    RUN_TEST(due_frame_shows);
 }
