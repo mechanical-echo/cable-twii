@@ -12,7 +12,6 @@
 #define SHADOW_COLOR 0x344A6014u
 #define SHADOW_DY 2.0f
 #define SHADOW_BLUR 6.0f
-#define BATTERY_X 567.6f
 #define BATTERY_Y 12.7f
 #define BATTERY_PILL_H 22.0f
 #define BATTERY_LABEL_PX 12
@@ -36,5 +35,5 @@ void header_draw(app *a, bool with_logo, float dy)
     ui_rounded_gradient(0.0f, dy, SCREEN_W, THEME_HEADER_H, 0.0f, HEADER_STOPS, 3);
     GRRLIB_Rectangle(0.0f, dy + THEME_HEADER_H - 1.0f, SCREEN_W, 1.0f, THEME_PANEL_BORDER, 1);
     if (with_logo) logo_draw_header();
-    ui_battery(BATTERY_X, BATTERY_Y + dy, BATTERY_PILL_H, home_battery_bars(in_battery_level()), BATTERY_LABEL_PX, NULL);
+    ui_battery(THEME_HEADER_BATTERY_X, BATTERY_Y + dy, BATTERY_PILL_H, home_battery_bars(in_battery_level()), BATTERY_LABEL_PX, NULL);
 }
