@@ -47,6 +47,7 @@ void app_go(app *a, screen_id s);
 void app_fail(app *a, const char *title, const char *body);
 void app_reload(app *a);
 void app_open_settings(app *a);
+void app_set_picture(app *a, asp_mode mode);
 void app_switch_source(app *a, const ctw_settings *s);
 void app_test_server(const srv_addr *addr);
 void app_quit(app *a, quit_dest dest) __attribute__((noreturn));

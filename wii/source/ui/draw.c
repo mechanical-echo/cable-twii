@@ -17,6 +17,9 @@
 #define HIGHLIGHT_PX 1.0f
 #define PILL_SHADE_PX 3.0f
 #define PILL_PRESS_DY 2.0f
+#define SEGMENT_BORDER 2.0f
+#define SEGMENT_SHADOW_DY 1.0f
+#define SEGMENT_SHADOW_BLUR 4.0f
 #define BATTERY_LABEL "P1"
 #define BATTERY_LABEL_GAP 5.3f
 #define BATTERY_BARS 4
@@ -548,6 +551,25 @@ void ui_pill_radius(float x, float y, float w, float h, float radius, const char
 void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, ui_pill_state state, ui_shadow_kind shadow)
 {
     ui_pill_radius(x, y, w, h, h / 2.0f, label, px, THEME_TEXT_PRIMARY, state, shadow);
+}
+
+void ui_segment(asp_rect part, asp_rect thumb, const char *label, int px, bool chosen, ui_pill_state state)
+{
+    float dy = state == UI_PILL_PRESSED ? PILL_PRESS_DY : 0.0f;
+    float cx = part.x + part.w / 2.0f;
+    float ly = part.y + part.h / 2.0f - (float)px / 2.0f + dy;
+    if (!chosen) {
+        if (state != UI_PILL_REST) ui_pill_ex(thumb.x, thumb.y, thumb.w, thumb.h, NULL, px, state, UI_SHADOW_PANEL);
+        ui_text(FONT_BOLD, px, cx, ly, label, state != UI_PILL_REST ? THEME_TEXT_PRIMARY : THEME_TEXT_LABEL, ALIGN_CENTER);
+        return;
+    }
+    float y = thumb.y + dy, r = thumb.h / 2.0f;
+    if (state != UI_PILL_PRESSED) ui_shadow(thumb.x, y, thumb.w, thumb.h, r, THEME_PILL_SHADOW, SEGMENT_SHADOW_DY, SEGMENT_SHADOW_BLUR);
+    if (state == UI_PILL_HOT) ui_ring(thumb.x, y, thumb.w, thumb.h, r, THEME_RING_STRONG, THEME_RING_SPREAD);
+    if (state == UI_PILL_PRESSED) ui_ring(thumb.x, y, thumb.w, thumb.h, r, THEME_RING, THEME_RING_SPREAD);
+    ui_rounded(thumb.x, y, thumb.w, thumb.h, r, THEME_ACCENT_DARK);
+    ui_accent_tile(thumb.x + SEGMENT_BORDER * pixel_x, y + SEGMENT_BORDER, thumb.w - 2.0f * SEGMENT_BORDER * pixel_x, thumb.h - 2.0f * SEGMENT_BORDER, r - SEGMENT_BORDER);
+    ui_text(FONT_BOLD, px, cx, ly, label, THEME_PANEL_FILL, ALIGN_CENTER);
 }
 
 void ui_pill(float x, float y, float w, float h, const char *label, bool hot)
