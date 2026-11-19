@@ -29,6 +29,7 @@ typedef struct {
     screen_id screen;
     screen_id prev_screen;
     bool home_open;
+    bool today_open;
     int current_channel;
     int volume;
     ctw_state saved;

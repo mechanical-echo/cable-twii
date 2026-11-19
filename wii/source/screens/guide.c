@@ -25,6 +25,7 @@
 #include "homemenu.h"
 #include "notice.h"
 #include "sysbar.h"
+#include "today.h"
 
 #define SCROLL_MS 200u
 
@@ -188,6 +189,10 @@ static void handle_input(app *a)
     if (scrolling) {
         scroll = tw_value(&scroll_tw, a->now_ms);
         if (tw_done(&scroll_tw, a->now_ms)) scrolling = false;
+    }
+    if (in_pressed(WPAD_BUTTON_1) && highlighted_channel() != 0) {
+        today_open(a, highlighted_channel());
+        return;
     }
     if (in_pressed(WPAD_BUTTON_DOWN)) move_highlight(a, 1);
     else if (in_pressed(WPAD_BUTTON_UP)) move_highlight(a, -1);

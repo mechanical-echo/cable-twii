@@ -21,6 +21,7 @@
 #include "../ui/theme.h"
 #include "notice.h"
 #include "panel.h"
+#include "today.h"
 #include "upnext.h"
 
 #define CHIP_TILE_RADIUS 10.7f
@@ -131,6 +132,7 @@ void full_update(app *a)
         back_to_guide(a);
         return;
     }
+    if (in_pressed(WPAD_BUTTON_1)) today_open(a, a->current_channel);
 
     if (in_pressed(WPAD_BUTTON_UP)) {
         flip(a, 1);
