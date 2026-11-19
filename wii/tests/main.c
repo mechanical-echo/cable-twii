@@ -22,10 +22,22 @@ SUITE_EXTERN(guide_text_suite);
 SUITE_EXTERN(guide_layout_suite);
 SUITE_EXTERN(home_layout_suite);
 SUITE_EXTERN(state_suite);
+SUITE_EXTERN(settings_suite);
 SUITE_EXTERN(dbgstats_suite);
 SUITE_EXTERN(vmode_suite);
 SUITE_EXTERN(press_suite);
 SUITE_EXTERN(sysbar_layout_suite);
+SUITE_EXTERN(addr_suite);
+SUITE_EXTERN(httpparse_suite);
+SUITE_EXTERN(http_suite);
+SUITE_EXTERN(sock_suite);
+SUITE_EXTERN(srvlib_suite);
+SUITE_EXTERN(srcpick_suite);
+SUITE_EXTERN(netring_suite);
+SUITE_EXTERN(keyboard_suite);
+SUITE_EXTERN(settings_layout_suite);
+SUITE_EXTERN(ldqueue_suite);
+SUITE_EXTERN(notice_layout_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -54,9 +66,21 @@ int main(int argc, char **argv)
     RUN_SUITE(guide_layout_suite);
     RUN_SUITE(home_layout_suite);
     RUN_SUITE(state_suite);
+    RUN_SUITE(settings_suite);
     RUN_SUITE(dbgstats_suite);
     RUN_SUITE(vmode_suite);
     RUN_SUITE(press_suite);
     RUN_SUITE(sysbar_layout_suite);
+    RUN_SUITE(addr_suite);
+    RUN_SUITE(httpparse_suite);
+    RUN_SUITE(http_suite);
+    RUN_SUITE(sock_suite);
+    RUN_SUITE(srvlib_suite);
+    RUN_SUITE(srcpick_suite);
+    RUN_SUITE(netring_suite);
+    RUN_SUITE(keyboard_suite);
+    RUN_SUITE(settings_layout_suite);
+    RUN_SUITE(ldqueue_suite);
+    RUN_SUITE(notice_layout_suite);
     GREATEST_MAIN_END();
 }

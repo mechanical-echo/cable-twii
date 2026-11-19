@@ -13,18 +13,26 @@ static int64_t current_start_ms = -1;
 static bool end_probed;
 static bool playing;
 static uint32_t playing_since_ms;
+static bool streaming;
+static bool stalled;
+static bool lost;
+static bool probed;
+static uint32_t probe_ms;
 
 static void play_airing(app *a, int channel, const ctw_airing *air, uint32_t offset_ms)
 {
     end_probed = false;
     playing = false;
-    if (air == NULL || air->kind == CTW_AIR_UPNEXT) {
+    lost = lost || stalled;
+    stalled = false;
+    streaming = air != NULL && air->kind != CTW_AIR_UPNEXT;
+    if (!streaming || lost) {
         pl_close();
         current_start_ms = air != NULL ? tn_airing_start(&a->tuner, channel, air) : -1;
         pl_set_volume(a->volume);
         return;
     }
-    char path[320];
+    char path[ADDR_URL_BYTES];
     const char *rel = air->kind == CTW_AIR_AD ? air->ad->path : air->episode->path;
     snprintf(path, sizeof path, "%s/%s", a->root, rel);
     pl_open(path, offset_ms);
@@ -48,6 +56,11 @@ void live_stop(void)
     pl_close();
     tuned = false;
     playing = false;
+    streaming = false;
+    stalled = false;
+    lost = false;
+    probed = false;
+    end_probed = false;
     current_start_ms = -1;
 }
 
@@ -69,6 +82,24 @@ static bool drive_lost(app *a, const ctw_airing *air, uint32_t offset)
     return true;
 }
 
+static void server_update(app *a, const ctw_airing *air, uint32_t offset)
+{
+    pl_state st = pl_status();
+    uint32_t played = playing ? a->now_ms - playing_since_ms : 0;
+    uint32_t waiting = pb_play_waiting(st, pl_waiting_ms(), played);
+    if (pb_lost(st, waiting)) {
+        lost = true;
+        stalled = false;
+    }
+    if (lost || (st != PL_PLAYING && st != PL_SEEKING)) {
+        stalled = false;
+        return;
+    }
+    pb_stall act = pb_stall_action(st, waiting, stalled, pl_position_ms(), offset);
+    stalled = act == PB_STALL_NOTE;
+    if (act == PB_STALL_REJOIN) play_airing(a, tuned_channel, air, offset);
+}
+
 bool live_update(app *a)
 {
     clk_now(&a->today, &a->ms_of_day);
@@ -76,6 +107,7 @@ bool live_update(app *a)
     if (!playing && pl_status() == PL_PLAYING) {
         playing = true;
         playing_since_ms = a->now_ms;
+        stalled = false;
     }
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, tuned_channel, a->today, a->ms_of_day, &offset);
@@ -83,7 +115,35 @@ bool live_update(app *a)
         play_airing(a, tuned_channel, air, offset);
         return true;
     }
-    return !drive_lost(a, air, offset);
+    if (!a->from_server) return !drive_lost(a, air, offset);
+    server_update(a, air, offset);
+    return true;
+}
+
+bool live_probe_due(const app *a)
+{
+    return tuned && lost && pb_probe_due(probed, a->now_ms - probe_ms);
+}
+
+void live_probe_sent(const app *a)
+{
+    probed = true;
+    probe_ms = a->now_ms;
+}
+
+void live_probe_done(app *a, bool answered)
+{
+    if (!answered || !tuned || !lost) return;
+    lost = false;
+    clk_now(&a->today, &a->ms_of_day);
+    uint32_t offset = 0;
+    const ctw_airing *air = tn_current(&a->tuner, tuned_channel, a->today, a->ms_of_day, &offset);
+    play_airing(a, tuned_channel, air, offset);
+}
+
+bool live_weak(void)
+{
+    return tuned && streaming && (lost || stalled);
 }
 
 float live_fade_in(const app *a, uint32_t fade_ms)

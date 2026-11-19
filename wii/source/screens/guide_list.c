@@ -124,7 +124,7 @@ static void draw_channel(app *a, row_text *t, const gm_row *r, bool hot, bool tu
         ui_rounded_gradient(ix, iy + 1.0f, iw, ih - 1.0f, THEME_ROW_RADIUS - 2.0f, HOT_STOPS, 3);
     }
 
-    char path[320];
+    char path[ADDR_URL_BYTES];
     gt_icon_path(a->root, ch, NULL, path, sizeof path);
     float iw = icon_w();
     float icon_x = x + ICON_X;

@@ -19,6 +19,7 @@
 #include "../ui/cursor.h"
 #include "../ui/sfx.h"
 #include "../ui/theme.h"
+#include "notice.h"
 #include "panel.h"
 #include "upnext.h"
 
@@ -79,6 +80,13 @@ static void panel_input(app *a)
         sfx_play(SFX_SELECT);
         change_volume(a, 1);
     }
+}
+
+void full_reset(void)
+{
+    chip_valid = false;
+    panel_reset();
+    upnext_reset();
 }
 
 void tune(app *a, int channel)
@@ -169,7 +177,7 @@ static void chip_draw(app *a)
     ui_accent_tile(c.tile.x, c.tile.y, c.tile.w, c.tile.h, CHIP_TILE_RADIUS);
     ui_text(FONT_BOLD, OSD_CHIP_NUMBER_PX, c.tile.x + c.tile.w / 2.0f, c.tile.y + (c.tile.h - (float)OSD_CHIP_NUMBER_PX) / 2.0f, chip_number, THEME_PANEL_FILL, ALIGN_CENTER);
     const ctw_channel *ch = ctw_db_channel(a->db, a->current_channel);
-    char path[320] = "";
+    char path[ADDR_URL_BYTES] = "";
     if (ch != NULL) gt_icon_path(a->root, ch, NULL, path, sizeof path);
     icons_draw(path, c.icon.x - (c.icon.h - c.icon.w) / 2.0f, c.icon.y, c.icon.h);
 }
@@ -178,6 +186,7 @@ void full_draw(app *a)
 {
     icons_frame();
     pl_draw(0, 0, 640, 480, 1.0f);
+    if (live_weak()) notice_weak((asp_rect){ 0.0f, 0.0f, 640.0f, 480.0f });
 
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, a->current_channel, a->today, a->ms_of_day, &offset);
@@ -197,4 +206,5 @@ void full_draw(app *a)
         osd_layout l = panel_layout(a, 0.0f);
         panel_draw_volume(&l, a->volume, hot_btn, (osd_btn)ps_pressed(&press, (int)hot_btn));
     }
+    notice_draw(a);
 }

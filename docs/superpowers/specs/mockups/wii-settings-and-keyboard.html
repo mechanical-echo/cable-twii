@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wii settings and keyboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+  /* wii/source/ui/theme.h, token for token (colours as #RRGGBB or #RRGGBBAA, sizes in Wii pixels) */
+  :root {
+    --theme-stripe-a: #F4F5F7;
+    --theme-stripe-b: #ECEEF1;
+    --theme-stripe-px: 3;
+    --theme-panel-fill: #FFFFFF;
+    --theme-panel-border: #D6DBE0;
+    --theme-panel-radius: 18;
+    --theme-row-radius: 12;
+    --theme-accent: #34BEED;
+    --theme-text-primary: #444444;
+    --theme-text-secondary: #999999;
+    --theme-bar-track: #E1E5E9;
+    --theme-preview-fill: #222222;
+    --theme-placeholder-fill: #E6EAEE;
+    --theme-pill-fill-top: #FFFFFF;
+    --theme-pill-border: #C9CFD5;
+    --theme-gloss-bottom: #F8FAFC;
+    --theme-gloss-soft: #F4F7FA;
+    --theme-gloss-cool: #F1F4F7;
+    --theme-gloss-deep: #E9EDF1;
+    --theme-panel-highlight: #FFFFFF;
+    --theme-panel-shadow: #344A601A;
+    --theme-panel-shadow-dy: 2;
+    --theme-panel-shadow-blur: 5;
+    --theme-video-shadow: #00000052;
+    --theme-video-shadow-dy: 5;
+    --theme-video-shadow-blur: 16;
+    --theme-accent-light: #7FD0EF;
+    --theme-accent-dark: #2A8FB3;
+    --theme-ring: #34BEED40;
+    --theme-ring-strong: #34BEED99;
+    --theme-ring-spread: 4;
+    --theme-pill-band-mid: #EEF1F4;
+    --theme-pill-band-bottom: #E6EAEE;
+    --theme-pill-shadow: #344A601F;
+    --theme-pill-shade: #344A6033;
+    --theme-track-inset: #C7CED4;
+    --theme-text-clock: #777788;
+    --theme-text-label: #555555;
+    --theme-text-faded: #AAAAAA;
+    --theme-warm: #F3CF8A;
+    --theme-disc-mid: #F1F4F7;
+    --theme-disc-edge: #DFE5EA;
+    --theme-dot-2: #7FD0EF;
+    --theme-dot-3: #BFE6F6;
+    --theme-header-h: 48;
+    --theme-sysbar-h: 47;
+    --theme-sysbar-hump: 18;
+    --theme-sysbar-hump-top-w: 79;
+    --theme-sysbar-hump-slope-w: 47;
+
+    --page-bg: #EEF1F4;
+    --page-ink: #2B3440;
+    --page-muted: #5B6672;
+    --page-rule: #D6DBE0;
+    --page-card: #FFFFFF;
+    --page-accent: #1F8FB8;
+    --page-diff: #FFF4D6;
+    --page-bezel: #15191E;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page-bg: #14181D;
+      --page-ink: #E4E9EE;
+      --page-muted: #9AA6B2;
+      --page-rule: #2C343D;
+      --page-card: #1C2229;
+      --page-accent: #5CC8EE;
+      --page-diff: #3A3320;
+      --page-bezel: #050607;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page-bg: #14181D;
+    --page-ink: #E4E9EE;
+    --page-muted: #9AA6B2;
+    --page-rule: #2C343D;
+    --page-card: #1C2229;
+    --page-accent: #5CC8EE;
+    --page-diff: #3A3320;
+    --page-bezel: #050607;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--page-bg); color: var(--page-ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1, h2, h3 { font-family: "M PLUS Rounded 1c", system-ui, sans-serif; font-weight: 800; line-height: 1.25; margin: 0; }
+  h1 { font-size: 28px; }
+  h2 { font-size: 21px; margin: 48px 0 6px; }
+  h3 { font-size: 16px; margin: 0 0 6px; }
+  p { margin: 8px 0; max-width: 78ch; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: color-mix(in srgb, var(--page-rule) 45%, transparent); padding: 1px 4px; border-radius: 4px; }
+  .lede { color: var(--page-muted); }
+  .status { display: inline-block; margin-top: 12px; padding: 4px 10px; border-radius: 999px; background: var(--page-diff); font-weight: 600; font-size: 13px; }
+  .switch { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 20px -16px 0; padding: 10px 16px; background: color-mix(in srgb, var(--page-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--page-rule); }
+  .switch span { color: var(--page-muted); font-size: 13px; margin-right: 4px; }
+  .switch button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--page-rule); background: var(--page-card); color: var(--page-ink); cursor: pointer; }
+  .switch button[aria-pressed="true"] { border-color: var(--page-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--page-accent) 35%, transparent); font-weight: 600; }
+  figure { margin: 28px 0 0; display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; }
+  .tv { flex: 0 1 auto; min-width: 0; max-width: 100%;background: var(--page-bezel); padding: 8px; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+  .tv svg { display: block; max-width: 100%; height: auto; border-radius: 4px; }
+  figcaption { flex: 1 1 260px; min-width: 0; max-width: 520px; }
+  figcaption ul { margin: 6px 0 0; padding-left: 18px; }
+  figcaption li { margin: 3px 0; }
+  .num { color: var(--page-muted); font-weight: 700; margin-right: 6px; }
+  .note { background: var(--page-card); border: 1px solid var(--page-rule); border-radius: 12px; padding: 16px 18px; margin-top: 16px; }
+  .msgs { display: grid; gap: 12px; margin-top: 10px; }
+  .msg { display: grid; gap: 4px; }
+  .msg svg { display: block; width: 100%; max-width: 488px; height: auto; border-radius: 6px; border: 1px solid var(--page-rule); }
+  .msg .meta { font-size: 13px; color: var(--page-muted); }
+  .tablewrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--page-rule); border-radius: 12px; background: var(--page-card); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--page-rule); vertical-align: top; white-space: nowrap; }
+  td.wrap { white-space: normal; min-width: 220px; }
+  thead th { position: sticky; top: 0; background: var(--page-card); font-weight: 700; }
+  tbody th { font-weight: 700; background: color-mix(in srgb, var(--page-rule) 30%, var(--page-card)); }
+  tr.diff td.r2 { background: var(--page-diff); }
+  .legend { font-size: 13px; color: var(--page-muted); }
+  #err { display: none; color: #B00020; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wii Settings screen, keyboard and the new Settings pills</h1>
+  <p class="lede">Mockup for plan 08, Task 8: the screens that let a Wii play from a cable-twii server, drawn in the Wii redesign style before anything is built. Every frame is the app's 640×480 picture at 1:1, drawn with the tokens from <code>wii/source/ui/theme.h</code>, the real wordmark, glyphs and pointer from <code>wii/data/</code>, and the app's text placement (em-box top, pill labels centred, labels shortened with "…" or wrapped exactly as <code>ui_text_fit</code> / <code>ui_text_wrap</code> do). The numbers at the bottom are what Tasks 9 and 11 will build.</p>
+  <span class="status">Approved by the owner on 2026-11-19</span>
+  <p id="err"></p>
+
+  <div class="switch" role="group" aria-label="TV shape">
+    <span>Show the frames as</span>
+    <button type="button" data-px="1" aria-pressed="true">4:3 TV · pixel_x 1.0 (1:1)</button>
+    <button type="button" data-px="0.75" aria-pressed="false">16:9 TV · pixel_x 0.75</button>
+  </div>
+
+  <h2>Settings</h2>
+  <p>Opened from the HOME menu, or from the error and empty cards. It edits a copy of the settings; Save keeps them, Cancel or B drops them.</p>
+
+  <figure>
+    <div class="tv" data-frame="settings-server"></div>
+    <figcaption>
+      <h3><span class="num">1</span>Server selected, address filled, a test result showing</h3>
+      <ul>
+        <li>The longest test result, <i>No answer from…</i>, wraps to two lines. Two lines are always reserved under Test connection, so the card never changes height.</li>
+        <li>The dot before the result: blue with a ring when connected, warm yellow for every failure, pale blue while <code>Connecting to &lt;address&gt;…</code> shows.</li>
+        <li>The pointer is on Test connection (pointed pill: 3 px blue border and the strong ring).</li>
+        <li>An SD card is in, so the line above Save is empty.</li>
+      </ul>
+    </figcaption>
+  </figure>
+
+  <figure>
+    <div class="tv" data-frame="settings-drive"></div>
+    <figcaption>
+      <h3><span class="num">2</span>Drive selected, no SD card</h3>
+      <ul>
+        <li>The Drive / Server control is a sunken track (like the progress tracks). The chosen side is a raised blue pill with white text, as the tuned channel number is drawn.</li>
+        <li>Pointing at the other side raises it as a pointed pill; A picks it.</li>
+        <li>The address stays visible and editable in Drive mode, so it can be typed and tested before switching. An empty address reads <i>Not set</i> in the faded grey.</li>
+        <li>No SD card, or one Save mustn't write to: the line above Save reads <i>No SD card. These settings last until cable-twii closes.</i> It shows as soon as the screen opens, because Save leaves the screen at once.</li>
+      </ul>
+    </figcaption>
+  </figure>
+
+  <div class="note">
+    <h3>Every test result, as the result line draws it</h3>
+    <p class="legend">Same width, wrap and two-line limit as frame 1. With the 4:3 / 16:9 switch above you can see both TVs. A third line is never drawn: a longer message, for example one with a 50-letter host name, ends in "…" on line 2.</p>
+    <div class="msgs" id="msgs"></div>
+  </div>
+
+  <h2>Keyboard</h2>
+  <figure>
+    <div class="tv" data-frame="keyboard"></div>
+    <figcaption>
+      <h3><span class="num">3</span>Keyboard open over Settings</h3>
+      <ul>
+        <li>Edit opens it with the current address. The Settings screen behind is dimmed by 60% black, as the HOME menu dims.</li>
+        <li>Pointer and A type. The D-pad moves the same highlight and A types the highlighted key. B closes without changes; Done keeps the text.</li>
+        <li>Keys are 46×40 with a 6 px gap and radius 10: the pill look with corners instead of round ends. The pointed key (<code>:</code>) has the blue border and the strong ring.</li>
+        <li><code>http://</code> only types into an empty box, so it's drawn with a faded label once there is text.</li>
+        <li>The text box shows the end of the text when it's too long ("…" + the end), with a blue caret after it.</li>
+      </ul>
+    </figcaption>
+  </figure>
+
+  <h2>HOME menu</h2>
+  <figure>
+    <div class="tv" data-frame="home-server"></div>
+    <figcaption>
+      <h3><span class="num">4</span>Server mode: Settings and Reload channels</h3>
+      <ul>
+        <li>The two new pills share one row under the big pills, 165×40 each, 15 px labels like Resume, inside the 340 px column of the big pills.</li>
+        <li>To make room the column moves up: four rows with 20 px gaps, centred between the bars (Wii Menu 133.3 → 110, Back to Homebrew Channel 221.3 → 190, Resume 311.1 → 330).</li>
+        <li>Pointer on Settings.</li>
+      </ul>
+    </figcaption>
+  </figure>
+  <figure>
+    <div class="tv" data-frame="home-drive"></div>
+    <figcaption>
+      <h3><span class="num">5</span>Drive mode: no Reload channels</h3>
+      <ul>
+        <li>Reload channels is only for a server. In Drive mode Settings takes Resume's size and is centred, so the menu is a plain column.</li>
+      </ul>
+    </figcaption>
+  </figure>
+
+  <h2>Error and empty cards</h2>
+  <figure>
+    <div class="tv" data-frame="error"></div>
+    <figcaption>
+      <h3><span class="num">6</span>Error card with Settings</h3>
+      <ul>
+        <li>Shown with the server error copy. Every error card gets the same pill row.</li>
+        <li>The single 260 px pill becomes two pills that span the text width: Back to Homebrew Channel (240) on the left, Settings (140) on the right, 12 apart. "Leave" on the left and "go on" on the right, as Cancel and Save are on the Settings card.</li>
+        <li>The card still grows with the body (3 lines on 4:3, 2 on 16:9 for this message); the pills stay 64 px above its bottom edge.</li>
+        <li>Pointer on Settings.</li>
+      </ul>
+    </figcaption>
+  </figure>
+  <figure>
+    <div class="tv" data-frame="empty"></div>
+    <figcaption>
+      <h3><span class="num">7</span>Empty card with Settings</h3>
+      <ul>
+        <li>The card and its text keep the deck's place and size. Back to Homebrew Channel grows from 177.8 to 206 so its label fits on a 4:3 TV too (today it shortens to "Back to Homebrew Ch…" at 4:3); Settings is 82 wide, 8 apart, both centred.</li>
+        <li>Settings is drawn pressed (A held): 2 px lower, bands flipped, the shade across the top.</li>
+      </ul>
+    </figcaption>
+  </figure>
+
+  <h2>Approved pixel numbers</h2>
+  <p><b>Approved by the owner on 2026-11-19.</b> Rects are <code>x, y, w, h</code> in the 640×480 frame. For text lines, <code>y</code> is the em-box top (what <code>ui_text</code> takes), <code>w</code> is the width the text is shortened or wrapped to, and <code>h</code> is the font size, or lines × line height. Where a rect is centred, the value is computed the same way the frames are.</p>
+  <p class="legend">About the second column: the brief asked for <code>pixel_x</code> 1.0 and 1.333, but the app's <code>ui_pixel_x()</code> is <b>0.75</b> on 16:9 (<code>asp_pixel_x</code>: (640/480)/(16/9)). 1.333 is how much a 16:9 TV stretches each pixel; parts that must look square are drawn 0.75× as wide to undo it. So the second column is <code>pixel_x</code> 0.75. Like every pill in the app today, pills, keys and fields keep their widths on both TVs, so most rows are the same in both columns. Rows that differ are highlighted.</p>
+  <div class="tablewrap"><table id="numbers"></table></div>
+</main>
+
+<script>
+"use strict";
+const ASSETS = {
+  logo: "data:image/png;base64,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",
+  home: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAADjUlEQVR4nO1Zy2oUURCt6kwQ8REVFBPXImQhKEaQrCTfoLjURcgvCP6EGyUERRci/oOPVUCM4MZHwIULF+6MEszCzHQfqbEqqbm53TOT6Z70wBxo0j197+1zbtezQzTGGGNUBgAsB40iACTufIJGkTyACQBH/G+1B3S3AVwB8AnADwB39LcGjQj5kwC+oRPXai0Cu+SnAawp6SaAFoAUwE8A87UUASUEYE5NBo64HSZo0c+pG/kNRzSECMr03ERM1pW87fhdADcA/IrcMxETB01+Pod8m2AXgUsmYqgJz5FfdOZiDtthImYmERE2dnmoIhwhIQ+1a2/ze5y0wNRaer4yFBEuVBr51JEXYjdD8hERlwB8cCKagQguPWvrokZ+KYf8XB75nETnc8WOCCc0qYL8sguJMfJdw2KOiG233qrcK0VEQH7FkU/72fmCYu+kE+F9ac2J2F+YlYeYQzny2y6zvhN77pd8RMQpAC+UfDki3K43HPlmYPuXB82m2BUx6UqQUMS0cdnPzqwG5E2AYEHf0r4zKTTiAJgC8D1Y30KsCLvqufVCXmr5r468LeofcL2MUgC7z3wVEPdRbtP1FB0ifNsn9i6DDxPRcyI6T0RNHSNHRtUiiVyL2aREdIyIHgGYZWYxsSQ6iZlBRGLTp0WMG3OfiF7rtSxYNTIieqYc5A23lMeUUe3mvLc14rSTi/720kWiKkzoTbD+RQC3nBk9UH/p2PQOz2ZmsTtm5qcSJonoBDO/VfMadgNyhpklvH4moqPCIzZoDykxI1HJzOu2wyrMTGpYSJXHR+UhG7uHQ3RXnaO0HXsYbAt4iE9msomxMY2iyTX5npPlkRccNLmBMRZw0EhoxJHQiKNR5mLWP8Titb8fgAdp5AcRYGld/iIIve3k5wdrUooVhKneR9UCwl3aUkI7pLTpOMTMWz5z6rklRynI4NZjvZ6sWkAzEPIQwO9gzFmpnwDcY+YnlgSVvPTOj4noXLAOqwApmQVWHKK0/3FJjwDgi7Z7vrnJg4yZ1TUSnW8NUhEy13Mv9FLtdn0DWtzJ653R3TLbjqV3duta7R72GGnBc1lNUkhvUhkIeoS/6A1iXm0nD+b7b0nyxXojOG+F87vx6yl8mUMCuKA2nBXM/cPM73Pmz+qbWc+ZP0NEx/Nq/4HQT1Uai+uDzs9DXwnE9QiFyCt/3fy8DwT8f3p++TwG1Qz/AJ6CJ0pdBAhsAAAAAElFTkSuQmCC",
+  play: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACSElEQVR4nO2Zz0ocQRDGZ3ZdCcgiK8GLd0XJNYi3gPgOXs09b6DgM3gIucSrZy8e8gR61otHYSOIuppLILvj/qSxei2HndmZdZmpJfNBw/zpbuqb/qq6uiYIKlSo8H8CCF0LphFATV3Xg2kC8tWd4cCcuh6QMgvESOAzcAFcA1/V+xmzskI0D3wALnmLQ2DZtKx4lc4C8Ad4Us3hEdgFZqVfzZSseCXQAu7F6L60rlqNc2BbjaubkBVvCXQUAY+eNI8T4JMZ/yCZwF/gShneVbL6BxwAi6X7B8MJONwCS8Ce+AFCQMuq7aIV0FCrUax/pBB4AObl3QpwlCKrU2CzFFmRTKAjkWlG9d0SY5OIFB92SSfQ8oaoza4BfANuEvyj2LCbkcAgzVDjFsWRvU9EpYRdchDw1zEi68Cv2Gr0Cgu7eQmkENmOpSLdQsLuuATU+IHGXdQC9lPC7m8Ju81R8xZGQM2jV2MlFnb74iN6/9jxH8AEAd8vFna/iH9Eshp95R/ufi2JRCnZYhiGvNiDJ3wWBMGlexbrGomN836oBQnVhuwVd2o+vwIe3yeyR0zAicMMu3Wk7n8CG+8yelIERjhub0S+FJZGIGfobA/JWOtlpRI2Nq8xCNRMpQ95COgkzEwCl+NA89FkCp2RgKtQzLrIYe4Qk5GA+6rHJo+ROcsqfXMH+YyFLa/zyFwpJaW02FFVuchsMSuhuNtUyZfX+oXJcmIcKi3YUXr/YbagO0JKqzpbNKHzMX8xTee/MmJ5T4UKFSoE4+AZAH3H7ZfwLxIAAAAASUVORK5CYII=",
+  cursor: "data:image/png;base64,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",
+  cursorShadow: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAABAAAAAQBPJcTWAAAAkElEQVR4nO2W0Q3AIAhEaXIjOCfDMHF/G9OkoIfGlPszUe6poFytNXFKHXNMggLJuJ9rLAANmPfrbBZAB81DEEgyd0NANguJu3edAmSzUACSe/+feYBubEkQlYRnVYGR8+C8p5h5CsO/IQNiuh94BomAhNoyDARVRi8YBaCYHVUFy4R1VgXwLshmoQDk71dwA790FEwmAEYoAAAAAElFTkSuQmCC"
+};
+
+const rootStyle = getComputedStyle(document.documentElement);
+const tok = name => rootStyle.getPropertyValue("--theme-" + name).trim();
+const num = name => parseFloat(tok(name));
+
+let PX = 1;
+
+const ROWS = ["1234567890", "qwertyuiop", "asdfghjkl.", "zxcvbnm:/-"];
+const ADDRESS = "192.168.1.20:4747";
+const RESULTS = [
+  { kind: "ok", text: 'Connected to "Home PC".', label: "Connected (SRV_OK)" },
+  { kind: "fail", text: `No answer from ${ADDRESS}. Check that the server is running, the address is right and the PC's firewall allows it.`, label: "No answer (SRV_NO_ANSWER)" },
+  { kind: "fail", text: `${ADDRESS} answered, but it isn't a cable-twii server.`, label: "Not a cable-twii server (SRV_NOT_CABLE_TWII)" },
+  { kind: "fail", text: "The server's channels have a problem. Open cable-twii Studio on the server to fix it.", label: "Bad channels (SRV_BAD_LIBRARY)" },
+  { kind: "fail", text: "Can't reach the network. Check the Wii's internet settings, or start cable-twii again.", label: "No network (SRV_NO_NETWORK, also possible from Test)" },
+  { kind: "busy", text: `Connecting to ${ADDRESS}…`, label: "While the test runs (the plan's Connecting copy)" },
+];
+const NO_SD = "No SD card. These settings last until cable-twii closes.";
+
+function R(x, y, w, h) { return { x, y, w, h }; }
+
+function settingsLayout(px) {
+  const L = {};
+  L.card = R(60, 47, 520, 386);
+  L.title = R(84, 71, 472, 20);
+  L.sourceLabel = R(84, 127.5, 120, 15);
+  L.track = R(216, 115, 240, 40);
+  L.drive = R(216, 115, 120, 40);
+  L.server = R(336, 115, 120, 40);
+  L.addressLabel = R(84, 181.5, 120, 15);
+  L.field = R(216, 169, 254, 40);
+  L.fieldText = R(228, 181, 230, 16);
+  L.edit = R(480, 169, 76, 40);
+  L.test = R(84, 223, 170, 40);
+  L.resultDot = R(84, 278, 8 * px, 8);
+  const textX = 84 + 8 * px + 8;
+  L.result = R(textX, 273, 556 - textX, 2 * 18.6);
+  L.divider = R(84, 325, 472, 1);
+  L.noSdDot = R(84, 344, 8 * px, 8);
+  L.noSd = R(textX, 339, 556 - textX, 13);
+  L.cancel = R(306, 369, 120, 40);
+  L.save = R(436, 369, 120, 40);
+  return L;
+}
+
+function thumbOf(half, px) {
+  return R(half.x + 4 * px, half.y + 4, half.w - 8 * px, half.h - 8);
+}
+
+function keyboardLayout(px) {
+  const L = {};
+  L.card = R(43, 68, 554, 344);
+  L.label = R(63, 86, 514, 15);
+  L.text = R(63, 110, 514, 44);
+  L.typed = R(77, 122, 486, 20);
+  L.keys = [];
+  for (let r = 0; r < 4; r++) {
+    L.keys.push([]);
+    for (let c = 0; c < 10; c++) L.keys[r].push(R(63 + 52 * c, 168 + 46 * r, 46, 40));
+  }
+  L.keys.push([R(63, 352, 150, 40), R(219, 352, 150, 40), R(375, 352, 202, 40)]);
+  return L;
+}
+
+function homeLayout(px, fromServer) {
+  const L = {};
+  L.top = R(0, 0, 640, 72);
+  L.bottom = R(0, 408, 640, 72);
+  L.badge = R(26, 16.9, 37 * px, 37);
+  const titleX = L.badge.x + L.badge.w + 8;
+  L.title = R(titleX, 22.4, 614 - 240 - 8 - titleX, 24);
+  L.playing = R(374, 27.6, 240, 13.3);
+  L.wiiMenu = R(150, 110, 340, 60);
+  L.hbc = R(150, 190, 340, 60);
+  L.settings = fromServer ? R(150, 270, 165, 40) : R(225, 270, 190, 40);
+  L.reload = fromServer ? R(325, 270, 165, 40) : R(0, 0, 0, 0);
+  L.resume = R(225, 330, 190, 40);
+  L.volLabel = R(26, 436.4, 48, 16);
+  L.volBar = R(80.2, 436.4, 121.15, 16);
+  return L;
+}
+
+function errorLayout(bodyLines) {
+  const L = {};
+  const h = 24 + 28 + 12 + 20 * bodyLines + 20 + 40 + 24;
+  L.card = R(100, (480 - h) / 2, 440, h);
+  L.title = R(124, L.card.y + 24, 392, 20);
+  L.body = R(124, L.card.y + 64, 392, 20 * bodyLines);
+  const py = L.card.y + h - 40 - 24;
+  L.hbc = R(124, py, 240, 40);
+  L.settings = R(376, py, 140, 40);
+  return L;
+}
+
+function emptyLayout() {
+  const L = {};
+  L.card = R(153.3, 88.9, 333.3, 275.6);
+  L.title = R(320, 209, 0, 24);
+  L.body = R(172.3, 250, 295.3, 2 * 18.6);
+  L.hbc = R(172, 299.4, 206, 39.2);
+  L.settings = R(386, 299.4, 82, 39.2);
+  return L;
+}
+
+/* Whole-pixel glyph advances of wii/data/font_bold.ttf and font_medium.ttf at the sizes the app uses,
+   read with FreeType (hinted, as ui_text_width reads them), so "…" and wrapping land where the app puts them. */
+const APP_ADV = {"chars":" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~…←·◀▶","bold":{"12":[3,5,6,8,7,11,9,4,5,5,6,9,4,6,4,6,8,8,8,8,8,8,8,8,8,8,5,5,8,9,8,8,10,8,8,8,8,7,7,9,9,4,7,8,7,10,9,9,8,9,8,7,8,8,8,11,8,8,8,6,6,6,8,7,4,7,7,6,7,7,7,7,7,4,5,7,4,10,7,7,7,7,6,6,6,7,7,10,7,7,7,7,5,7,8,12,12,4,12,12],"13":[4,5,7,9,8,12,10,4,5,5,7,10,4,6,5,7,8,8,8,8,8,8,8,8,8,8,6,6,9,10,9,8,11,9,8,8,9,8,8,9,9,5,7,9,8,11,9,10,8,10,8,8,9,9,9,12,8,8,8,7,7,7,9,8,4,8,8,7,8,7,7,8,8,5,5,8,5,11,8,8,8,8,7,7,7,8,7,10,7,7,7,7,5,7,9,13,13,5,13,13],"14":[4,6,7,10,8,13,10,4,6,6,7,10,5,7,5,7,9,9,9,9,9,9,9,9,9,9,6,6,10,11,10,9,11,9,9,9,10,9,8,10,10,5,8,9,9,12,10,10,9,11,9,8,9,10,9,13,9,9,9,7,7,7,9,8,4,8,9,7,9,8,8,9,9,5,6,8,5,12,9,8,9,9,7,7,8,9,8,11,8,8,8,8,6,8,10,14,14,5,14,14],"15":[4,6,8,11,9,14,11,5,6,6,8,11,5,7,5,8,10,10,10,10,10,10,10,10,10,10,7,7,10,11,10,10,12,10,9,10,10,9,9,11,11,6,9,10,9,13,11,11,10,11,10,9,10,10,10,13,10,10,10,8,8,8,10,9,5,9,9,8,9,8,8,9,9,5,6,9,5,13,9,9,9,9,8,8,8,9,8,12,8,8,9,8,6,8,10,15,15,5,15,15],"16":[5,7,8,11,10,15,12,5,7,7,8,12,5,8,6,8,10,10,10,10,10,10,10,10,10,10,7,7,11,12,11,10,13,11,10,10,11,10,10,11,11,6,9,11,10,14,11,12,10,12,10,10,11,11,11,14,10,10,10,8,8,8,10,10,5,9,10,8,10,9,9,10,10,6,6,9,6,14,10,9,10,10,8,9,9,10,9,13,9,9,9,9,6,9,11,16,16,6,16,16],"18":[5,7,9,13,11,16,13,6,7,7,9,13,6,9,7,9,12,12,12,12,12,12,12,12,12,12,8,8,12,14,12,12,15,12,11,12,12,11,11,13,13,7,10,12,11,15,13,13,12,14,12,11,12,12,12,16,12,12,11,9,9,9,12,11,6,10,11,9,11,10,10,11,11,6,7,11,6,15,11,11,11,11,9,10,10,11,10,15,10,10,10,10,7,10,12,18,18,7,18,18],"20":[6,8,10,14,12,18,15,6,8,8,10,15,7,10,7,10,13,13,13,13,13,13,13,13,13,13,9,9,14,15,14,13,16,13,13,13,14,12,12,14,14,7,11,13,12,17,14,15,13,15,13,12,13,14,13,18,13,13,13,10,10,10,13,12,6,12,12,10,12,11,11,12,12,7,8,12,7,17,12,12,12,12,10,11,11,12,11,16,11,11,11,11,8,11,14,20,20,7,20,20],"24":[7,10,12,17,14,22,18,7,10,10,12,18,8,12,9,13,16,16,16,16,16,16,16,16,16,16,11,10,17,18,17,15,19,16,15,16,17,15,14,17,17,9,14,16,15,20,17,18,15,18,16,14,16,17,16,21,16,16,15,12,13,12,16,14,8,14,15,13,15,14,13,15,15,8,10,14,8,20,15,14,15,15,12,13,13,15,13,19,13,13,14,13,10,13,17,24,24,9,24,24],"28":[8,11,14,20,17,25,21,9,12,12,14,21,10,14,10,15,18,18,18,18,18,18,18,18,18,18,12,12,19,21,19,18,23,19,18,18,19,17,17,20,20,10,16,18,17,24,20,21,18,21,18,17,19,19,19,25,18,18,18,15,15,15,18,17,9,16,17,15,17,16,15,17,17,10,11,16,10,24,17,16,17,17,14,15,15,17,16,23,15,16,16,15,11,15,19,28,28,10,28,28]},"body":{"12":[3,4,5,8,7,10,8,3,5,5,6,9,4,6,4,6,8,8,8,8,8,8,8,8,8,8,5,5,8,9,8,7,10,8,7,7,8,7,7,8,8,4,6,7,7,10,8,9,7,9,7,7,8,8,8,10,7,7,7,6,6,6,7,7,3,7,7,6,7,6,6,7,7,4,4,6,4,9,7,7,7,7,6,6,6,7,6,9,6,6,7,6,4,6,8,12,12,4,12,12],"13":[4,5,6,9,8,11,9,3,5,5,7,10,4,6,4,6,8,8,8,8,8,8,8,8,8,8,5,5,9,10,9,8,11,8,8,8,9,8,8,9,9,4,7,8,8,11,9,9,8,9,8,7,8,9,8,11,8,8,8,6,6,6,8,7,3,7,8,6,8,7,7,7,8,4,5,7,4,10,8,7,8,8,6,7,7,7,7,10,7,7,7,7,5,7,9,13,13,4,13,13],"14":[4,5,6,10,8,12,10,4,5,5,7,10,4,7,4,7,9,9,9,9,9,9,9,9,9,9,6,5,9,11,9,9,12,9,9,9,9,8,8,10,10,5,8,8,8,12,10,10,9,10,9,8,9,9,9,12,9,9,9,7,7,7,9,8,4,8,8,7,8,7,7,8,8,5,5,8,5,11,8,8,8,8,7,7,7,8,7,11,7,7,8,7,5,7,9,14,14,4,14,14],"15":[4,5,6,10,9,13,11,4,6,6,8,11,5,7,5,7,9,9,9,9,9,9,9,9,9,9,6,6,10,11,10,9,12,10,9,9,10,9,9,10,10,5,8,9,9,12,10,11,9,11,9,8,10,10,10,13,9,9,9,7,7,7,9,9,4,8,9,7,9,8,8,9,9,5,5,8,5,12,9,8,9,9,7,8,8,9,8,12,8,8,8,8,5,8,10,15,15,5,15,15],"16":[4,6,7,11,9,14,11,4,6,6,8,12,5,8,5,8,10,10,10,10,10,10,10,10,10,10,6,6,11,12,11,10,13,10,10,10,11,10,9,11,11,5,9,10,9,13,11,12,10,12,10,9,10,11,10,14,10,10,10,8,8,8,10,9,4,9,9,8,9,8,8,9,9,5,6,9,5,13,9,9,9,9,7,8,8,9,8,12,8,8,9,8,6,8,11,16,16,5,16,16],"18":[5,6,8,12,11,15,13,5,7,7,9,13,5,9,6,9,11,11,11,11,11,11,11,11,11,11,7,7,12,14,12,11,15,12,11,11,12,11,10,12,12,6,10,11,11,15,12,13,11,13,11,10,11,12,12,16,11,11,11,9,9,9,11,10,5,10,11,9,11,10,9,10,11,6,7,10,6,14,10,10,11,11,8,9,9,10,9,14,9,9,10,9,7,9,12,18,18,6,18,18],"20":[6,7,9,14,12,17,14,5,8,8,10,15,6,9,6,10,13,13,13,13,13,13,13,13,13,13,8,8,13,15,13,12,16,13,12,12,13,12,12,14,14,7,11,12,12,16,14,14,12,15,12,11,13,13,13,17,12,12,12,10,10,10,12,12,5,11,12,10,12,11,10,11,12,6,7,11,6,16,12,11,12,12,9,10,10,11,10,15,10,10,11,10,7,10,14,20,20,6,20,20],"24":[7,8,10,16,14,20,17,6,9,9,12,18,7,11,8,12,15,15,15,15,15,15,15,15,15,15,9,9,16,18,16,15,20,15,15,15,16,14,14,17,17,8,13,15,14,20,17,17,15,17,15,14,15,16,15,21,15,15,15,12,12,12,15,14,6,13,14,12,14,13,12,14,14,8,9,13,8,19,14,14,14,14,11,12,12,14,13,18,12,13,13,13,9,13,16,24,24,8,24,24],"28":[8,10,12,19,16,24,20,7,11,11,14,21,8,13,9,14,18,18,18,18,18,18,18,18,18,18,11,11,19,21,19,17,23,18,17,17,19,17,16,19,19,9,15,17,16,23,19,20,17,20,17,16,18,19,18,24,17,17,17,14,14,14,17,16,7,15,16,14,16,15,14,16,16,9,10,15,9,22,16,16,16,16,13,14,14,16,15,22,14,15,15,15,10,15,19,28,28,9,28,28]}};
+const measureCtx = document.createElement("canvas").getContext("2d");
+const advCache = new Map();
+function advance(font, px, ch) {
+  const table = APP_ADV[font][px];
+  const i = APP_ADV.chars.indexOf(ch);
+  if (table && i >= 0) return table[i];
+  const key = font + px + ch;
+  if (!advCache.has(key)) {
+    measureCtx.font = `${font === "bold" ? 800 : 500} ${px}px "M PLUS Rounded 1c"`;
+    advCache.set(key, Math.round(measureCtx.measureText(ch).width));
+  }
+  return advCache.get(key);
+}
+function measure(font, px, s) {
+  let w = 0;
+  for (const ch of s) w += Math.floor(advance(font, px, ch) * PX);
+  return w;
+}
+const ELL = "…";
+function fit(font, px, s, maxW) {
+  if (measure(font, px, s) <= maxW) return s;
+  const cps = [...s];
+  const ew = measure(font, px, ELL);
+  for (let k = cps.length - 1; k > 0; k--) {
+    const head = cps.slice(0, k).join("");
+    if (measure(font, px, head) + ew < maxW) return head + ELL;
+  }
+  return ELL;
+}
+function fitTail(font, px, s, maxW) {
+  if (measure(font, px, s) <= maxW) return s;
+  const cps = [...s];
+  const ew = measure(font, px, ELL);
+  for (let k = 1; k < cps.length; k++) {
+    const tail = cps.slice(k).join("");
+    if (measure(font, px, tail) + ew <= maxW) return ELL + tail;
+  }
+  return ELL;
+}
+function wrap(font, px, s, maxW, maxLines) {
+  const lines = [];
+  let p = [...s];
+  while (p.length && lines.length < maxLines) {
+    let k = 0;
+    while (k < p.length && measure(font, px, p.slice(0, k + 1).join("")) <= maxW) k++;
+    if (k === p.length) { lines.push(p.join("")); p = []; break; }
+    if (k === 0) k = 1;
+    let brk = 0;
+    for (let j = k; j > 0; j--) if (p[j] === " ") { brk = j; break; }
+    if (brk) {
+      lines.push(p.slice(0, brk).join("").replace(/ +$/, ""));
+      p = p.slice(brk);
+      while (p[0] === " ") p.shift();
+    } else {
+      lines.push(p.slice(0, k).join(""));
+      p = p.slice(k);
+    }
+  }
+  if (p.length && lines.length) {
+    const ew = measure(font, px, ELL);
+    let cps = [...lines[lines.length - 1]];
+    while (cps.length && measure(font, px, cps.join("")) + ew > maxW) cps.pop();
+    lines[lines.length - 1] = cps.join("").replace(/ +$/, "") + ELL;
+  }
+  return lines;
+}
+
+function rgba(hex, scale = 1) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const a = h.length >= 8 ? parseInt(h.slice(6, 8), 16) : 255;
+  return { r, g, b, a: Math.round(a * scale) };
+}
+function col(c, scale = 1) {
+  if (typeof c !== "string" || !c.startsWith("#")) return c;
+  const v = rgba(c, scale);
+  return v.a >= 255 ? `rgb(${v.r},${v.g},${v.b})` : `rgba(${v.r},${v.g},${v.b},${(v.a / 255).toFixed(3)})`;
+}
+const n2 = v => String(Math.round(v * 100) / 100);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+let uidCounter = 0;
+class Svg {
+  constructor() { this.defs = []; this.body = []; }
+  uid(p) { return `${p}${uidCounter++}`; }
+  add(s) { this.body.push(s); }
+  grad(stops) {
+    const id = this.uid("g");
+    this.defs.push(`<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">${stops.map(([o, c]) => `<stop offset="${o}" stop-color="${col(c)}"/>`).join("")}</linearGradient>`);
+    return `url(#${id})`;
+  }
+  radial(stops) {
+    const id = this.uid("r");
+    this.defs.push(`<radialGradient id="${id}" cx="0.5" cy="0.5" r="0.5">${stops.map(([o, c]) => `<stop offset="${o}" stop-color="${col(c)}"/>`).join("")}</radialGradient>`);
+    return `url(#${id})`;
+  }
+  rr(x, y, w, h, r, fill) {
+    if (w <= 0 || h <= 0) return;
+    const rx = Math.max(0, Math.min(r * PX, w / 2)), ry = Math.max(0, Math.min(r, h / 2));
+    this.add(`<rect x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" rx="${n2(rx)}" ry="${n2(ry)}" fill="${col(fill)}"/>`);
+  }
+  shadow(x, y, w, h, r, color, dy, blur, scale = 1) {
+    const c = rgba(color, scale);
+    const a = Math.max(1, Math.floor(c.a / 3));
+    const layer = `rgba(${c.r},${c.g},${c.b},${(a / 255).toFixed(3)})`;
+    for (let i = 1; i <= 3; i++) {
+      const e = blur * i / 3;
+      this.rr(x - e * PX, y + dy - e, w + 2 * e * PX, h + 2 * e, r + e, layer);
+    }
+  }
+  drop(x, y, w, h, r, kind, scale = 1) {
+    if (kind === "panel") this.shadow(x, y, w, h, r, tok("panel-shadow"), num("panel-shadow-dy"), num("panel-shadow-blur"), scale);
+    else if (kind === "video") this.shadow(x, y, w, h, r, tok("video-shadow"), num("video-shadow-dy"), num("video-shadow-blur"), scale);
+  }
+  ring(x, y, w, h, r, color, spread) {
+    this.rr(x - spread * PX, y - spread, w + 2 * spread * PX, h + 2 * spread, r + spread, color);
+  }
+  text(font, px, x, y, s, color, align = "left") {
+    if (!s) return;
+    const w = measure(font, px, s);
+    let dx = x;
+    if (align === "center") dx = x - w / 2;
+    else if (align === "right") dx = x - w;
+    const fitLen = [...s].length > 1 ? ` textLength="${n2(w / PX)}" lengthAdjust="spacing"` : "";
+    this.add(`<text transform="translate(${n2(dx)} ${n2(y + px)}) scale(${PX} 1)" font-family="'M PLUS Rounded 1c', sans-serif" font-weight="${font === "bold" ? 800 : 500}" font-size="${px}"${fitLen} fill="${col(color)}">${esc(s)}</text>`);
+  }
+  image(href, x, y, w, h) {
+    this.add(`<image href="${href}" x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" preserveAspectRatio="none"/>`);
+  }
+  tinted(href, x, y, w, h, color) {
+    const id = this.uid("m");
+    this.defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" style="mask-type:alpha"><image href="${href}" x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" preserveAspectRatio="none"/></mask>`);
+    this.add(`<rect x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" fill="${col(color)}" mask="url(#${id})"/>`);
+  }
+  toString() {
+    const w = PX === 1 ? 640 : 640 / PX;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="${n2(w)}" height="480" preserveAspectRatio="none" role="img"><defs>${this.defs.join("")}</defs>${this.body.join("")}</svg>`;
+  }
+}
+
+const ACCENT_STOPS = () => [[0, tok("accent-light")], [0.55, tok("accent")], [1, tok("accent-dark")]];
+const PILL_STOPS = () => [[0, tok("pill-fill-top")], [0.46, tok("pill-fill-top")], [0.54, tok("pill-band-mid")], [1, tok("pill-band-bottom")]];
+const PILL_PRESSED_STOPS = () => [[0, tok("pill-band-bottom")], [0.46, tok("pill-band-mid")], [0.54, tok("pill-fill-top")], [1, tok("pill-fill-top")]];
+
+function card(s, r, radius, mid, bottom, shadow, shadowScale = 1) {
+  s.drop(r.x, r.y, r.w, r.h, radius, shadow, shadowScale);
+  s.rr(r.x, r.y, r.w, r.h, radius, tok("panel-border"));
+  const ix = r.x + 2 * PX, iy = r.y + 2, iw = r.w - 4 * PX, ih = r.h - 4, ir = radius - 2;
+  s.rr(ix, iy, iw, ih, ir, tok("panel-highlight"));
+  s.rr(ix, iy + 1, iw, ih - 1, ir, s.grad([[0, tok("panel-fill")], [mid, tok("panel-fill")], [1, bottom]]));
+}
+
+function pill(s, r, label, px, state, shadow, opts = {}) {
+  let { x, y, w, h } = r;
+  const radius = opts.radius ?? h / 2;
+  if (state === "pressed") y += 2;
+  if (state !== "pressed") {
+    if (shadow === "panel") s.shadow(x, y, w, h, radius, tok("pill-shadow"), 1, 4);
+    else if (shadow === "video") s.drop(x, y, w, h, radius, "video", opts.shadowScale ?? 1);
+  }
+  if (state === "hot") s.ring(x, y, w, h, radius, tok("ring-strong"), num("ring-spread"));
+  if (state === "pressed") s.ring(x, y, w, h, radius, tok("ring"), num("ring-spread"));
+  const b = state === "rest" ? 2 : 3;
+  s.rr(x, y, w, h, radius, state === "rest" ? tok("pill-border") : tok("accent"));
+  const ix = x + b * PX, iy = y + b, iw = w - 2 * b * PX, ih = h - 2 * b, ir = radius - b;
+  if (state === "pressed") {
+    s.rr(ix, iy, iw, ih, ir, s.grad(PILL_PRESSED_STOPS()));
+    s.rr(ix, iy, iw, 3, ir, tok("pill-shade"));
+  } else {
+    s.rr(ix, iy, iw, ih, ir, tok("panel-highlight"));
+    s.rr(ix, iy + 1, iw, ih - 1, ir, s.grad(PILL_STOPS()));
+  }
+  if (label) {
+    const inset = Math.min(w / 4, 16);
+    s.text("bold", px, x + w / 2, y + h / 2 - px / 2, fit("bold", px, label, w - inset), opts.color ?? tok("text-primary"), "center");
+  }
+}
+
+function field(s, r, radius, text, px, placeholder) {
+  s.rr(r.x, r.y, r.w, r.h, radius, tok("panel-border"));
+  const ix = r.x + 2 * PX, iy = r.y + 2, iw = r.w - 4 * PX, ih = r.h - 4;
+  s.rr(ix, iy, iw, ih, radius - 2, tok("track-inset"));
+  s.rr(ix, iy + 1, iw, ih - 1, radius - 2, tok("panel-fill"));
+  const ty = r.y + r.h / 2 - px / 2;
+  if (text) s.text("bold", px, r.x + 12, ty, text, tok("text-primary"));
+  else if (placeholder) s.text("bold", px, r.x + 12, ty, placeholder, tok("text-faded"));
+}
+
+function dot(s, r, kind) {
+  const color = kind === "ok" ? tok("accent") : kind === "busy" ? tok("dot-3") : tok("warm");
+  if (kind === "ok") s.ring(r.x, r.y, r.w, r.h, r.h / 2, tok("ring"), 2);
+  s.rr(r.x, r.y, r.w, r.h, r.h / 2, color);
+}
+
+function pointer(s, x, y) {
+  s.tinted(ASSETS.cursorShadow, x + 3 * PX - 16 * PX, y + 3 - 16, 32 * PX, 32, "#000000");
+  s.image(ASSETS.cursor, x - 16 * PX, y - 16, 32 * PX, 32);
+}
+
+function stripes(s) {
+  const id = s.uid("p");
+  s.defs.push(`<pattern id="${id}" width="640" height="6" patternUnits="userSpaceOnUse"><rect width="640" height="3" fill="${col(tok("stripe-a"))}"/><rect y="3" width="640" height="3" fill="${col(tok("stripe-b"))}"/></pattern>`);
+  s.add(`<rect width="640" height="480" fill="url(#${id})"/>`);
+}
+
+function bloom(s, cx, cy, rx, ry, color) {
+  const c = rgba(color);
+  s.add(`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${s.radial([[0, `rgba(${c.r},${c.g},${c.b},${(c.a / 255).toFixed(3)})`], [1, `rgba(${c.r},${c.g},${c.b},0)`]])}"/>`);
+}
+
+function battery(s, x, y, h, lit, labelPx) {
+  const lw = measure("bold", labelPx, "P1");
+  s.text("bold", labelPx, x, y + (h - labelPx) / 2, "P1", tok("text-secondary"));
+  const bw = h * 0.183, gap = h * 0.138, pad = h * 0.245;
+  const px0 = x + lw + 4;
+  const pw = 2 * pad + 4 * bw + 3 * gap;
+  s.rr(px0, y, pw, h, h / 2, tok("pill-border"));
+  s.rr(px0 + 2 * PX, y + 2, pw - 4 * PX, h - 4, h / 2 - 2, tok("panel-fill"));
+  const bh = h * 0.55, by = y + (h - bh) / 2;
+  for (let i = 0; i < 4; i++) {
+    const bx = px0 + pad + i * (bw + gap);
+    s.rr(bx, by, bw, bh, 3, i < lit ? s.grad([[0, tok("accent-light")], [1, tok("accent")]]) : tok("bar-track"));
+  }
+}
+
+function header(s) {
+  s.shadow(0, 0, 640, num("header-h"), 0, "#344A6014", 2, 6);
+  s.rr(0, 0, 640, num("header-h"), 0, s.grad([[0, tok("panel-fill")], [0.55, tok("panel-fill")], [1, tok("gloss-soft")]]));
+  s.rr(0, num("header-h") - 1, 640, 1, 0, tok("panel-border"));
+  s.image(ASSETS.logo, 19.3, 11.5, 25 * 356 / 64 * PX, 25);
+  battery(s, 567.6, 12.7, 22, 3, 12);
+}
+
+function sysbar(s, withPills) {
+  const top = 433, hump = 415;
+  const a = 233.3, b = 280.7, c = 359.3, d = 406.7, m1 = (a + b) / 2, m2 = (c + d) / 2;
+  const edge = `M0 ${top} L${a} ${top} C${m1} ${top} ${m1} ${hump} ${b} ${hump} L${c} ${hump} C${m2} ${hump} ${m2} ${top} ${d} ${top} L640 ${top}`;
+  s.add(`<path d="${edge}" transform="translate(0 -3)" fill="none" stroke="${col("#344A6012")}" stroke-width="5"/>`);
+  s.add(`<path d="${edge} L640 480 L0 480 Z" fill="${s.grad([[0, tok("panel-fill")], [0.5, tok("gloss-bottom")], [1, tok("gloss-deep")]])}"/>`);
+  s.add(`<path d="${edge}" fill="none" stroke="${col(tok("panel-border"))}" stroke-width="1"/>`);
+  s.add(`<path d="${edge}" transform="translate(0 1)" fill="none" stroke="#fff" stroke-width="1"/>`);
+  s.text("bold", 28, 320, 420, "14:32", tok("text-clock"), "center");
+  s.text("body", 12, 320, 453, "Wed 18/11", tok("text-clock"), "center");
+  const dh = 37, dw = 37 * PX, dx = 21.3, dy = 437.3;
+  s.drop(dx, dy, dw, dh, dh / 2, "panel");
+  s.rr(dx, dy, dw, dh, dh / 2, tok("pill-border"));
+  s.add(`<ellipse cx="${n2(dx + dw / 2)}" cy="${n2(dy + dh / 2)}" rx="${n2(dw / 2 - 2 * PX)}" ry="${n2(dh / 2 - 2)}" fill="${s.radial([[0, tok("panel-fill")], [0.6, tok("disc-mid")], [1, tok("disc-edge")]])}"/>`);
+  const gh = 19.6;
+  s.tinted(ASSETS.home, dx + (dw - gh * PX) / 2, dy + (dh - gh) / 2, gh * PX, gh, tok("accent"));
+  s.text("bold", 12, dx + dw + 6.3, 449, "HOME Menu", tok("text-label"));
+  if (withPills) {
+    pill(s, R(496.7, 440.9, 58, 32), "◀ CH", 13, "rest", "panel");
+    pill(s, R(560.7, 440.9, 58, 32), "CH ▶", 13, "rest", "panel");
+  }
+}
+
+function segmented(s, L, source, hot, pressed) {
+  const t = L.track;
+  s.rr(t.x, t.y, t.w, t.h, t.h / 2, tok("track-inset"));
+  s.rr(t.x, t.y + 1, t.w, t.h - 1, t.h / 2, tok("bar-track"));
+  for (const [key, label] of [["drive", "Drive"], ["server", "Server"]]) {
+    const half = L[key];
+    const th = thumbOf(half, PX);
+    const isOn = source === key, isHot = hot === key, isDown = pressed === key;
+    const dy = isDown ? 2 : 0;
+    const ly = half.y + half.h / 2 - 7.5 + dy;
+    if (isOn) {
+      const y = th.y + dy, r = th.h / 2;
+      if (!isDown) s.shadow(th.x, y, th.w, th.h, r, tok("pill-shadow"), 1, 4);
+      if (isHot) s.ring(th.x, y, th.w, th.h, r, tok("ring-strong"), num("ring-spread"));
+      if (isDown) s.ring(th.x, y, th.w, th.h, r, tok("ring"), num("ring-spread"));
+      s.rr(th.x, y, th.w, th.h, r, tok("accent-dark"));
+      s.rr(th.x + 2 * PX, y + 2, th.w - 4 * PX, th.h - 4, r - 2, s.grad(ACCENT_STOPS()));
+      s.text("bold", 15, half.x + half.w / 2, ly, label, "#FFFFFF", "center");
+    } else if (isHot || isDown) {
+      pill(s, th, null, 15, isDown ? "pressed" : "hot", "panel");
+      s.text("bold", 15, half.x + half.w / 2, ly, label, tok("text-primary"), "center");
+    } else {
+      s.text("bold", 15, half.x + half.w / 2, ly, label, tok("text-label"), "center");
+    }
+  }
+}
+
+function resultLines(s, L, result) {
+  if (!result) return;
+  dot(s, L.resultDot, result.kind);
+  const lines = wrap("body", 13, result.text, L.result.w, 2);
+  lines.forEach((line, i) => s.text("body", 13, L.result.x, L.result.y + 18.6 * i, line, tok("text-label")));
+  return lines.length;
+}
+
+function drawSettings(s, o) {
+  stripes(s);
+  const L = settingsLayout(PX);
+  card(s, L.card, num("panel-radius"), 0.6, tok("gloss-bottom"), "panel");
+  s.text("bold", 20, L.title.x, L.title.y, "Settings", tok("text-primary"));
+  s.text("bold", 15, L.sourceLabel.x, L.sourceLabel.y, "Play from", tok("text-label"));
+  segmented(s, L, o.source, o.hot, o.pressed);
+  s.text("bold", 15, L.addressLabel.x, L.addressLabel.y, "Server address", tok("text-label"));
+  field(s, L.field, num("row-radius"), o.address ? fit("bold", 16, o.address, L.fieldText.w) : "", 16, "Not set");
+  const st = k => (o.pressed === k ? "pressed" : o.hot === k ? "hot" : "rest");
+  pill(s, L.edit, "Edit", 14, st("edit"), "panel");
+  pill(s, L.test, "Test connection", 14, st("test"), "panel");
+  resultLines(s, L, o.result);
+  s.rr(L.divider.x, L.divider.y, L.divider.w, L.divider.h, 0, tok("bar-track"));
+  if (o.noSd) {
+    dot(s, L.noSdDot, "fail");
+    s.text("body", 13, L.noSd.x, L.noSd.y, fit("body", 13, NO_SD, L.noSd.w), tok("text-label"));
+  }
+  pill(s, L.cancel, "Cancel", 14, st("cancel"), "panel");
+  pill(s, L.save, "Save", 14, st("save"), "panel");
+  return L;
+}
+
+function drawKeyboard(s, o) {
+  drawSettings(s, { source: "drive", address: "", result: null, noSd: false });
+  s.rr(0, 0, 640, 480, 0, "#00000099");
+  const L = keyboardLayout(PX);
+  card(s, L.card, num("panel-radius"), 0.55, tok("gloss-soft"), "video");
+  s.text("bold", 15, L.label.x, L.label.y, "Server address", tok("text-label"));
+  const shown = fitTail("bold", 20, o.typed, L.typed.w);
+  field(s, L.text, num("row-radius"), "", 20, null);
+  s.text("bold", 20, L.typed.x, L.typed.y, shown, tok("text-primary"));
+  const caretX = Math.min(L.typed.x + measure("bold", 20, shown) + 2, L.typed.x + L.typed.w);
+  s.rr(caretX, L.text.y + 10, 2 * PX, 24, 0, tok("accent"));
+  const state = (r, c) => (o.pressed && o.pressed[0] === r && o.pressed[1] === c ? "pressed" : o.hot && o.hot[0] === r && o.hot[1] === c ? "hot" : "rest");
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 10; c++) pill(s, L.keys[r][c], ROWS[r][c], 18, state(r, c), "panel", { radius: 10 });
+  }
+  const bottom = [["http://", o.typed ? tok("text-faded") : tok("text-primary")], ["← Backspace", tok("text-primary")], ["Done", tok("text-primary")]];
+  bottom.forEach(([label, color], c) => pill(s, L.keys[4][c], label, 15, state(4, c), "panel", { radius: 10, color }));
+  return L;
+}
+
+function guideBehind(s) {
+  stripes(s);
+  bloom(s, 320, 144, 448, 336, "#FFFFFFD9");
+  header(s);
+  const list = R(19.3, 58.7, 268.7, 351.1), prev = R(307.3, 58.7, 313.3, 235.1), info = R(307.3, 308, 313.3, 101.8);
+  card(s, list, 18, 0.7, tok("gloss-bottom"), "panel");
+  s.text("bold", 12, list.x + 13.4, list.y + 16, "CARTOONS", tok("text-secondary"));
+  const names = [["Retro Cartoons", "S02E05 · The Big Race"], ["Saturday Morning", "S01E11 · Lost in Space"], ["Toon Classics", "Commercial break"], ["Late Night", "S03E02 · Night Shift"]];
+  names.forEach(([n, l], i) => {
+    const ry = list.y + 44 + 70 * i, rx = list.x + 6.7, rw = 248;
+    if (i === 0) {
+      s.ring(rx, ry, rw, 64, 12, tok("ring"), 4);
+      s.rr(rx, ry, rw, 64, 12, tok("accent"));
+      s.rr(rx + 2 * PX, ry + 2, rw - 4 * PX, 60, 10, s.grad([[0, "#F7FDFF"], [0.55, "#EEFAFF"], [1, "#E3F6FD"]]));
+    }
+    s.rr(rx + 7.3, ry + 10, 44 * PX, 44, 44 * 0.22, ["#F6C9A8", "#B9E0C8", "#C9D4F2", "#E9C6E3"][i]);
+    const tx = rx + 7.3 + 44 * PX + 7.3;
+    s.text("bold", 16, tx, ry + 13.4, n, tok("text-primary"));
+    s.text("body", 13, tx, ry + 34, l, i === 0 ? tok("text-label") : tok("text-secondary"));
+  });
+  card(s, prev, 18, 1, tok("gloss-bottom"), "panel");
+  s.rr(prev.x + 5 * PX, prev.y + 5, prev.w - 10 * PX, prev.h - 10, 13, s.grad([[0, "#4A6A86"], [1, "#1E2B38"]]));
+  card(s, info, 18, 0.6, tok("gloss-bottom"), "panel");
+  s.text("bold", 18, info.x + 11.3 + 48 * PX + 8, info.y + 22.2, "Retro Cartoons", tok("accent"));
+  s.text("bold", 13, info.x + 11.3 + 48 * PX + 8, info.y + 46.2, "S02E05 · The Big Race", tok("text-primary"));
+  s.rr(info.x + 11.3, info.y + (info.h - 48) / 2, 48 * PX, 48, 48 * 0.22, "#F6C9A8");
+  sysbar(s, true);
+}
+
+function homeBar(s, r, stops, top) {
+  s.shadow(r.x, r.y, r.w, r.h, 0, "#0000004D", top ? 2.7 : -2.7, 9);
+  s.rr(r.x, r.y, r.w, r.h, 0, s.grad(stops));
+  if (top) s.rr(r.x, r.y + r.h - 1, r.w, 1, 0, tok("panel-border"));
+  else { s.rr(r.x, r.y, r.w, 1, 0, tok("panel-border")); s.rr(r.x, r.y + 1, r.w, 1, 0, tok("panel-highlight")); }
+}
+
+function drawHome(s, o) {
+  guideBehind(s);
+  s.rr(0, 0, 640, 480, 0, "#00000099");
+  const L = homeLayout(PX, o.fromServer);
+  homeBar(s, L.top, [[0, tok("panel-fill")], [0.6, tok("panel-fill")], [1, tok("gloss-cool")]], true);
+  const b = L.badge;
+  s.ring(b.x, b.y, b.w, b.h, b.h / 2, tok("ring"), 2);
+  s.rr(b.x, b.y, b.w, b.h, b.h / 2, s.grad(ACCENT_STOPS()));
+  s.tinted(ASSETS.home, b.x + (b.w - 19.6 * PX) / 2, b.y + (b.h - 19.6) / 2, 19.6 * PX, 19.6, "#FFFFFF");
+  s.text("bold", 24, L.title.x, L.title.y, "HOME Menu", tok("text-primary"));
+  s.text("body", 13, L.playing.x + L.playing.w, L.playing.y, fit("body", 13, "Retro Cartoons · S02E05", L.playing.w), tok("text-clock"), "right");
+  const st = k => (o.pressed === k ? "pressed" : o.hot === k ? "hot" : "rest");
+  const wm = L.wiiMenu, wmState = st("wiiMenu");
+  pill(s, wm, null, 20, wmState, "video");
+  const gw = 24 * PX, tw = measure("bold", 20, "Wii Menu"), wy = wm.y + (wmState === "pressed" ? 2 : 0);
+  const gx = wm.x + (wm.w - (gw + 8 + tw)) / 2;
+  s.tinted(ASSETS.home, gx, wy + (wm.h - 24) / 2, gw, 24, tok("accent"));
+  s.text("bold", 20, gx + gw + 8, wy + wm.h / 2 - 10, "Wii Menu", tok("text-primary"));
+  pill(s, L.hbc, "Back to Homebrew Channel", 20, st("hbc"), "video");
+  pill(s, L.settings, "Settings", 15, st("settings"), "video");
+  if (o.fromServer) pill(s, L.reload, "Reload channels", 15, st("reload"), "video");
+  pill(s, L.resume, "Resume", 15, st("resume"), "video");
+  homeBar(s, L.bottom, [[0, tok("panel-fill")], [0.5, tok("panel-fill")], [1, tok("gloss-deep")]], false);
+  s.text("bold", 13, L.volLabel.x, L.volLabel.y, "Volume", tok("text-label"));
+  for (let i = 0; i < 10; i++) {
+    const x = L.volBar.x + i * (10 + 2.35);
+    if (i < 7) {
+      s.rr(x, L.volBar.y, 10 * 1, 16, 3, "#FFFFFF80");
+      s.rr(x, L.volBar.y + 1, 10, 15, 3, s.grad(ACCENT_STOPS()));
+    } else {
+      s.rr(x, L.volBar.y, 10, 16, 3, tok("track-inset"));
+      s.rr(x, L.volBar.y + 1, 10, 15, 3, tok("bar-track"));
+    }
+  }
+  battery(s, 554.1, 431.1, 26.7, 3, 13);
+  return L;
+}
+
+const ERROR_TITLE = "Can't reach the server";
+const ERROR_BODY = `cable-twii couldn't connect to ${ADDRESS}. Check that the server is running and the Wii is online, or change the address in Settings.`;
+
+function drawError(s, o) {
+  stripes(s);
+  const lines = wrap("body", 15, ERROR_BODY, 392, 14);
+  const L = errorLayout(lines.length);
+  card(s, L.card, num("panel-radius"), 0.6, tok("gloss-bottom"), "panel");
+  s.text("bold", 20, L.title.x, L.title.y, fit("bold", 20, ERROR_TITLE, 392), tok("text-primary"));
+  lines.forEach((line, i) => s.text("body", 15, L.body.x, L.body.y + 20 * i, line, tok("text-secondary")));
+  const st = k => (o.pressed === k ? "pressed" : o.hot === k ? "hot" : "rest");
+  pill(s, L.hbc, "Back to Homebrew Channel", 14, st("hbc"), "panel");
+  pill(s, L.settings, "Settings", 14, st("settings"), "panel");
+  return L;
+}
+
+const EMPTY_BODY = "Add one on the Channels page in cable-twii Studio, then plug the drive back in.";
+
+function drawEmpty(s, o) {
+  stripes(s);
+  bloom(s, 320, 144, 448, 336, "#FFFFFFD9");
+  header(s);
+  sysbar(s, false);
+  const L = emptyLayout();
+  card(s, L.card, num("panel-radius"), 0.6, tok("gloss-bottom"), "panel");
+  const cx = L.card.x + L.card.w / 2;
+  const tw = 80 * PX;
+  s.rr(cx - tw / 2, 114.7, tw, 80, 18, tok("placeholder-fill"));
+  s.add(`<rect x="${n2(cx - tw / 2)}" y="114.7" width="${n2(tw)}" height="80" rx="${n2(18 * PX)}" ry="18" fill="none" stroke="${col(tok("pill-border"))}" stroke-width="1.5" stroke-dasharray="4 4"/>`);
+  s.tinted(ASSETS.play, cx - 37 * PX / 2, 114.7 + (80 - 37) / 2, 37 * PX, 37, tok("pill-border"));
+  s.text("bold", 24, cx, 209, "No channels yet", tok("text-primary"), "center");
+  wrap("body", 13, EMPTY_BODY, L.card.w - 38, 3).forEach((line, i) => s.text("body", 13, cx, 250 + 18.6 * i, line, tok("text-label"), "center"));
+  const st = k => (o.pressed === k ? "pressed" : o.hot === k ? "hot" : "rest");
+  pill(s, L.hbc, "Back to Homebrew Channel", 14, st("hbc"), "panel");
+  pill(s, L.settings, "Settings", 14, st("settings"), "panel");
+  return L;
+}
+
+const FRAMES = {
+  "settings-server": s => {
+    const L = drawSettings(s, { source: "server", address: "http://" + ADDRESS, result: RESULTS[1], noSd: false, hot: "test" });
+    pointer(s, L.test.x + L.test.w - 14, L.test.y + L.test.h / 2 + 4);
+  },
+  "settings-drive": s => {
+    const L = drawSettings(s, { source: "drive", address: "", result: null, noSd: true, hot: "server" });
+    pointer(s, L.server.x + L.server.w - 18, L.server.y + L.server.h / 2 + 6);
+  },
+  "keyboard": s => {
+    const L = drawKeyboard(s, { typed: "http://192.168.1.20", hot: [3, 7] });
+    const k = L.keys[3][7];
+    pointer(s, k.x + k.w - 6, k.y + k.h - 4);
+  },
+  "home-server": s => {
+    const L = drawHome(s, { fromServer: true, hot: "settings" });
+    pointer(s, L.settings.x + L.settings.w - 22, L.settings.y + L.settings.h / 2 + 4);
+  },
+  "home-drive": s => { drawHome(s, { fromServer: false }); },
+  "error": s => {
+    const L = drawError(s, { hot: "settings" });
+    pointer(s, L.settings.x + L.settings.w - 18, L.settings.y + L.settings.h / 2 + 4);
+  },
+  "empty": s => {
+    const L = drawEmpty(s, { pressed: "settings" });
+    pointer(s, L.settings.x + L.settings.w - 12, L.settings.y + L.settings.h - 2);
+  },
+};
+
+function drawMessages() {
+  const host = document.getElementById("msgs");
+  host.innerHTML = "";
+  for (const m of RESULTS) {
+    const s = new Svg();
+    const L = settingsLayout(PX);
+    s.rr(0, 0, 640, 480, 0, tok("panel-fill"));
+    const lines = resultLines(s, L, m);
+    const vx = 76, vw = 488, vy = 266, vh = 50;
+    const svg = s.toString().replace('viewBox="0 0 640 480"', `viewBox="${vx} ${vy} ${vw} ${vh}"`).replace(/width="[\d.]+" height="480"/, `width="${n2(vw / PX)}" height="${vh}"`);
+    const div = document.createElement("div");
+    div.className = "msg";
+    div.innerHTML = `${svg}<div class="meta">${esc(m.label)} · ${lines} line${lines === 1 ? "" : "s"} at pixel_x ${PX}</div>`;
+    host.appendChild(div);
+  }
+}
+
+const fmt = v => (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, "");
+const rectStr = r => (typeof r === "string" ? r : `${fmt(r.x)}, ${fmt(r.y)}, ${fmt(r.w)}, ${fmt(r.h)}`);
+
+function tableRows() {
+  const rows = [];
+  const group = name => rows.push({ group: name });
+  const add = (name, f, note) => rows.push({ name, a: f(1), b: f(0.75), note });
+
+  group("Settings screen (stripes, then one card; no header or system bar)");
+  add("card", px => settingsLayout(px).card, "info gradient (white to 60%, then #F8FAFC), radius 18, panel shadow; 24 padding");
+  add("title “Settings”", px => settingsLayout(px).title, "bold 20, #444444");
+  add("label “Play from”", px => settingsLayout(px).sourceLabel, "bold 15, #555555, em top = row y + 12.5");
+  add("source track", px => settingsLayout(px).track, "#E1E5E9 with the 1 px #C7CED4 inset line, full radius");
+  add("Drive (hit rect = half)", px => settingsLayout(px).drive, "label bold 15 centred, em top 127.5");
+  add("Server (hit rect = half)", px => settingsLayout(px).server, "label bold 15 centred, em top 127.5");
+  add("chosen thumb, Drive", px => thumbOf(settingsLayout(px).drive, px), "half inset 4×pixel_x / 4; 2 px #2A8FB3 border, accent gloss, white label, pill shadow");
+  add("chosen thumb, Server", px => thumbOf(settingsLayout(px).server, px), "same; when pointed and not chosen it's a pointed pill");
+  add("label “Server address”", px => settingsLayout(px).addressLabel, "bold 15, #555555");
+  add("address field", px => settingsLayout(px).field, "radius 12, 2 px #D6DBE0 border, white with a 1 px #C7CED4 inset line at the top");
+  add("address text", px => settingsLayout(px).fieldText, "bold 16, #444444, shortened with … at 230; empty: “Not set” in #AAAAAA");
+  add("Edit pill", px => settingsLayout(px).edit, "label bold 14");
+  add("Test connection pill", px => settingsLayout(px).test, "label bold 14");
+  add("result dot", px => settingsLayout(px).resultDot, "8 tall; OK: #34BEED + ring (spread 2); failure: #F3CF8A; testing: #BFE6F6");
+  add("result text (2 lines)", px => settingsLayout(px).result, "body 13, #555555, line height 18.6, 2 lines reserved, … on line 2");
+  add("divider", px => settingsLayout(px).divider, "#E1E5E9");
+  add("no-SD dot", px => settingsLayout(px).noSdDot, "#F3CF8A, only when the settings can't be saved");
+  add("no-SD line", px => settingsLayout(px).noSd, "body 13, #555555, one line (346 px at 4:3, 249 at 16:9)");
+  add("Cancel pill", px => settingsLayout(px).cancel, "label bold 14");
+  add("Save pill", px => settingsLayout(px).save, "label bold 14");
+
+  group("Keyboard (over Settings dimmed by 60% black)");
+  add("card", px => keyboardLayout(px).card, "OSD gradient (white to 55%, then #F4F7FA), radius 18, video shadow; 20 padding");
+  add("label “Server address”", px => keyboardLayout(px).label, "bold 15, #555555");
+  add("text box", px => keyboardLayout(px).text, "same look as the address field");
+  add("typed text", px => keyboardLayout(px).typed, "bold 20, #444444; when too long: … + the end");
+  add("caret", px => R(77, 120, 2 * px, 24), "x = text end + 2; #34BEED");
+  for (let r = 0; r < 4; r++) {
+    add(`row ${r} keys “${ROWS[r]}”`, px => keyboardLayout(px).keys[r][0], `first key shown; the 10 keys sit at x ${keyboardLayout(1).keys[r].map(k => fmt(k.x)).join(", ")} (63 + 52·c), each 46×40; label bold 18 centred, em top = key y + 11`);
+  }
+  add("row 4: http://", px => keyboardLayout(px).keys[4][0], "spans 3 key columns; label bold 15, #AAAAAA once the box has text");
+  add("row 4: ← Backspace", px => keyboardLayout(px).keys[4][1], "spans 3 key columns; label bold 15");
+  add("row 4: Done", px => keyboardLayout(px).keys[4][2], "spans 4 key columns; label bold 15");
+  add("every key", () => "–, –, 46, 40", "radius 10, pill bands and border, pill shadow, pointed/pressed as pills; hit rect = key grown by 3 (half the gap), so the grid has no dead spots");
+
+  group("HOME menu (rects that change; the bars, badge, title and volume stay as they are)");
+  add("Wii Menu", px => homeLayout(px, true).wiiMenu, "was 150, 133.3; label bold 20 with the house glyph");
+  add("Back to Homebrew Channel", px => homeLayout(px, true).hbc, "was 150, 221.3; label bold 20");
+  add("Settings, server mode", px => homeLayout(px, true).settings, "new; label bold 15");
+  add("Reload channels, server mode", px => homeLayout(px, true).reload, "new; label bold 15");
+  add("Settings, drive mode", px => homeLayout(px, false).settings, "new; label bold 15");
+  add("Reload channels, drive mode", px => homeLayout(px, false).reload, "empty rect, not drawn, no hit");
+  add("Resume", px => homeLayout(px, true).resume, "was 225, 311.1; label bold 15");
+  add("Volume label", px => homeLayout(px, true).volLabel, "changed after approval (2026-11-19) to fix the 4:3 overlap: was 26, 436.4, 36, 16; bold 13 “Volume” is 48 wide");
+  add("Volume bar", px => homeLayout(px, true).volBar, "changed after approval (2026-11-19): was x 68.2, so the label ran into the first segment; now x 80.2");
+  add("badge (unchanged)", px => homeLayout(px, true).badge, "for reference: square, width × pixel_x");
+
+  group("Error card (height still follows the body; numbers for the server error)");
+  const errLines = px => { const keep = PX; PX = px; const n = wrap("body", 15, ERROR_BODY, 392, 14).length; PX = keep; return n; };
+  add("card", px => errorLayout(errLines(px)).card, "440 wide; h = 148 + 20 × body lines; centred");
+  add("Back to Homebrew Channel", px => errorLayout(errLines(px)).hbc, "was one 260 pill; now x = card x + 24, y = card bottom − 64; label bold 14");
+  add("Settings", px => errorLayout(errLines(px)).settings, "new; right edge = card right − 24; label bold 14");
+
+  group("Empty card (card, tile, title and body unchanged)");
+  add("Back to Homebrew Channel", px => emptyLayout().hbc, "was 231.1, 299.4, 177.8, 39.2; label bold 14");
+  add("Settings", px => emptyLayout().settings, "new; label bold 14");
+  return rows;
+}
+
+function drawTable() {
+  const t = document.getElementById("numbers");
+  const rows = tableRows();
+  let html = `<thead><tr><th>Part</th><th>pixel_x 1.0 (4:3)</th><th>pixel_x 0.75 (16:9)</th><th>Look</th></tr></thead><tbody>`;
+  for (const r of rows) {
+    if (r.group) { html += `<tr><th colspan="4">${esc(r.group)}</th></tr>`; continue; }
+    const a = rectStr(r.a), b = rectStr(r.b);
+    html += `<tr class="${a === b ? "" : "diff"}"><td>${esc(r.name)}</td><td>${a}</td><td class="r2">${b}</td><td class="wrap">${esc(r.note)}</td></tr>`;
+  }
+  t.innerHTML = html + "</tbody>";
+}
+
+function render() {
+  for (const el of document.querySelectorAll("[data-frame]")) {
+    const s = new Svg();
+    FRAMES[el.dataset.frame](s);
+    el.innerHTML = s.toString();
+  }
+  drawMessages();
+}
+
+function setPx(px) {
+  PX = px;
+  advCache.clear();
+  for (const b of document.querySelectorAll(".switch button")) b.setAttribute("aria-pressed", String(parseFloat(b.dataset.px) === px));
+  render();
+}
+
+window.addEventListener("error", e => {
+  const el = document.getElementById("err");
+  el.style.display = "block";
+  el.textContent = "Mockup script error: " + e.message;
+});
+
+for (const b of document.querySelectorAll(".switch button")) {
+  b.addEventListener("click", () => {
+    history.replaceState(null, "", b.dataset.px === "1" ? "#4x3" : "#16x9");
+    setPx(parseFloat(b.dataset.px));
+  });
+}
+
+drawTable();
+setPx(location.hash === "#16x9" ? 0.75 : 1);
+const sample = "←…·◀▶“”";
+Promise.all([
+  document.fonts.load(`800 16px "M PLUS Rounded 1c"`, "Settings " + sample),
+  document.fonts.load(`500 16px "M PLUS Rounded 1c"`, "Settings " + sample),
+]).then(() => document.fonts.ready).then(() => { advCache.clear(); drawTable(); render(); document.body.dataset.ready = "1"; }).catch(() => { document.body.dataset.ready = "1"; });
+</script>
+</body>
+</html>

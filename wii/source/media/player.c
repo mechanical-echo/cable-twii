@@ -18,6 +18,8 @@
 #include "audio.h"
 #include "playback.h"
 #include "aspect.h"
+#include "netsrc.h"
+#include "net/addr.h"
 
 #define SLOT_FREE 0
 #define SLOT_READY 1
@@ -26,6 +28,9 @@
 #define DECODE_PRIO 48
 #define AUDIO_LEAD_SAMPLES 12000
 #define LATE_FRAME_LIMIT 2
+#define NET_PREFIX "http://"
+#define NET_TIMEOUT_MS 5000
+#define NET_LOAD_MIN (16 * 1024)
 
 typedef struct {
     volatile int state;
@@ -35,7 +40,8 @@ typedef struct {
 
 static plm_t *plm;
 static FILE *fh;
-static char cur_path[320];
+static ns_source *net;
+static char cur_path[ADDR_URL_BYTES];
 static int has_audio_s;
 static int samplerate_s;
 static int vid_w, vid_h;
@@ -116,12 +122,20 @@ static void flush_queue(void)
     LWP_MutexUnlock(q_lock);
 }
 
+static bool source_failed(void)
+{
+    return net != NULL ? ns_failed(net) : ferror(fh) != 0;
+}
+
 static void on_stream_end(void)
 {
     if (status == PL_ERROR) return;
-    struct stat st;
-    bool path_ok = stat(cur_path, &st) == 0;
-    if (pb_classify_end(ferror(fh) != 0, path_ok) == PB_END_ERROR) status = PL_ERROR;
+    bool path_ok = true;
+    if (net == NULL) {
+        struct stat st;
+        path_ok = stat(cur_path, &st) == 0;
+    }
+    if (pb_classify_end(source_failed(), path_ok) == PB_END_ERROR) status = PL_ERROR;
 }
 
 static void end_stream(volatile int *flag)
@@ -164,7 +178,7 @@ static void do_seek(void)
     } else {
         au_go();
     }
-    if (ferror(fh)) status = PL_ERROR;
+    if (source_failed()) status = PL_ERROR;
     if (status != PL_ERROR) status = PL_PLAYING;
 }
 
@@ -203,27 +217,84 @@ static void *decode_thread(void *arg)
     return NULL;
 }
 
+static void net_load(plm_buffer_t *b, void *user)
+{
+    if (b->discard_read_bytes) plm_buffer_discard_read_bytes(b);
+    size_t room = b->capacity - b->length;
+    size_t want = room < NET_LOAD_MIN ? room : NET_LOAD_MIN;
+    size_t got = 0;
+    do {
+        size_t n = ns_read(user, b->bytes + b->length + got, room - got);
+        if (n == 0) break;
+        got += n;
+    } while (got < want);
+    b->length += got;
+    if (got == 0) b->has_ended = TRUE;
+}
+
+static void net_seek(plm_buffer_t *b, size_t offset, void *user)
+{
+    (void)b;
+    ns_seek(user, offset);
+}
+
+static size_t net_tell(plm_buffer_t *b, void *user)
+{
+    (void)b;
+    return (size_t)ns_tell(user);
+}
+
+static int open_net(const char *url)
+{
+    net = ns_open(url, NET_TIMEOUT_MS);
+    if (net == NULL) return -1;
+    plm_buffer_t *b = plm_buffer_create_with_callbacks(net_load, net_seek, net_tell, (size_t)ns_length(net), net);
+    plm = plm_create_with_buffer(b, 1);
+    if (plm == NULL) {
+        ns_close(net);
+        net = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+static void release_plm(void)
+{
+    plm_destroy(plm);
+    plm = NULL;
+    fh = NULL;
+    if (net != NULL) {
+        ns_close(net);
+        net = NULL;
+    }
+}
+
 int pl_open(const char *path, uint32_t offset_ms)
 {
     pl_close();
 
     snprintf(cur_path, sizeof cur_path, "%s", path);
-    fh = fopen(path, "rb");
-    if (fh == NULL) {
-        status = PL_ERROR;
-        return -1;
-    }
-    plm = plm_create_with_file(fh, 1);
-    if (plm == NULL) {
-        fclose(fh);
-        fh = NULL;
-        status = PL_ERROR;
-        return -1;
+    if (strncmp(path, NET_PREFIX, strlen(NET_PREFIX)) == 0) {
+        if (open_net(path) != 0) {
+            status = PL_ERROR;
+            return -1;
+        }
+    } else {
+        fh = fopen(path, "rb");
+        if (fh == NULL) {
+            status = PL_ERROR;
+            return -1;
+        }
+        plm = plm_create_with_file(fh, 1);
+        if (plm == NULL) {
+            fclose(fh);
+            fh = NULL;
+            status = PL_ERROR;
+            return -1;
+        }
     }
     if (!plm_has_headers(plm)) {
-        plm_destroy(plm);
-        plm = NULL;
-        fh = NULL;
+        release_plm();
         status = PL_ERROR;
         return -1;
     }
@@ -234,9 +305,7 @@ int pl_open(const char *path, uint32_t offset_ms)
     samplerate_s = plm_get_samplerate(plm);
 
     if (yg_init(vid_w, vid_h) != 0) {
-        plm_destroy(plm);
-        plm = NULL;
-        fh = NULL;
+        release_plm();
         status = PL_ERROR;
         return -1;
     }
@@ -273,11 +342,10 @@ void pl_close(void)
         return;
     }
     dec_quit = 1;
+    if (net != NULL) ns_cancel(net);
     LWP_JoinThread(dec_thread, NULL);
     yg_free();
-    plm_destroy(plm);
-    plm = NULL;
-    fh = NULL;
+    release_plm();
     au_reset();
     status = PL_IDLE;
 }
@@ -302,6 +370,11 @@ uint32_t pl_position_ms(void)
     return (uint32_t)(av_clock() * 1000.0);
 }
 
+uint32_t pl_waiting_ms(void)
+{
+    return net != NULL ? ns_waiting_ms(net) : 0;
+}
+
 int pl_video_size(int *w, int *h)
 {
     if (plm == NULL) return -1;
@@ -312,7 +385,7 @@ int pl_video_size(int *w, int *h)
 
 void pl_draw(float x, float y, float w, float h, float alpha)
 {
-    if (plm == NULL || status == PL_IDLE || status == PL_ENDED || status == PL_ERROR) {
+    if (plm == NULL || status == PL_IDLE || status == PL_ENDED || (status == PL_ERROR && net == NULL)) {
         GRRLIB_Rectangle(x, y, w, h, RGBA(0, 0, 0, 0xFF), 1);
         return;
     }
@@ -363,5 +436,11 @@ void pl_debug_counts(uint32_t *decoded, uint32_t *shown_frames, uint32_t *droppe
     *decoded = frames_decoded;
     *shown_frames = frames_shown;
     *dropped = frames_dropped;
+}
+
+bool pl_debug_net(uint32_t *received)
+{
+    *received = ns_bytes_received();
+    return net != NULL;
 }
 #endif

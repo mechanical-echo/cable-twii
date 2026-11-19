@@ -1,4 +1,4 @@
-# cable-twii status (2026-11-18)
+# cable-twii status (2026-11-19)
 
 One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has its own "Status" section and ticked checkboxes.
 
@@ -13,8 +13,8 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 | 05 Wii redesign | Tasks 1-11 on branch `wii-redesign` (kit, guide, system bar, OSD, chip, volume, up-next card, HOME menu, intro, empty state, error dialog, checklist items 51-55), reviewed and fixed; every screen checked in Dolphin with the scripted-input build (`make -C wii DEBUG_SCRIPT=1`); Design System artifact re-synced (tokens and component notes, main previews redrawn) | real-Wii run of checklist items 51-55 | Owner and real hardware |
 | 04 Release | `make dist`, `CHANGELOG.md`, owner's guide, decision 0003, forwarder source with host tests, banner assets and builder, `tools/build-wad.sh`, channel boot and missing-file message checked in Dolphin (merged to master 2026-10-22), channel install guide | Owner checks of both; banner, icon and sound check on Dolphin's Wii Menu (Task 4 Step 3); channel install by the owner; final acceptance; v1.0.0 tag | The banner check needs a Wii Menu in Dolphin (owner's NAND backup imported); Tasks 5-6 need the owner and the Wii |
 | 06 Streaming test | Test app on branch `streaming-test`, run on the real Wii; decision 0004 accepted: lower-bitrate server profile, continuous streaming client, network retries, no seek index | The 30-minute run, with the plan 08 client | Plan 08 |
-| 07 Studio server mode | Tasks 1-8 on branch `studio-server` (running on the owner's Mac): `npm run serve` with a settings file, shared-password sign-in, the read-only Wii interface `/wii/v1/`, browser uploads and an imports folder, the two-editor save check and the web UI; Windows start script, install guide (`docs/SERVER.md`) and `docs/formats.md` sections; builds and tests pass on Linux | Task 9: server conversion profile (decision 0004); owner's check of `docs/SERVER.md` on the Windows 11 PC | Task 9: nothing; the Windows check: owner |
-| 08 Wii server source | Plan written, updated for decision 0004 | Whole plan: the Wii plays from the server, settings file and Settings screen, fallback to the drive | Nothing (plan 07 Task 9 should land first so test files use the server profile) |
+| 07 Studio server mode | Tasks 1-8 on branch `studio-server` (running on the owner's Mac): `npm run serve` with a settings file, shared-password sign-in, the read-only Wii interface `/wii/v1/`, browser uploads and an imports folder, the two-editor save check and the web UI; Windows start script, install guide (`docs/SERVER.md`) and `docs/formats.md` sections; builds and tests pass on Linux. Tasks 9-11 (server conversion profile, shrink step, pick-before-upload and channel dropdown) are merged into master and running on the owner's Mac | The check of `docs/SERVER.md` on the Windows 11 PC | Owner |
+| 08 Wii server source | Tasks 1-12 on branch `wii-server-source`: settings file, address parsing, HTTP client, library loading, streaming playback, start-up with drive fallback, weak signal and rejoin, Settings screen and keyboard, Reload channels, docs and checklist items 56-66; host tests and the Wii build pass | The Dolphin pass over items 56, 59, 62, 65 and the drive items waits for the owner's go-ahead. Items 57, 58, 60, 61, 63 and 66 need the real Wii at home; the 30-minute run of plan 06 is item 58 | Owner (Dolphin go-ahead) and real hardware |
 
 ## Left that does not need hardware
 
@@ -31,7 +31,8 @@ One-page overview of the plans in `docs/superpowers/plans/`. Each plan also has 
 
 ## Needs the owner or real hardware
 
-- Wii hardware checklist (`docs/testing/wii-checklist.md`), plan 03 Task 11.
+- Wii hardware checklist (`docs/testing/wii-checklist.md`), plan 03 Task 11, and items 56-66 for plan 08.
+- Dolphin pass over items 56, 59, 62, 65 and the drive items that touch boot, state and the HOME menu (plan 08 Task 12 Step 3), once the owner agrees to a Dolphin session.
 - Studio end-to-end check on a real flash drive (plan 02 Task 12).
 - Video test on the real Wii (roadmap Task 2).
 - USB two-drive test and its safety review (roadmap Task 3, paused).

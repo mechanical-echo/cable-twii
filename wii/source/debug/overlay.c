@@ -6,6 +6,7 @@
 #include <ogc/lwp_watchdog.h>
 
 #include "dbgstats.h"
+#include "../loader.h"
 #include "../media/audio.h"
 #include "../media/player.h"
 #include "../ui/draw.h"
@@ -20,9 +21,10 @@
 #define OVERLAY_FILL 0x000000B0u
 #define OVERLAY_TEXT 0xFFFFFFFFu
 
-static dbg_rate ui_rate, video_rate;
+static dbg_rate ui_rate, video_rate, net_rate;
 static uint32_t frames;
 static char lines[DBG_LINES][DBG_LINE_BYTES];
+static int line_count;
 
 static void refresh(void)
 {
@@ -38,13 +40,18 @@ static void refresh(void)
     struct mallinfo mi = mallinfo();
     s.heap_used = (uint32_t)mi.uordblks;
     s.heap_free = (uint32_t)mi.fordblks;
-    dbg_format(&s, lines);
+    s.load_on = ld_debug_times(&s.net_up_ms, &s.load_ms);
+    uint32_t received;
+    s.net_on = pl_debug_net(&received);
+    s.net_rate = net_rate.rate;
+    line_count = dbg_format(&s, lines);
 }
 
 void overlay_init(void)
 {
     dbg_rate_init(&ui_rate);
     dbg_rate_init(&video_rate);
+    dbg_rate_init(&net_rate);
     frames = 0;
     refresh();
 }
@@ -56,11 +63,17 @@ void overlay_draw(void)
     uint32_t decoded, shown, dropped;
     pl_debug_counts(&decoded, &shown, &dropped);
     dbg_rate_update(&video_rate, now_us, shown);
+    uint32_t received;
+    if (pl_debug_net(&received)) {
+        dbg_rate_update(&net_rate, now_us, received);
+    } else {
+        dbg_rate_init(&net_rate);
+    }
     if (dbg_rate_update(&ui_rate, now_us, frames)) refresh();
 
-    float h = 2.0f * OVERLAY_PAD + DBG_LINES * OVERLAY_LINE_H;
+    float h = 2.0f * OVERLAY_PAD + (float)line_count * OVERLAY_LINE_H;
     ui_rounded(OVERLAY_X, OVERLAY_Y, OVERLAY_W, h, 6.0f, OVERLAY_FILL);
-    for (int i = 0; i < DBG_LINES; i++) {
+    for (int i = 0; i < line_count; i++) {
         float y = OVERLAY_Y + OVERLAY_PAD + (float)i * OVERLAY_LINE_H;
         ui_text(FONT_BODY, OVERLAY_TEXT_PX, OVERLAY_X + OVERLAY_PAD, y, lines[i], OVERLAY_TEXT, ALIGN_LEFT);
     }

@@ -67,6 +67,30 @@ size_t tf_fit(const char *utf8, float max_w, tf_width_fn width, void *ctx, char 
     return n;
 }
 
+size_t tf_fit_tail(const char *utf8, float max_w, tf_width_fn width, void *ctx, char *out, size_t out_size)
+{
+    if (out_size == 0) return 0;
+
+    size_t total_cp = cp_count(utf8);
+    size_t start = 0;
+    size_t lead = 0;
+    if (width(utf8, total_cp, ctx) > max_w) {
+        float ellipsis_w = width(ELLIPSIS, 1, ctx);
+        size_t k = 1;
+        while (k < total_cp && width(utf8 + byte_len_for_cp(utf8, k), total_cp - k, ctx) + ellipsis_w > max_w) k++;
+        start = k < total_cp ? byte_len_for_cp(utf8, k) : strlen(utf8);
+        lead = sizeof(ELLIPSIS) - 1;
+    }
+
+    size_t n = lead < out_size - 1 ? lead : out_size - 1;
+    memcpy(out, ELLIPSIS, n);
+    size_t tail = strlen(utf8 + start);
+    size_t copy = tail < out_size - 1 - n ? tail : out_size - 1 - n;
+    memcpy(out + n, utf8 + start, copy);
+    out[n + copy] = '\0';
+    return n + copy;
+}
+
 static size_t para_cp_count(const char *s)
 {
     size_t n = 0;

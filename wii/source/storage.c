@@ -45,8 +45,18 @@ typedef struct {
     u32 span;
     bool mounted;
     bool has_root;
+    bool config;
     char name[16];
 } part;
+
+typedef struct {
+    bool on;
+    vol_source source;
+    int disk;
+    u32 start;
+    u32 span;
+    DISC_INTERFACE iface;
+} write_guard;
 
 static usb_dev devs[MAX_DEVS];
 static int dev_count;
@@ -55,10 +65,11 @@ static int disk_count;
 static part parts[MAX_PARTS];
 static int part_count;
 static bool sd_started;
-static int write_disk = -1;
-static u32 write_start;
-static u32 write_span;
-static DISC_INTERFACE write_iface;
+static write_guard root_guard;
+static write_guard config_guard;
+static DISC_INTERFACE config_iface;
+static bool config_held;
+static bool config_card_clean;
 
 unsigned g_dvmOgcUsbMount = 0;
 
@@ -108,12 +119,22 @@ static bool usb_write(int d, sec_t sector, sec_t count, const void *buffer)
     return true;
 }
 
-static bool guarded_write(sec_t sector, sec_t count, const void *buffer)
+static bool guarded_write(const write_guard *g, sec_t sector, sec_t count, const void *buffer)
 {
-    if (write_disk < 0 || write_disk >= disk_count) return false;
-    if (!vol_write_in_range(write_start, write_span, sector, count)) return false;
-    if (disks[write_disk].source == VOL_SD) return __io_wiisd.writeSectors(sector, count, buffer);
-    return usb_write(write_disk, sector, count, buffer);
+    if (!g->on || !vol_write_in_range(g->start, g->span, sector, count)) return false;
+    if (g->source == VOL_SD) return __io_wiisd.writeSectors(sector, count, buffer);
+    if (g->disk < 0 || g->disk >= disk_count) return false;
+    return usb_write(g->disk, sector, count, buffer);
+}
+
+static bool root_write(sec_t sector, sec_t count, const void *buffer)
+{
+    return guarded_write(&root_guard, sector, count, buffer);
+}
+
+static bool config_write(sec_t sector, sec_t count, const void *buffer)
+{
+    return guarded_write(&config_guard, sector, count, buffer);
 }
 
 static bool refuse_write(sec_t sector, sec_t count, const void *buffer)
@@ -277,7 +298,12 @@ static void mount_parts(void)
         } else {
             snprintf(p->name, sizeof p->name, "usb%d", usb_n++);
         }
-        if (!fatMount(p->name, &k->iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE)) continue;
+        if (config_held && strcmp(p->name, "sd") == 0) {
+            if (p->start != config_guard.start || p->span != config_guard.span) continue;
+            p->config = true;
+        } else if (!fatMount(p->name, &k->iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE)) {
+            continue;
+        }
         p->mounted = true;
 
         char path[32];
@@ -305,7 +331,7 @@ static void release_unchosen(int chosen)
 
     for (int i = 0; i < part_count; i++) {
         if (i == chosen || !parts[i].mounted) continue;
-        unmount_name(parts[i].name);
+        if (!parts[i].config) unmount_name(parts[i].name);
         parts[i].mounted = false;
     }
     for (int i = 0; i < dev_count; i++) {
@@ -314,7 +340,7 @@ static void release_unchosen(int chosen)
         devs[i].opened = false;
     }
     if (keep_dev < 0) USBStorage_Deinitialize();
-    if (!keep_sd && sd_started) {
+    if (!keep_sd && !config_held && sd_started) {
         __io_wiisd.shutdown();
         sd_started = false;
     }
@@ -344,6 +370,19 @@ static bool root_scan(const char *name, bool *has_games)
     return !vol_scan_failed(err);
 }
 
+static bool remount_guarded(const char *name, write_guard *g, FN_MEDIUM_WRITESECTORS write, const DISC_INTERFACE *read_only)
+{
+    g->iface = *read_only;
+    g->iface.features |= FEATURE_MEDIUM_CANWRITE;
+    g->iface.writeSectors = write;
+    g->on = true;
+
+    unmount_name(name);
+    if (fatMount(name, &g->iface, g->start, CACHE_PAGES, SECTORS_PER_PAGE)) return true;
+    g->on = false;
+    return false;
+}
+
 static bool enable_writes(int chosen)
 {
     part *p = &parts[chosen];
@@ -352,28 +391,98 @@ static bool enable_writes(int chosen)
     bool has_games = false;
     bool scanned = root_scan(p->name, &has_games);
     if (!vol_write_allowed(p->has_root, has_games, !scanned)) return false;
+    if (p->config) return config_guard.on;
 
-    write_iface = k->iface;
-    write_iface.features |= FEATURE_MEDIUM_CANWRITE;
-    write_iface.writeSectors = guarded_write;
-    write_disk = p->disk;
-    write_start = p->start;
-    write_span = p->span;
-
-    unmount_name(p->name);
-    if (fatMount(p->name, &write_iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE)) return true;
-    write_disk = -1;
+    root_guard.source = k->source;
+    root_guard.disk = p->disk;
+    root_guard.start = p->start;
+    root_guard.span = p->span;
+    if (remount_guarded(p->name, &root_guard, root_write, &k->iface)) return true;
     p->mounted = fatMount(p->name, &k->iface, p->start, CACHE_PAGES, SECTORS_PER_PAGE);
     return false;
+}
+
+static void scan_other_parts(vol_scan *scans)
+{
+    for (int i = 1; i < part_count; i++) {
+        char name[16];
+        snprintf(name, sizeof name, "sd%d", i);
+        bool mounted = fatMount(name, &disks[parts[i].disk].iface, parts[i].start, CACHE_PAGES, SECTORS_PER_PAGE);
+        scans[i].has_games = false;
+        scans[i].scan_error = !mounted || !root_scan(name, &scans[i].has_games);
+        if (mounted) unmount_name(name);
+    }
+}
+
+int st_config_mount(void)
+{
+    if (config_held) return 0;
+    unmount_name("sd");
+    disk_count = 0;
+    part_count = 0;
+    open_sd();
+    u8 *buf = (u8 *)memalign(32, CHUNK_BYTES);
+    if (buf != NULL) {
+        if (disk_count > 0) scan_disk(0, buf);
+        free(buf);
+    }
+    vol_scan scans[MAX_PARTS];
+    int scan_count = part_count;
+    if (scan_count > 0) {
+        config_iface = disks[0].iface;
+        config_guard.on = false;
+        config_guard.source = VOL_SD;
+        config_guard.disk = -1;
+        config_guard.start = parts[0].start;
+        config_guard.span = parts[0].span;
+        scan_other_parts(scans);
+    }
+    disk_count = 0;
+    part_count = 0;
+    if (scan_count == 0 || !fatMount("sd", &config_iface, config_guard.start, CACHE_PAGES, SECTORS_PER_PAGE)) return -1;
+    config_held = true;
+
+    scans[0].has_games = false;
+    scans[0].scan_error = !root_scan("sd", &scans[0].has_games);
+    config_card_clean = scan_count < MAX_PARTS && vol_card_write_allowed(scans, (size_t)scan_count);
+    if (config_guard.span == 0 || !vol_config_write_allowed(scans[0].has_games, scans[0].scan_error)) return 0;
+    if (remount_guarded("sd", &config_guard, config_write, &config_iface)) return 0;
+    config_held = fatMount("sd", &config_iface, config_guard.start, CACHE_PAGES, SECTORS_PER_PAGE);
+    return config_held ? 0 : -1;
+}
+
+bool st_config_writable(void)
+{
+    return config_held && config_guard.on && config_card_clean;
+}
+
+static bool sd_part_mounted(void)
+{
+    for (int i = 0; i < part_count; i++) {
+        if (parts[i].mounted && !parts[i].config && disks[parts[i].disk].source == VOL_SD) return true;
+    }
+    return false;
+}
+
+void st_config_release(void)
+{
+    if (!config_held) return;
+    unmount_name("sd");
+    config_guard.on = false;
+    config_held = false;
+    if (sd_started && !sd_part_mounted()) {
+        __io_wiisd.shutdown();
+        sd_started = false;
+    }
 }
 
 int st_find_root(char *out, size_t out_size, st_volume *vol)
 {
     memset(vol, 0, sizeof *vol);
-    unmount_name("sd");
+    if (!config_held) unmount_name("sd");
     unmount_name("carda");
     unmount_name("cardb");
-    write_disk = -1;
+    root_guard.on = false;
     dev_count = 0;
     disk_count = 0;
     part_count = 0;
@@ -420,7 +529,7 @@ int st_find_root(char *out, size_t out_size, st_volume *vol)
 void st_release(st_volume *vol)
 {
     release_unchosen(-1);
-    write_disk = -1;
+    root_guard.on = false;
     vol->found = false;
     vol->writable = false;
 }

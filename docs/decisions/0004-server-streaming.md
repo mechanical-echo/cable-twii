@@ -63,3 +63,5 @@ Both runs fail the bar by a wide margin, so the 30-minute run was not done.
 
 - The 30-minute run and the tune times need repeating on the real Wii with the plan 08 client and a server-profile file.
 - One `wiiload` sample is a thin basis for the link speed. The plan 08 debug overlay should show the live download rate so every real-Wii session adds a data point.
+- The player's load callback waits for at least 16 KiB per pl_mpeg load. This assumes Studio's MPEG-PS output with 2048-byte packets; a mux with packets over 16 KiB would end playback early.
+- The 5,000-episode load time and the free MEM1 and MEM2 from a `DEBUG_OVERLAY=1` build are still to be measured, in Dolphin first, then on the real Wii (checklist item 66).

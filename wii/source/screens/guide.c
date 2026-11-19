@@ -23,6 +23,7 @@
 #include "guide_list.h"
 #include "header.h"
 #include "homemenu.h"
+#include "notice.h"
 #include "sysbar.h"
 
 #define SCROLL_MS 200u
@@ -55,6 +56,22 @@ static void ensure_model(app *a)
     rows = count > 0 ? (gm_row *)malloc(2 * count * sizeof *rows) : NULL;
     row_count = rows != NULL ? gm_build(a->db, rows, 2 * count) : 0;
     if (glist_init(row_count) != 0) row_count = 0;
+}
+
+void guide_reset(void)
+{
+    free(rows);
+    rows = NULL;
+    row_count = 0;
+    built = false;
+    highlight = -1;
+    last_hit = -1;
+    scroll = 0.0f;
+    scrolling = false;
+    mode = G_IDLE;
+    pv_reset(&pv, 0);
+    glist_init(0);
+    ginfo_reset();
 }
 
 void guide_prepare(app *a)
@@ -286,10 +303,11 @@ void guide_draw(app *a)
     ui_stripes();
     if (row_count == 0) {
         draw_empty(a);
-        return;
+    } else {
+        draw_body(a, 1.0f);
+        if (mode != G_IDLE) draw_transition(a);
     }
-    draw_body(a, 1.0f);
-    if (mode != G_IDLE) draw_transition(a);
+    notice_draw(a);
 }
 
 void guide_draw_intro(app *a, float progress)

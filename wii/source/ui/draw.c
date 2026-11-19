@@ -517,10 +517,9 @@ void ui_panel(float x, float y, float w, float h, float radius, uint32_t fill, u
     rounded_rect(x + 2, y + 2, w - 4, h - 4, radius > 2.0f ? radius - 2.0f : 0.0f, fill);
 }
 
-void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, ui_pill_state state, ui_shadow_kind shadow)
+void ui_pill_radius(float x, float y, float w, float h, float radius, const char *label, int px, uint32_t color, ui_pill_state state, ui_shadow_kind shadow)
 {
     if (state == UI_PILL_PRESSED) y += PILL_PRESS_DY;
-    float radius = h / 2.0f;
     if (state != UI_PILL_PRESSED) {
         if (shadow == UI_SHADOW_PANEL) ui_shadow(x, y, w, h, radius, THEME_PILL_SHADOW, 1.0f, 4.0f);
         else if (shadow == UI_SHADOW_VIDEO) ui_drop_shadow(x, y, w, h, radius, UI_SHADOW_VIDEO, 1.0f);
@@ -542,8 +541,13 @@ void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, u
         char fitted[64];
         float inset = w / 4.0f < PILL_LABEL_INSET ? w / 4.0f : PILL_LABEL_INSET;
         ui_text_fit(FONT_BOLD, px, label, w - inset, fitted, sizeof fitted);
-        ui_text(FONT_BOLD, px, x + w / 2.0f, y + h / 2.0f - (float)px / 2.0f, fitted, THEME_TEXT_PRIMARY, ALIGN_CENTER);
+        ui_text(FONT_BOLD, px, x + w / 2.0f, y + h / 2.0f - (float)px / 2.0f, fitted, color, ALIGN_CENTER);
     }
+}
+
+void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, ui_pill_state state, ui_shadow_kind shadow)
+{
+    ui_pill_radius(x, y, w, h, h / 2.0f, label, px, THEME_TEXT_PRIMARY, state, shadow);
 }
 
 void ui_pill(float x, float y, float w, float h, const char *label, bool hot)
@@ -618,8 +622,15 @@ GRRLIB_texImg *ui_load_png_file(const char *path)
         free(buf);
         return NULL;
     }
-    GRRLIB_texImg *tex = GRRLIB_LoadTexturePNG(buf);
+    GRRLIB_texImg *tex = ui_load_png_buffer(buf, (size_t)size);
     free(buf);
+    return tex;
+}
+
+GRRLIB_texImg *ui_load_png_buffer(const uint8_t *data, size_t len)
+{
+    if (data == NULL || len == 0) return NULL;
+    GRRLIB_texImg *tex = GRRLIB_LoadTexturePNG(data);
     if (tex == NULL) return NULL;
     if (tex->data == NULL || tex->w == 0 || tex->h == 0 || tex->w > 128 || tex->h > 128) {
         GRRLIB_FreeTexture(tex);

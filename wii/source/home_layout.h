@@ -1,6 +1,7 @@
 #ifndef CTW_HOME_LAYOUT_H
 #define CTW_HOME_LAYOUT_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "aspect.h"
 
@@ -14,7 +15,9 @@ typedef enum {
     HOME_BTN_NONE,
     HOME_BTN_WII_MENU,
     HOME_BTN_HOMEBREW,
-    HOME_BTN_RESUME
+    HOME_BTN_RESUME,
+    HOME_BTN_SETTINGS,
+    HOME_BTN_RELOAD
 } home_btn;
 
 typedef struct {
@@ -25,6 +28,8 @@ typedef struct {
     asp_rect playing;
     asp_rect wii_menu;
     asp_rect hbc;
+    asp_rect settings;
+    asp_rect reload;
     asp_rect resume;
     asp_rect vol_label;
     asp_rect vol_bar;
@@ -32,7 +37,7 @@ typedef struct {
     asp_rect battery;
 } home_layout;
 
-home_layout home_layout_make(float pixel_x);
+home_layout home_layout_make(float pixel_x, bool from_server);
 home_btn home_hit(const home_layout *l, float x, float y);
 int home_battery_bars(uint8_t level);
 

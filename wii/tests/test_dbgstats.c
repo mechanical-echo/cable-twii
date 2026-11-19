@@ -70,12 +70,56 @@ TEST format_lines(void)
     s.heap_used = 9000u * 1024u;
     s.heap_free = 512u * 1024u;
     char lines[DBG_LINES][DBG_LINE_BYTES];
-    dbg_format(&s, lines);
+    ASSERT_EQ(5, dbg_format(&s, lines));
     ASSERT_STR_EQ("UI 59.9 fps  video 30.0 fps", lines[0]);
     ASSERT_STR_EQ("audio underruns 3", lines[1]);
     ASSERT_STR_EQ("frames 12345 decoded  7 dropped", lines[2]);
     ASSERT_STR_EQ("MEM1 1536K  MEM2 40000K free", lines[3]);
     ASSERT_STR_EQ("heap 9000K used  512K free", lines[4]);
+    ASSERT_STR_EQ("", lines[5]);
+    ASSERT_STR_EQ("", lines[6]);
+    PASS();
+}
+
+TEST format_adds_net_line_while_streaming(void)
+{
+    dbg_stats s;
+    memset(&s, 0, sizeof s);
+    s.net_on = true;
+    s.net_rate = 123.0f * 1024.0f + 1000.0f;
+    char lines[DBG_LINES][DBG_LINE_BYTES];
+    ASSERT_EQ(6, dbg_format(&s, lines));
+    ASSERT_STR_EQ("net 123 KB/s", lines[5]);
+    PASS();
+}
+
+TEST format_adds_load_line_after_a_server_load(void)
+{
+    dbg_stats s;
+    memset(&s, 0, sizeof s);
+    s.load_on = true;
+    s.net_up_ms = 812;
+    s.load_ms = 1503;
+    char lines[DBG_LINES][DBG_LINE_BYTES];
+    ASSERT_EQ(6, dbg_format(&s, lines));
+    ASSERT_STR_EQ("net up 812 ms  load 1503 ms", lines[5]);
+    ASSERT_STR_EQ("", lines[6]);
+    PASS();
+}
+
+TEST format_puts_net_rate_after_load_line(void)
+{
+    dbg_stats s;
+    memset(&s, 0, sizeof s);
+    s.load_on = true;
+    s.net_up_ms = 0;
+    s.load_ms = 950;
+    s.net_on = true;
+    s.net_rate = 200.0f * 1024.0f;
+    char lines[DBG_LINES][DBG_LINE_BYTES];
+    ASSERT_EQ(7, dbg_format(&s, lines));
+    ASSERT_STR_EQ("net up 0 ms  load 950 ms", lines[5]);
+    ASSERT_STR_EQ("net 200 KB/s", lines[6]);
     PASS();
 }
 
@@ -101,4 +145,7 @@ SUITE(dbgstats_suite)
     RUN_TEST(rate_survives_counter_wrap);
     RUN_TEST(format_lines);
     RUN_TEST(format_rounds_memory_down_to_kilobytes);
+    RUN_TEST(format_adds_net_line_while_streaming);
+    RUN_TEST(format_adds_load_line_after_a_server_load);
+    RUN_TEST(format_puts_net_rate_after_load_line);
 }

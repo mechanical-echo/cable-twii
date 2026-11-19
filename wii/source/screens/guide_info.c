@@ -12,6 +12,7 @@
 #include "../ui/icons.h"
 #include "../ui/text.h"
 #include "../ui/theme.h"
+#include "notice.h"
 
 #define FRAME_PX 5.0f
 #define ICON_PX 48.0f
@@ -72,6 +73,11 @@ typedef struct {
 static const ui_stop HINT_DISC_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 1.0f, THEME_HINT_DISC_BOTTOM } };
 static info_text info;
 
+void ginfo_reset(void)
+{
+    memset(&info, 0, sizeof info);
+}
+
 static void draw_upnext_card(app *a, asp_rect r)
 {
     uint32_t offset = 0;
@@ -114,6 +120,7 @@ void ginfo_draw_preview(app *a, asp_rect r, float expand)
         } else {
             draw_upnext_card(a, in);
         }
+        if (live_weak()) notice_weak(in);
     }
     if (keep > 0.0f) ui_corner_mask(in.x, in.y, in.w, in.h, in_radius, THEME_PANEL_FILL);
     if (keep >= 1.0f && live) draw_hint(in);
@@ -160,7 +167,7 @@ void ginfo_draw_info(app *a, const ctw_channel *ch, asp_rect r)
     int64_t start = air != NULL ? tn_airing_start(&a->tuner, ch->number, air) : -1;
     if (!info.valid || info.channel != ch->number || info.start != start || info.air != air) refresh(a, ch, air, start, r);
 
-    char path[320];
+    char path[ADDR_URL_BYTES];
     gt_icon_path(a->root, ch, info.icon_show, path, sizeof path);
     float iw = ICON_PX * ui_pixel_x();
     float band = r.h < GL_INFO_MIN_H ? r.h : GL_INFO_MIN_H;

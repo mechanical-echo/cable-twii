@@ -54,6 +54,13 @@ static panel_text text;
 static char countdown_text[16];
 static float countdown_w;
 
+void panel_reset(void)
+{
+    memset(&text, 0, sizeof text);
+    countdown_text[0] = '\0';
+    countdown_w = 0.0f;
+}
+
 static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start)
 {
     memset(&text, 0, sizeof text);
@@ -129,7 +136,7 @@ void panel_draw(app *a, const osd_layout *l)
     const ctw_airing *air = current(a, &ch, &offset);
     if (ch == NULL) return;
 
-    char path[320];
+    char path[ADDR_URL_BYTES];
     gt_icon_path(a->root, ch, text.icon_show, path, sizeof path);
     icons_draw(path, l->icon.x - (ICON_PX - l->icon.w) / 2.0f, l->icon.y, ICON_PX);
     ui_text(FONT_BOLD, NAME_PX, l->name.x, l->name.y, text.name, THEME_ACCENT, ALIGN_LEFT);

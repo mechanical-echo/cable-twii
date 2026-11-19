@@ -19,7 +19,7 @@
 #define TITLE_PX 24
 #define PLAYING_PX 13
 #define BIG_PX 20
-#define RESUME_PX 15
+#define SMALL_PX 15
 #define VOL_LABEL_PX 13
 #define BATTERY_PX 13
 #define BADGE_GLYPH_H 19.6f
@@ -39,10 +39,10 @@ static ps_state press;
 static home_layout layout;
 static bool laid_out;
 
-static const home_layout *current_layout(void)
+static const home_layout *current_layout(const app *a)
 {
     if (!laid_out) {
-        layout = home_layout_make(ui_pixel_x());
+        layout = home_layout_make(ui_pixel_x(), a->from_server);
         laid_out = true;
     }
     return &layout;
@@ -51,16 +51,22 @@ static const home_layout *current_layout(void)
 void home_open(app *a)
 {
     a->home_open = true;
+    laid_out = false;
     hot_btn = HOME_BTN_NONE;
     press.armed = 0;
     sfx_play(SFX_SELECT);
 }
 
-static void home_close(app *a)
+static void dismiss(app *a)
 {
     a->home_open = false;
     hot_btn = HOME_BTN_NONE;
     press.armed = 0;
+}
+
+static void home_close(app *a)
+{
+    dismiss(a);
     sfx_play(SFX_BACK);
 }
 
@@ -73,9 +79,15 @@ static void choose(app *a, home_btn btn)
     case HOME_BTN_HOMEBREW:
         app_quit(a, QUIT_DEST_HOMEBREW);
     case HOME_BTN_RESUME:
-        a->home_open = false;
-        hot_btn = HOME_BTN_NONE;
-        press.armed = 0;
+        dismiss(a);
+        break;
+    case HOME_BTN_RELOAD:
+        dismiss(a);
+        app_reload(a);
+        break;
+    case HOME_BTN_SETTINGS:
+        dismiss(a);
+        app_open_settings(a);
         break;
     case HOME_BTN_NONE:
         break;
@@ -94,7 +106,7 @@ void home_update(app *a)
     }
 
     home_btn btn = HOME_BTN_NONE;
-    if (cur_raw_visible()) btn = home_hit(current_layout(), cur_x(), cur_y());
+    if (cur_raw_visible()) btn = home_hit(current_layout(a), cur_x(), cur_y());
     if (btn != HOME_BTN_NONE && btn != hot_btn) {
         sfx_play(SFX_HOVER);
         in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
@@ -170,7 +182,7 @@ void home_draw(app *a)
     if (!a->home_open) return;
     GRRLIB_Rectangle(0, 0, 640, 480, RGBA(0, 0, 0, HOME_DIM_ALPHA), 1);
 
-    const home_layout *l = current_layout();
+    const home_layout *l = current_layout(a);
     top_bar(l);
     badge(l);
     ui_text(FONT_BOLD, TITLE_PX, l->title.x, l->title.y, "HOME Menu", THEME_TEXT_PRIMARY, ALIGN_LEFT);
@@ -178,7 +190,9 @@ void home_draw(app *a)
 
     wii_menu_pill(l);
     ui_pill_ex(l->hbc.x, l->hbc.y, l->hbc.w, l->hbc.h, "Back to Homebrew Channel", BIG_PX, state_for(HOME_BTN_HOMEBREW), UI_SHADOW_VIDEO);
-    ui_pill_ex(l->resume.x, l->resume.y, l->resume.w, l->resume.h, "Resume", RESUME_PX, state_for(HOME_BTN_RESUME), UI_SHADOW_VIDEO);
+    ui_pill_ex(l->settings.x, l->settings.y, l->settings.w, l->settings.h, "Settings", SMALL_PX, state_for(HOME_BTN_SETTINGS), UI_SHADOW_VIDEO);
+    if (l->reload.w > 0.0f) ui_pill_ex(l->reload.x, l->reload.y, l->reload.w, l->reload.h, "Reload channels", SMALL_PX, state_for(HOME_BTN_RELOAD), UI_SHADOW_VIDEO);
+    ui_pill_ex(l->resume.x, l->resume.y, l->resume.w, l->resume.h, "Resume", SMALL_PX, state_for(HOME_BTN_RESUME), UI_SHADOW_VIDEO);
 
     bottom_bar(l);
     ui_text(FONT_BOLD, VOL_LABEL_PX, l->vol_label.x, l->vol_label.y, "Volume", THEME_TEXT_LABEL, ALIGN_LEFT);

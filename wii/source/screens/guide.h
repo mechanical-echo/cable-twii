@@ -3,6 +3,7 @@
 
 #include "../app.h"
 
+void guide_reset(void);
 void guide_prepare(app *a);
 void guide_enter(app *a);
 void guide_update(app *a);

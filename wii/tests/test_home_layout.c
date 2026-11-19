@@ -3,6 +3,7 @@
 
 #define EPS 0.2f
 #define WIDE 0.75f
+#define VOLUME_TEXT_W 48.0f
 
 static void centre(asp_rect r, float *x, float *y)
 {
@@ -23,7 +24,7 @@ static bool within(asp_rect inner, asp_rect outer)
 
 TEST layout_bars_span_the_screen_top_and_bottom(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     ASSERT_IN_RANGE(0.0f, l.top.y, EPS);
     ASSERT_IN_RANGE(640.0f, l.top.w, EPS);
     ASSERT_IN_RANGE(72.0f, l.top.h, EPS);
@@ -36,24 +37,58 @@ TEST layout_bars_span_the_screen_top_and_bottom(void)
 
 TEST layout_pills_match_the_deck(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     ASSERT_IN_RANGE(150.0f, l.wii_menu.x, EPS);
-    ASSERT_IN_RANGE(133.3f, l.wii_menu.y, EPS);
+    ASSERT_IN_RANGE(110.0f, l.wii_menu.y, EPS);
     ASSERT_IN_RANGE(340.0f, l.wii_menu.w, EPS);
     ASSERT_IN_RANGE(60.0f, l.wii_menu.h, EPS);
-    ASSERT_IN_RANGE(221.3f, l.hbc.y, EPS);
+    ASSERT_IN_RANGE(150.0f, l.hbc.x, EPS);
+    ASSERT_IN_RANGE(190.0f, l.hbc.y, EPS);
+    ASSERT_IN_RANGE(340.0f, l.hbc.w, EPS);
+    ASSERT_IN_RANGE(60.0f, l.hbc.h, EPS);
     ASSERT_IN_RANGE(225.0f, l.resume.x, EPS);
-    ASSERT_IN_RANGE(311.1f, l.resume.y, EPS);
+    ASSERT_IN_RANGE(330.0f, l.resume.y, EPS);
     ASSERT_IN_RANGE(190.0f, l.resume.w, EPS);
     ASSERT_IN_RANGE(40.0f, l.resume.h, EPS);
     ASSERT(apart(l.wii_menu, l.hbc));
-    ASSERT(apart(l.hbc, l.resume));
+    ASSERT(apart(l.hbc, l.settings));
+    ASSERT(apart(l.settings, l.resume));
+    PASS();
+}
+
+TEST home_server_mode_pills_match_the_mockup(void)
+{
+    for (int i = 0; i < 2; i++) {
+        home_layout l = home_layout_make(i == 0 ? 1.0f : WIDE, true);
+        ASSERT_IN_RANGE(150.0f, l.settings.x, EPS);
+        ASSERT_IN_RANGE(270.0f, l.settings.y, EPS);
+        ASSERT_IN_RANGE(165.0f, l.settings.w, EPS);
+        ASSERT_IN_RANGE(40.0f, l.settings.h, EPS);
+        ASSERT_IN_RANGE(325.0f, l.reload.x, EPS);
+        ASSERT_IN_RANGE(270.0f, l.reload.y, EPS);
+        ASSERT_IN_RANGE(165.0f, l.reload.w, EPS);
+        ASSERT_IN_RANGE(40.0f, l.reload.h, EPS);
+        ASSERT(apart(l.settings, l.reload));
+    }
+    PASS();
+}
+
+TEST home_drive_mode_has_a_centred_settings_pill_and_no_reload(void)
+{
+    home_layout l = home_layout_make(1.0f, false);
+    ASSERT_IN_RANGE(225.0f, l.settings.x, EPS);
+    ASSERT_IN_RANGE(270.0f, l.settings.y, EPS);
+    ASSERT_IN_RANGE(190.0f, l.settings.w, EPS);
+    ASSERT_IN_RANGE(40.0f, l.settings.h, EPS);
+    ASSERT_IN_RANGE(0.0f, l.reload.w, EPS);
+    ASSERT_IN_RANGE(0.0f, l.reload.h, EPS);
+    ASSERT_EQ(HOME_BTN_NONE, home_hit(&l, 0.0f, 0.0f));
     PASS();
 }
 
 TEST layout_resume_sits_above_the_bottom_bar(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     ASSERT(l.resume.y + l.resume.h <= l.bottom.y);
     ASSERT(apart(l.resume, l.bottom));
     PASS();
@@ -61,7 +96,7 @@ TEST layout_resume_sits_above_the_bottom_bar(void)
 
 TEST layout_badge_title_and_playing_sit_in_the_top_bar(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     ASSERT_IN_RANGE(26.0f, l.badge.x, EPS);
     ASSERT_IN_RANGE(16.9f, l.badge.y, EPS);
     ASSERT_IN_RANGE(37.0f, l.badge.h, EPS);
@@ -76,7 +111,7 @@ TEST layout_badge_title_and_playing_sit_in_the_top_bar(void)
 
 TEST home_4_3_title_clears_badge(void)
 {
-    home_layout l = home_layout_make(1.0f);
+    home_layout l = home_layout_make(1.0f, true);
     ASSERT_IN_RANGE(37.0f, l.badge.w, EPS);
     ASSERT(l.title.x >= l.badge.x + l.badge.w);
     PASS();
@@ -84,10 +119,10 @@ TEST home_4_3_title_clears_badge(void)
 
 TEST layout_battery_and_volume_sit_in_the_bottom_bar(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     ASSERT_IN_RANGE(26.0f, l.vol_label.x, EPS);
     ASSERT_IN_RANGE(436.4f, l.vol_label.y, EPS);
-    ASSERT_IN_RANGE(68.2f, l.vol_bar.x, EPS);
+    ASSERT_IN_RANGE(80.2f, l.vol_bar.x, EPS);
     ASSERT_IN_RANGE(436.4f, l.vol_bar.y, EPS);
     ASSERT_IN_RANGE(121.0f, l.vol_bar.w, EPS);
     ASSERT_IN_RANGE(16.0f, l.vol_bar.h, EPS);
@@ -100,9 +135,20 @@ TEST layout_battery_and_volume_sit_in_the_bottom_bar(void)
     PASS();
 }
 
+TEST home_volume_label_holds_its_text_and_clears_the_segments(void)
+{
+    for (int i = 0; i < 2; i++) {
+        home_layout l = home_layout_make(i == 0 ? 1.0f : WIDE, true);
+        ASSERT(l.vol_label.w >= VOLUME_TEXT_W);
+        ASSERT(l.vol_label.x + l.vol_label.w <= l.vol_bar.x);
+        ASSERT(apart(l.vol_bar, l.battery));
+    }
+    PASS();
+}
+
 TEST layout_segments_fit_the_volume_bar(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     ASSERT_IN_RANGE(10.0f, HOME_SEGMENT_W, EPS);
     ASSERT_IN_RANGE(2.35f, HOME_SEGMENT_GAP, EPS);
     ASSERT_IN_RANGE(10.0f * 10.0f + 2.35f * 9.0f, l.vol_bar.w, 0.5f);
@@ -111,7 +157,7 @@ TEST layout_segments_fit_the_volume_bar(void)
 
 TEST hit_finds_each_pill_at_its_centre(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     float x, y;
     centre(l.wii_menu, &x, &y);
     ASSERT_EQ(HOME_BTN_WII_MENU, home_hit(&l, x, y));
@@ -119,12 +165,16 @@ TEST hit_finds_each_pill_at_its_centre(void)
     ASSERT_EQ(HOME_BTN_HOMEBREW, home_hit(&l, x, y));
     centre(l.resume, &x, &y);
     ASSERT_EQ(HOME_BTN_RESUME, home_hit(&l, x, y));
+    centre(l.settings, &x, &y);
+    ASSERT_EQ(HOME_BTN_SETTINGS, home_hit(&l, x, y));
+    centre(l.reload, &x, &y);
+    ASSERT_EQ(HOME_BTN_RELOAD, home_hit(&l, x, y));
     PASS();
 }
 
 TEST hit_misses_gaps_bars_and_corners(void)
 {
-    home_layout l = home_layout_make(WIDE);
+    home_layout l = home_layout_make(WIDE, true);
     float gap_y = (l.wii_menu.y + l.wii_menu.h + l.hbc.y) / 2.0f;
     ASSERT_EQ(HOME_BTN_NONE, home_hit(&l, 320.0f, gap_y));
     ASSERT_EQ(HOME_BTN_NONE, home_hit(&l, 2.0f, 2.0f));
@@ -158,10 +208,13 @@ SUITE(home_layout_suite)
 {
     RUN_TEST(layout_bars_span_the_screen_top_and_bottom);
     RUN_TEST(layout_pills_match_the_deck);
+    RUN_TEST(home_server_mode_pills_match_the_mockup);
+    RUN_TEST(home_drive_mode_has_a_centred_settings_pill_and_no_reload);
     RUN_TEST(layout_resume_sits_above_the_bottom_bar);
     RUN_TEST(layout_badge_title_and_playing_sit_in_the_top_bar);
     RUN_TEST(home_4_3_title_clears_badge);
     RUN_TEST(layout_battery_and_volume_sit_in_the_bottom_bar);
+    RUN_TEST(home_volume_label_holds_its_text_and_clears_the_segments);
     RUN_TEST(layout_segments_fit_the_volume_bar);
     RUN_TEST(hit_finds_each_pill_at_its_centre);
     RUN_TEST(hit_misses_gaps_bars_and_corners);

@@ -1,6 +1,7 @@
 #ifndef CTW_UI_DRAW_H
 #define CTW_UI_DRAW_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <grrlib.h>
 
@@ -20,6 +21,7 @@ void ui_stripes_rect(float x, float y, float w, float h, float alpha);
 void ui_panel(float x, float y, float w, float h, float radius, uint32_t fill, uint32_t border);
 void ui_pill(float x, float y, float w, float h, const char *label, bool hot);
 void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, ui_pill_state state, ui_shadow_kind shadow);
+void ui_pill_radius(float x, float y, float w, float h, float radius, const char *label, int px, uint32_t color, ui_pill_state state, ui_shadow_kind shadow);
 void ui_glow(float x, float y, float w, float h, float radius, float alpha);
 void ui_ring(float x, float y, float w, float h, float radius, uint32_t color, float spread);
 void ui_rounded(float x, float y, float w, float h, float radius, uint32_t color);
@@ -45,5 +47,6 @@ void ui_disc(float x, float y, float h, uint32_t inner, uint32_t mid, uint32_t e
 void ui_dashed_rounded(float x, float y, float w, float h, float radius, float thickness, float dash, float gap, uint32_t color);
 void ui_image(GRRLIB_texImg *img, float x, float y, float w, float h, float alpha);
 GRRLIB_texImg *ui_load_png_file(const char *path);
+GRRLIB_texImg *ui_load_png_buffer(const uint8_t *data, size_t len);
 
 #endif

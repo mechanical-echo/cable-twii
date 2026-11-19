@@ -10,7 +10,7 @@ include $(DEVKITPPC)/wii_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	cable-twii
 BUILD		:=	build
-SOURCES		:=	source source/ui source/media source/screens ../engine/src ../engine/vendor/tomlc99
+SOURCES		:=	source source/ui source/media source/net source/screens ../engine/src ../engine/vendor/tomlc99
 DATA		:=	data
 INCLUDES	:=	source ../engine/include ../engine/vendor
 
