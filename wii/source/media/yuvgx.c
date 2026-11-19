@@ -96,11 +96,13 @@ static void setup_tev_yuv(void)
     tev_yuv_stage(GX_TEVSTAGE4, GX_TEXCOORD1, GX_TEXMAP2, GX_TEV_KCSEL_K3, GX_CC_CPREV, GX_TEV_SUB, GX_CS_SCALE_2, GX_TRUE);
 }
 
-void yg_draw(int slot, int frame_w, int frame_h, float x, float y, float w, float h)
+void yg_draw(int slot, int frame_w, int frame_h, asp_rect window, float x, float y, float w, float h)
 {
     yg_slot *s = &slots[slot];
-    float s1 = (float)frame_w / (float)tex_w;
-    float t1 = (float)frame_h / (float)tex_h;
+    float s_span = (float)frame_w / (float)tex_w;
+    float t_span = (float)frame_h / (float)tex_h;
+    float s0 = window.x * s_span, s1 = (window.x + window.w) * s_span;
+    float t0 = window.y * t_span, t1 = (window.y + window.h) * t_span;
 
     GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
     GX_SetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
@@ -119,16 +121,16 @@ void yg_draw(int slot, int frame_w, int frame_h, float x, float y, float w, floa
     GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
     GX_Position3f32(x, y, 0.0f);
     GX_Color1u32(0xFFFFFFFF);
-    GX_TexCoord2f32(0, 0);
+    GX_TexCoord2f32(s0, t0);
     GX_Position3f32(x + w, y, 0.0f);
     GX_Color1u32(0xFFFFFFFF);
-    GX_TexCoord2f32(s1, 0);
+    GX_TexCoord2f32(s1, t0);
     GX_Position3f32(x + w, y + h, 0.0f);
     GX_Color1u32(0xFFFFFFFF);
     GX_TexCoord2f32(s1, t1);
     GX_Position3f32(x, y + h, 0.0f);
     GX_Color1u32(0xFFFFFFFF);
-    GX_TexCoord2f32(0, t1);
+    GX_TexCoord2f32(s0, t1);
     GX_End();
 
     GX_SetVtxDesc(GX_VA_TEX0, GX_NONE);

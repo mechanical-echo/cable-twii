@@ -448,6 +448,7 @@ static void boot(app *a)
 {
     st_config_mount();
     settings_load(SETTINGS_DIR, &a->settings);
+    pl_set_picture(a->settings.picture);
     a->settings_saveable = st_config_writable();
     boot_source(a);
 }
