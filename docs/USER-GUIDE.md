@@ -226,3 +226,53 @@ Studio refuses to save when there is an error, and the Wii shows these same prob
 - "Could not read the library": click **Rebuild** on the Library page, or check the drive is connected.
 - A job in the jobs panel fails: click **Retry failed**. If it keeps failing, check the source video plays on the Mac and that the drive has free space.
 - "Done" will not finish: videos are still converting. Wait for the jobs panel to finish.
+
+## 15. Play from a server
+
+Instead of a drive, the Wii can play from a home server running Studio. Set the server up first with `docs/SERVER.md`. The drive stays the default: nothing changes unless you choose the server.
+
+### Choose the server
+
+1. Start cable-twii. Press **HOME** and choose **Settings**. (If the Wii shows the error or the empty screen, press its **Settings** pill instead.)
+2. Pick **Server**.
+3. Press **Edit** and type the server's address with the on-screen keyboard. Use the pointer and **A**, or the D-pad and **A**. **B** closes the keyboard without changes. The `http://` key shows only while the box is empty.
+4. Press **Test connection**. It tells you one of four things:
+   - `Connected to "<name>".` Good.
+   - `No answer from <address>. Check that the server is running, the address is right and the PC's firewall allows it.`
+   - `<address> answered, but it isn't a cable-twii server.`
+   - `The server's channels have a problem. Open cable-twii Studio on the server to fix it.`
+5. Press **Save**. The Wii restarts the way it does at start-up. **Cancel** (or **B**) leaves without saving.
+
+Save refuses if Server is picked and the address is empty (it opens the keyboard) or can't be read (it shows the "No answer" line).
+
+These forms of the address work:
+- `192.168.1.20`
+- `192.168.1.20:4747`
+- a computer name such as `PC-NAME`
+- `http://192.168.1.20:4747/`
+
+The port is 4747 when you leave it out. `https://`, bad ports and `.local` names do not work. Use the number address from `docs/SERVER.md`.
+
+### Where the choice is saved
+
+The choice is saved in `settings.toml` in `apps/cable-twii/` on the SD card (format in `docs/formats.md`). In server mode the last channel and volume are saved beside it in `state.toml`.
+
+The app saves there only when no partition on the SD card has a `wbfs` or `games` folder. If there is no SD card, or it holds games, nothing is saved: the settings last until cable-twii closes and the Settings screen says `No SD card. These settings last until cable-twii closes.`
+
+### Start-up and the fallback
+
+The logo plays and holds with `Connecting to <address>…`, then the guide opens. Getting online tries up to three times, 10 seconds each.
+
+If the server does not answer, or its files are bad, the app plays from the drive and says `Server not reachable, playing from USB` or `Server not reachable, playing from the SD card`. With no drive it shows `Can't reach the server`, or `Can't reach the network. Check the Wii's internet settings, or start cable-twii again.` Both screens have a **Settings** pill, so you can fix the address from there.
+
+### Reload channels
+
+After you change channels or shows in Studio, press **HOME** and choose **Reload channels** (it is there in server mode only). It shows `Connecting to <address>…` and then `Channels updated`. If the server can't be reached, your current channels stay and it shows `Can't reach the server`.
+
+The app also checks the server when the guide opens and at midnight. If the library changed, it reloads quietly and shows `Channels updated`. If that check fails, nothing changes.
+
+### Weak signal
+
+The video streams with about 10 seconds read ahead. If data stops for more than a second, `Weak signal` shows over the last frame. When data comes back far behind the schedule, the channel rejoins at the live point. If the stream is lost (an error, or 10 seconds without data), the frame holds with `Weak signal`, the app checks the server every 3 seconds and tunes back to live once it answers.
+
+If it happens a lot, move the Wii closer to the router or use a Wii LAN adapter.

@@ -380,7 +380,7 @@ An uploaded video that is not waiting to be converted, for example because the i
 
 ## 7. Telling the Wii where the server is
 
-The Wii app gets a Settings screen for this in a later step of the project. The address it will need is:
+On the Wii, press HOME, choose Settings, pick Server and type the address. `docs/USER-GUIDE.md` section 15 has the steps. The address you need is:
 
 ```
 <server-address>:4747

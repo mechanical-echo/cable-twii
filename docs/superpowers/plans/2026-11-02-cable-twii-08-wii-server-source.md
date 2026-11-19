@@ -328,6 +328,7 @@
     - `srv_result ld_take_info(srv_info *info);`
   - `app.h`: `bool from_server; bool loading; srv_addr server; char revision[64]; char notice[96]; uint32_t notice_until_ms;`
   - `notice.h`: `void notice_show(app *a, const char *text);` (4000 ms) and `void notice_draw(const app *a);`, drawn on the guide and in full screen.
+- Built note: the logo holds after the shine (1400 ms), not at the animation's end, because the slide into the guide needs the channels.
   - `boot()`:
     - When `sp_try_server`, it sets `loading`, calls `ld_load`, and goes to `SCR_LOGO`. Otherwise it boots from the drive as today.
     - When the logo animation ends while `loading`, it holds and shows `Connecting to <address>…`.
@@ -400,6 +401,7 @@
   - **The HOME menu** with Settings and Reload channels pills added.
   - **The error and empty cards** with a Settings pill next to Back to Homebrew Channel.
 - [ ] **Step 2: Owner approves.** Record the approved pixel numbers (rects for every pill, key and field, at `pixel_x` 1.0 and 1.333) in a table at the bottom of the mockup.
+- Built note: `pixel_x` is 0.75 on 16:9 (`ui_pixel_x()`), not 1.333.
 - [ ] **Step 3: Commit** `wip | wii settings and keyboard mockup`
 
 ---

@@ -323,6 +323,29 @@ volume = 80
 
 ---
 
+## `settings.toml`
+
+**Purpose:** tells the Wii app where to play from: the drive or a server.
+**Location:** `sd:/apps/cable-twii/settings.toml` on the Wii's SD card, not on the drive and not in the library. **Writer:** the Wii app (Settings screen); the owner may also write it by hand. **Reader:** the Wii app.
+
+| Key | Type | Required | Default | Allowed |
+|---|---|---|---|---|
+| `source` | string | no | `"drive"` | `"drive"` or `"server"` |
+| `server` | string | no | empty | the server address as typed, at most 127 bytes: `192.168.1.20`, `192.168.1.20:4747`, `PC-NAME` or `http://192.168.1.20:4747/`. Port 4747 when left out. `https://`, bad ports and `.local` names are not supported. |
+
+Write rule: the app writes this file (as `settings.toml.tmp`, then a rename, like `state.toml`) only when no FAT partition on the SD card has a `wbfs/` or `games/` folder. Otherwise, and with no SD card, settings last for the session only. In server mode `state.toml` is saved in the same folder under the same rule.
+
+A missing or broken file means the defaults, so the Wii plays from the drive. There is no `version` key.
+
+### Complete example
+
+```toml
+source = "server"
+server = "192.168.1.20:4747"
+```
+
+---
+
 ## `.studio/sources.toml`
 
 **Purpose:** maps every converted file on the drive to its original file on the Mac, so unchanged sources are not converted again.
