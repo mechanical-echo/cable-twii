@@ -24,8 +24,14 @@ static uint32_t since_ms(u64 start)
     return (uint32_t)ticks_to_millisecs(diff_ticks(start, gettime()));
 }
 
-static int wait_fd(int fd, u32 events, u64 start, uint32_t timeout_ms)
+static bool cancelled(const volatile bool *cancel)
 {
+    return cancel != NULL && *cancel;
+}
+
+static int wait_fd(int fd, u32 events, u64 start, uint32_t timeout_ms, const volatile bool *cancel)
+{
+    if (cancelled(cancel)) return SK_E_CANCEL;
     uint32_t spent = since_ms(start);
     if (spent >= timeout_ms) return SK_E_TIMEOUT;
     uint32_t left = timeout_ms - spent;
@@ -67,8 +73,9 @@ void sk_down(void)
     net_deinit();
 }
 
-int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
+int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms, const volatile bool *cancel)
 {
+    if (cancelled(cancel)) return SK_E_CANCEL;
     u64 start = gettime();
     struct sockaddr_in sa;
     memset(&sa, 0, sizeof sa);
@@ -93,6 +100,8 @@ int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
         if (c == 0 || c == -EISCONN) return fd;
         if (c != -EINPROGRESS && c != -EALREADY) {
             r = SK_E_FAIL;
+        } else if (cancelled(cancel)) {
+            r = SK_E_CANCEL;
         } else if (since_ms(start) >= timeout_ms) {
             r = SK_E_TIMEOUT;
         } else {
@@ -103,7 +112,7 @@ int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
     return r;
 }
 
-int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms)
+int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms, const volatile bool *cancel)
 {
     u64 start = gettime();
     const char *p = buf;
@@ -115,13 +124,13 @@ int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms)
             continue;
         }
         if (n != -EAGAIN) return SK_E_FAIL;
-        int w = wait_fd(fd, POLLOUT, start, timeout_ms);
+        int w = wait_fd(fd, POLLOUT, start, timeout_ms, cancel);
         if (w != 0) return w;
     }
     return 0;
 }
 
-long sk_recv(int fd, void *buf, size_t len, uint32_t timeout_ms)
+long sk_recv(int fd, void *buf, size_t len, uint32_t timeout_ms, const volatile bool *cancel)
 {
     u64 start = gettime();
     s32 want = (s32)(len < IO_MAX ? len : IO_MAX);
@@ -129,7 +138,7 @@ long sk_recv(int fd, void *buf, size_t len, uint32_t timeout_ms)
         s32 n = net_recv(fd, buf, want, 0);
         if (n >= 0) return n;
         if (n != -EAGAIN) return SK_E_FAIL;
-        int w = wait_fd(fd, POLLIN, start, timeout_ms);
+        int w = wait_fd(fd, POLLIN, start, timeout_ms, cancel);
         if (w != 0) return w;
     }
 }

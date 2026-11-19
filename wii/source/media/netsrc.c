@@ -35,6 +35,7 @@ struct ns_source {
     bool waiting;
     bool failed;
     bool quit;
+    volatile bool cancel;
     uint8_t stage[NS_CHUNK];
 };
 
@@ -150,7 +151,7 @@ ns_source *ns_open(const char *url, uint32_t timeout_ms)
     if (mem == NULL) return NULL;
     ns_source *s = calloc(1, sizeof *s);
     if (s == NULL) return NULL;
-    if (hs_open(&s->hs, &addr, path, timeout_ms) != 0) {
+    if (hs_open(&s->hs, &addr, path, timeout_ms, &s->cancel) != 0) {
         free(s);
         return NULL;
     }
@@ -244,6 +245,7 @@ void ns_cancel(ns_source *s)
 {
     LWP_MutexLock(s->lock);
     s->quit = true;
+    s->cancel = true;
     LWP_MutexUnlock(s->lock);
 }
 

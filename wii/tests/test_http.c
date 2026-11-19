@@ -11,6 +11,7 @@
 #define OPEN_HEAD "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 0-0/1000\r\nContent-Length: 1\r\n\r\n"
 
 static unsigned char file[FILE_LEN];
+static ts_reply replies[3];
 static http_body body;
 static http_stream stream = { .fd = -1 };
 
@@ -69,16 +70,16 @@ static long read_up_to(http_stream *s, unsigned char *dst, size_t want)
 
 TEST get_inflates_gzip(void)
 {
-    unsigned char gz[128];
+    static unsigned char gz[128];
     size_t gz_len = gzip_text("version = 1\n", gz, sizeof gz);
     ASSERT(gz_len > 0);
-    char head[160];
+    static char head[160];
     snprintf(head, sizeof head, "HTTP/1.1 200 OK\r\nContent-Type: application/toml\r\nContent-Encoding: gzip\r\nContent-Length: %zu\r\n\r\n", gz_len);
-    ts_reply replies[] = { { head, gz, gz_len, false } };
+    replies[0] = (ts_reply){ head, gz, gz_len, false };
     uint16_t port = ts_start(replies, 1);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(0, http_get(&a, "/wii/v1/files/library.toml", 4096, WAIT_MS, &body));
+    ASSERT_EQ(0, http_get(&a, "/wii/v1/files/library.toml", 4096, WAIT_MS, NULL, &body));
     ASSERT_EQ(200, body.status);
     ASSERT_EQ(strlen("version = 1\n"), body.len);
     ASSERT_STR_EQ("version = 1\n", body.data);
@@ -92,11 +93,11 @@ TEST get_inflates_gzip(void)
 
 TEST get_404_is_status_error(void)
 {
-    ts_reply replies[] = { { "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\n", "Not found", 9, false } };
+    replies[0] = (ts_reply){ "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\n", "Not found", 9, false };
     uint16_t port = ts_start(replies, 1);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(HTTP_E_STATUS, http_get(&a, "/wii/v1/files/none.toml", 4096, WAIT_MS, &body));
+    ASSERT_EQ(HTTP_E_STATUS, http_get(&a, "/wii/v1/files/none.toml", 4096, WAIT_MS, NULL, &body));
     ASSERT_EQ(404, body.status);
     ASSERT_EQ(NULL, body.data);
     PASS();
@@ -104,40 +105,36 @@ TEST get_404_is_status_error(void)
 
 TEST get_too_large(void)
 {
-    unsigned char gz[128];
+    static unsigned char gz[128];
     char text[201];
     memset(text, 'a', 200);
     text[200] = '\0';
     size_t gz_len = gzip_text(text, gz, sizeof gz);
     ASSERT(gz_len > 0 && gz_len < 100);
-    char head[160];
+    static char head[160];
     snprintf(head, sizeof head, "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: %zu\r\n\r\n", gz_len);
-    ts_reply replies[] = {
-        { "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n", "0123456789", 10, false },
-        { head, gz, gz_len, false },
-    };
+    replies[0] = (ts_reply){ "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n", "0123456789", 10, false };
+    replies[1] = (ts_reply){ head, gz, gz_len, false };
     uint16_t port = ts_start(replies, 2);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(HTTP_E_TOO_LARGE, http_get(&a, "/wii/v1/files/a.toml", 4, WAIT_MS, &body));
+    ASSERT_EQ(HTTP_E_TOO_LARGE, http_get(&a, "/wii/v1/files/a.toml", 4, WAIT_MS, NULL, &body));
     ASSERT_EQ(NULL, body.data);
-    ASSERT_EQ(HTTP_E_TOO_LARGE, http_get(&a, "/wii/v1/files/b.toml", 100, WAIT_MS, &body));
+    ASSERT_EQ(HTTP_E_TOO_LARGE, http_get(&a, "/wii/v1/files/b.toml", 100, WAIT_MS, NULL, &body));
     ASSERT_EQ(NULL, body.data);
     PASS();
 }
 
 TEST stream_reads_open_ended_range(void)
 {
-    char head[192];
+    static char head[192];
     range_head(head, sizeof head, 100);
-    ts_reply replies[] = {
-        { OPEN_HEAD, file, 1, false },
-        { head, file + 100, FILE_LEN - 100, false },
-    };
+    replies[0] = (ts_reply){ OPEN_HEAD, file, 1, false };
+    replies[1] = (ts_reply){ head, file + 100, FILE_LEN - 100, false };
     uint16_t port = ts_start(replies, 2);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(0, hs_open(&stream, &a, "/wii/v1/files/Cartoons/a%20b.mpg", WAIT_MS));
+    ASSERT_EQ(0, hs_open(&stream, &a, "/wii/v1/files/Cartoons/a%20b.mpg", WAIT_MS, NULL));
     ASSERT_EQ(FILE_LEN, stream.length);
     ASSERT_EQ(0, stream.remaining);
     ASSERT_EQ(ts_request(0), strstr(ts_request(0), "GET /wii/v1/files/Cartoons/a%20b.mpg HTTP/1.1\r\n"));
@@ -156,19 +153,17 @@ TEST stream_reads_open_ended_range(void)
 
 TEST stream_restart_drops_unfinished_body(void)
 {
-    char head100[192];
-    char head500[192];
+    static char head100[192];
+    static char head500[192];
     range_head(head100, sizeof head100, 100);
     range_head(head500, sizeof head500, 500);
-    ts_reply replies[] = {
-        { OPEN_HEAD, file, 1, false },
-        { head100, file + 100, FILE_LEN - 100, false },
-        { head500, file + 500, FILE_LEN - 500, false },
-    };
+    replies[0] = (ts_reply){ OPEN_HEAD, file, 1, false };
+    replies[1] = (ts_reply){ head100, file + 100, FILE_LEN - 100, false };
+    replies[2] = (ts_reply){ head500, file + 500, FILE_LEN - 500, false };
     uint16_t port = ts_start(replies, 3);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(0, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS));
+    ASSERT_EQ(0, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS, NULL));
     ASSERT_EQ(0, hs_start(&stream, 100));
     unsigned char got[FILE_LEN];
     ASSERT_EQ(10, read_up_to(&stream, got, 10));
@@ -187,16 +182,14 @@ TEST stream_restart_drops_unfinished_body(void)
 
 TEST stream_reconnects_after_server_close(void)
 {
-    char head[192];
+    static char head[192];
     range_head(head, sizeof head, 0);
-    ts_reply replies[] = {
-        { OPEN_HEAD, file, 1, true },
-        { head, file, FILE_LEN, false },
-    };
+    replies[0] = (ts_reply){ OPEN_HEAD, file, 1, true };
+    replies[1] = (ts_reply){ head, file, FILE_LEN, false };
     uint16_t port = ts_start(replies, 2);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(0, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS));
+    ASSERT_EQ(0, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS, NULL));
     ASSERT_EQ(0, hs_start(&stream, 0));
     unsigned char got[FILE_LEN];
     ASSERT_EQ(FILE_LEN, read_up_to(&stream, got, sizeof got));
@@ -209,13 +202,13 @@ TEST stream_reconnects_after_server_close(void)
 
 TEST stream_non_206_is_status_error(void)
 {
-    char head[96];
+    static char head[96];
     snprintf(head, sizeof head, "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n", FILE_LEN);
-    ts_reply replies[] = { { head, file, FILE_LEN, false } };
+    replies[0] = (ts_reply){ head, file, FILE_LEN, false };
     uint16_t port = ts_start(replies, 1);
     ASSERT(port != 0);
     srv_addr a = local(port);
-    ASSERT_EQ(HTTP_E_STATUS, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS));
+    ASSERT_EQ(HTTP_E_STATUS, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS, NULL));
     ASSERT_EQ(-1, stream.fd);
     PASS();
 }
@@ -226,10 +219,10 @@ TEST connect_refused_is_connect_error(void)
     ASSERT(port != 0);
     ts_stop();
     srv_addr a = local(port);
-    ASSERT_EQ(HTTP_E_CONNECT, http_get(&a, "/wii/v1/info", 4096, WAIT_MS, &body));
+    ASSERT_EQ(HTTP_E_CONNECT, http_get(&a, "/wii/v1/info", 4096, WAIT_MS, NULL, &body));
     ASSERT_EQ(0, body.status);
     ASSERT_EQ(NULL, body.data);
-    ASSERT_EQ(HTTP_E_CONNECT, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS));
+    ASSERT_EQ(HTTP_E_CONNECT, hs_open(&stream, &a, "/wii/v1/files/a.mpg", WAIT_MS, NULL));
     ASSERT_EQ(-1, stream.fd);
     PASS();
 }

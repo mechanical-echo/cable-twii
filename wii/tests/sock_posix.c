@@ -9,7 +9,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <netdb.h>
 #include <poll.h>
 #include <stdbool.h>
@@ -25,6 +24,8 @@
 #define SEND_FLAGS 0
 #endif
 
+#define POLL_SLICE_MS 50
+
 static uint64_t now_ms(void)
 {
     struct timespec ts;
@@ -37,14 +38,20 @@ static bool would_block(void)
     return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR || errno == EINPROGRESS;
 }
 
-static int wait_fd(int fd, short events, uint64_t start, uint32_t timeout_ms)
+static bool cancelled(const volatile bool *cancel)
+{
+    return cancel != NULL && *cancel;
+}
+
+static int wait_fd(int fd, short events, uint64_t start, uint32_t timeout_ms, const volatile bool *cancel)
 {
     for (;;) {
+        if (cancelled(cancel)) return SK_E_CANCEL;
         uint64_t spent = now_ms() - start;
         if (spent >= timeout_ms) return SK_E_TIMEOUT;
         uint64_t left = timeout_ms - spent;
         struct pollfd p = { fd, events, 0 };
-        int r = poll(&p, 1, left > INT_MAX ? INT_MAX : (int)left);
+        int r = poll(&p, 1, left < POLL_SLICE_MS ? (int)left : POLL_SLICE_MS);
         if (r > 0) return 0;
         if (r < 0 && errno != EINTR) return SK_E_FAIL;
     }
@@ -60,8 +67,9 @@ void sk_down(void)
 {
 }
 
-int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
+int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms, const volatile bool *cancel)
 {
+    if (cancelled(cancel)) return SK_E_CANCEL;
     uint64_t start = now_ms();
     char service[8];
     snprintf(service, sizeof service, "%u", (unsigned)port);
@@ -80,7 +88,7 @@ int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
     if (r == 0) setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof on);
 #endif
     if (r == 0 && connect(fd, list->ai_addr, list->ai_addrlen) != 0) {
-        r = would_block() ? wait_fd(fd, POLLOUT, start, timeout_ms) : SK_E_FAIL;
+        r = would_block() ? wait_fd(fd, POLLOUT, start, timeout_ms, cancel) : SK_E_FAIL;
         int err = 0;
         socklen_t err_len = sizeof err;
         if (r == 0 && (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &err_len) != 0 || err != 0)) r = SK_E_FAIL;
@@ -91,7 +99,7 @@ int sk_connect(const char *host, uint16_t port, uint32_t timeout_ms)
     return r;
 }
 
-int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms)
+int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms, const volatile bool *cancel)
 {
     uint64_t start = now_ms();
     const char *p = buf;
@@ -103,20 +111,20 @@ int sk_send_all(int fd, const void *buf, size_t len, uint32_t timeout_ms)
             continue;
         }
         if (n == 0 || !would_block()) return SK_E_FAIL;
-        int w = wait_fd(fd, POLLOUT, start, timeout_ms);
+        int w = wait_fd(fd, POLLOUT, start, timeout_ms, cancel);
         if (w != 0) return w;
     }
     return 0;
 }
 
-long sk_recv(int fd, void *buf, size_t len, uint32_t timeout_ms)
+long sk_recv(int fd, void *buf, size_t len, uint32_t timeout_ms, const volatile bool *cancel)
 {
     uint64_t start = now_ms();
     for (;;) {
         ssize_t n = recv(fd, buf, len, 0);
         if (n >= 0) return (long)n;
         if (!would_block()) return SK_E_FAIL;
-        int w = wait_fd(fd, POLLIN, start, timeout_ms);
+        int w = wait_fd(fd, POLLIN, start, timeout_ms, cancel);
         if (w != 0) return w;
     }
 }

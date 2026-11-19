@@ -1,6 +1,7 @@
 #ifndef CTW_NET_HTTP_H
 #define CTW_NET_HTTP_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "net/addr.h"
@@ -18,7 +19,7 @@ typedef struct {
     int status;
 } http_body;
 
-int http_get(const srv_addr *a, const char *path, size_t max_bytes, uint32_t timeout_ms, http_body *out);
+int http_get(const srv_addr *a, const char *path, size_t max_bytes, uint32_t timeout_ms, const volatile bool *cancel, http_body *out);
 void http_body_free(http_body *b);
 
 typedef struct {
@@ -28,9 +29,10 @@ typedef struct {
     uint64_t length;
     uint64_t remaining;
     uint32_t timeout_ms;
+    const volatile bool *cancel;
 } http_stream;
 
-int hs_open(http_stream *s, const srv_addr *a, const char *path, uint32_t timeout_ms);
+int hs_open(http_stream *s, const srv_addr *a, const char *path, uint32_t timeout_ms, const volatile bool *cancel);
 int hs_start(http_stream *s, uint64_t offset);
 long hs_read(http_stream *s, void *dst, size_t len);
 void hs_close(http_stream *s);

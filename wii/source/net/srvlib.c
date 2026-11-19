@@ -67,10 +67,10 @@ int srv_info_parse(const char *toml_text, srv_info *out)
 
 static int get_with_retry(const srv_addr *a, const char *path, size_t max_bytes, uint32_t timeout_ms, http_body *out)
 {
-    int e = http_get(a, path, max_bytes, timeout_ms, out);
+    int e = http_get(a, path, max_bytes, timeout_ms, NULL, out);
     if (e == HTTP_E_CONNECT || e == HTTP_E_TIMEOUT) {
         http_body_free(out);
-        e = http_get(a, path, max_bytes, timeout_ms, out);
+        e = http_get(a, path, max_bytes, timeout_ms, NULL, out);
     }
     return e;
 }
@@ -91,7 +91,7 @@ srv_result srv_fetch_info(const srv_addr *a, uint32_t timeout_ms, srv_info *out)
 
 static srv_result fetch_file(const srv_addr *a, const char *path, uint32_t timeout_ms, http_body *body)
 {
-    int e = http_get(a, path, FILE_MAX_BYTES, timeout_ms, body);
+    int e = http_get(a, path, FILE_MAX_BYTES, timeout_ms, NULL, body);
     if (e == 0) return SRV_OK;
     http_body_free(body);
     return e == HTTP_E_CONNECT || e == HTTP_E_TIMEOUT ? SRV_NO_ANSWER : SRV_BAD_LIBRARY;

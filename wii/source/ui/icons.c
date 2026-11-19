@@ -39,6 +39,7 @@ static mutex_t lock;
 static lwp_t worker;
 static bool worker_on;
 static bool quit;
+static volatile bool cancel;
 
 static void free_icon(void *payload)
 {
@@ -57,7 +58,7 @@ static int fetch(const char *url, http_body *body)
     char raw[FETCH_PATH_BYTES];
     char path[FETCH_PATH_BYTES];
     if (url_split(url, &addr, raw, sizeof raw) != 0 || url_encode_path(raw, path, sizeof path) != 0) return -1;
-    return http_get(&addr, path, FETCH_MAX_BYTES, FETCH_TIMEOUT_MS, body);
+    return http_get(&addr, path, FETCH_MAX_BYTES, FETCH_TIMEOUT_MS, &cancel, body);
 }
 
 static fetch_slot *next_queued(void)
@@ -97,6 +98,7 @@ static bool start_worker(void)
     if (worker_on) return true;
     if (LWP_MutexInit(&lock, false) != 0) return false;
     quit = false;
+    cancel = false;
     if (LWP_CreateThread(&worker, fetch_main, NULL, NULL, FETCH_STACK, FETCH_PRIO) != 0) {
         LWP_MutexDestroy(lock);
         return false;
@@ -189,6 +191,7 @@ void icons_stop(void)
     if (!worker_on) return;
     LWP_MutexLock(lock);
     quit = true;
+    cancel = true;
     LWP_MutexUnlock(lock);
     LWP_JoinThread(worker, NULL);
     for (int i = 0; i < FETCH_SLOTS; i++) {
