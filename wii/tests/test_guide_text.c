@@ -179,8 +179,72 @@ TEST gt_at_formats(void)
     PASS();
 }
 
+TEST gt_clock_marks_other_days(void)
+{
+    char out[24];
+    gt_clock(0, out, sizeof out);
+    ASSERT_STR_EQ("00:00", out);
+    gt_clock(73800000LL, out, sizeof out);
+    ASSERT_STR_EQ("20:30", out);
+    gt_clock(88200000LL, out, sizeof out);
+    ASSERT_STR_EQ("00:30 +1", out);
+    gt_clock(-1800000LL, out, sizeof out);
+    ASSERT_STR_EQ("23:30 \xE2\x88\x92" "1", out);
+    gt_clock(2 * 86400000LL + 60000LL, out, sizeof out);
+    ASSERT_STR_EQ("00:01 +2", out);
+    PASS();
+}
+
+TEST gt_span_with_marker(void)
+{
+    char out[40];
+    gt_span(84600000LL, 89100000LL, out, sizeof out);
+    ASSERT_STR_EQ("23:30 \xE2\x80\x93 00:45 +1", out);
+    gt_span(72720000LL, 73380000LL, out, sizeof out);
+    ASSERT_STR_EQ("20:12 \xE2\x80\x93 20:23", out);
+    PASS();
+}
+
+TEST gt_duration_rounds_like_studio(void)
+{
+    char out[16];
+    gt_duration(90000u, out, sizeof out);
+    ASSERT_STR_EQ("1:30", out);
+    gt_duration(59500u, out, sizeof out);
+    ASSERT_STR_EQ("1:00", out);
+    gt_duration(0u, out, sizeof out);
+    ASSERT_STR_EQ("0:00", out);
+    gt_duration(754000u, out, sizeof out);
+    ASSERT_STR_EQ("12:34", out);
+    PASS();
+}
+
+TEST gt_ad_break_counts(void)
+{
+    char out[48];
+    gt_ad_break(1, 60000u, out, sizeof out);
+    ASSERT_STR_EQ("Ad break (1 ad, 1:00)", out);
+    gt_ad_break(2, 90000u, out, sizeof out);
+    ASSERT_STR_EQ("Ad break (2 ads, 1:30)", out);
+    PASS();
+}
+
+TEST gt_today_header(void)
+{
+    char out[32];
+    ctw_date d = { 2026, 11, 19 };
+    gt_today(d, out, sizeof out);
+    ASSERT_STR_EQ("Today \xC2\xB7 Thu 19/11", out);
+    PASS();
+}
+
 SUITE(guide_text_suite)
 {
+    RUN_TEST(gt_clock_marks_other_days);
+    RUN_TEST(gt_span_with_marker);
+    RUN_TEST(gt_duration_rounds_like_studio);
+    RUN_TEST(gt_ad_break_counts);
+    RUN_TEST(gt_today_header);
     RUN_TEST(gt_date_formats_weekday);
     RUN_TEST(gt_number_pads_to_two);
     RUN_TEST(gt_countdown_minutes_unbounded);

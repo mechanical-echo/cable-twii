@@ -16,5 +16,10 @@ void gt_line(const ctw_airing *air, const ctw_airing *next, char *out, size_t ou
 float gt_progress(const ctw_airing *air, uint32_t offset_ms);
 const ctw_show *gt_line_show(const ctw_airing *air, const ctw_airing *next);
 void gt_icon_path(const char *root, const ctw_channel *ch, const ctw_show *show, char *out, size_t out_size);
+void gt_clock(int64_t ms, char *out, size_t out_size);
+void gt_span(int64_t start_ms, int64_t end_ms, char *out, size_t out_size);
+void gt_duration(uint32_t ms, char *out, size_t out_size);
+void gt_ad_break(size_t count, uint32_t total_ms, char *out, size_t out_size);
+void gt_today(ctw_date d, char *out, size_t out_size);
 
 #endif
