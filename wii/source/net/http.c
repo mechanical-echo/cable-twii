@@ -10,7 +10,7 @@
 #include "net/httpparse.h"
 #include "net/sock.h"
 
-#define HEAD_MAX 2048
+#define HEAD_MAX (ADDR_PATH_BYTES + 1024)
 #define GZIP_MIN 18
 
 static int sock_error(long r)

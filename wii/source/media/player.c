@@ -19,6 +19,7 @@
 #include "playback.h"
 #include "aspect.h"
 #include "netsrc.h"
+#include "net/addr.h"
 
 #define SLOT_FREE 0
 #define SLOT_READY 1
@@ -40,7 +41,7 @@ typedef struct {
 static plm_t *plm;
 static FILE *fh;
 static ns_source *net;
-static char cur_path[320];
+static char cur_path[ADDR_URL_BYTES];
 static int has_audio_s;
 static int samplerate_s;
 static int vid_w, vid_h;

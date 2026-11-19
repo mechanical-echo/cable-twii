@@ -15,7 +15,6 @@
 #define NS_RING_BYTES (2u * 1024u * 1024u)
 #define NS_AHEAD_BYTES (1280u * 1024u)
 #define NS_CHUNK (16u * 1024u)
-#define NS_PATH_BYTES 512
 #define NS_SLICE_MS 50u
 #define NS_IDLE_US 5000
 #define NS_WAIT_US 2000
@@ -142,8 +141,8 @@ static void *fetch_main(void *arg)
 ns_source *ns_open(const char *url, uint32_t timeout_ms)
 {
     srv_addr addr;
-    char raw[NS_PATH_BYTES];
-    char path[NS_PATH_BYTES];
+    char raw[ADDR_URL_BYTES];
+    char path[ADDR_PATH_BYTES];
     if (ring_taken || url_split(url, &addr, raw, sizeof raw) != 0 || url_encode_path(raw, path, sizeof path) != 0) {
         return NULL;
     }

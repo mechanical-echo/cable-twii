@@ -32,7 +32,7 @@ static void play_airing(app *a, int channel, const ctw_airing *air, uint32_t off
         pl_set_volume(a->volume);
         return;
     }
-    char path[320];
+    char path[ADDR_URL_BYTES];
     const char *rel = air->kind == CTW_AIR_AD ? air->ad->path : air->episode->path;
     snprintf(path, sizeof path, "%s/%s", a->root, rel);
     pl_open(path, offset_ms);

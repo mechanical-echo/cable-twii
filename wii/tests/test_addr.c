@@ -112,6 +112,35 @@ TEST url_split_refuses_bad_input(void)
     PASS();
 }
 
+TEST long_accented_path_encodes(void)
+{
+    srv_addr a = { "server-name-long-enough-to-fill-the-whole-host-field-0123456789", 65535 };
+    ASSERT_EQ(sizeof a.host - 1, strlen(a.host));
+    static char rel[ADDR_REL_MAX + 1];
+    size_t n = 0;
+    while (n + 3 < ADDR_REL_MAX) {
+        rel[n++] = '\xC3';
+        rel[n++] = '\xA9';
+    }
+    memcpy(rel + n, "\xE2\x9C\xA8", 4);
+    ASSERT_EQ(ADDR_REL_MAX, strlen(rel));
+    char root[128];
+    srv_root(&a, root, sizeof root);
+    static char url[ADDR_URL_BYTES];
+    int len = snprintf(url, sizeof url, "%s/%s", root, rel);
+    ASSERT(len > 0 && (size_t)len < sizeof url);
+    srv_addr b;
+    static char raw[ADDR_URL_BYTES];
+    static char path[ADDR_PATH_BYTES];
+    ASSERT_EQ(0, url_split(url, &b, raw, sizeof raw));
+    ASSERT_EQ(0, url_encode_path(raw, path, sizeof path));
+    ASSERT_EQ(strlen("/wii/v1/files/") + 3 * ADDR_REL_MAX, strlen(path));
+    ASSERT_EQ(0, strncmp(path, "/wii/v1/files/%C3%A9%C3%A9", 26));
+    ASSERT_STR_EQ("%C3%A9%E2%9C%A8", path + strlen(path) - 15);
+    ASSERT_STR_EQ(a.host, b.host);
+    PASS();
+}
+
 SUITE(addr_suite)
 {
     RUN_TEST(addr_accepts_loose_forms);
@@ -122,4 +151,5 @@ SUITE(addr_suite)
     RUN_TEST(url_encode_too_small_fails);
     RUN_TEST(url_split_round_trip);
     RUN_TEST(url_split_refuses_bad_input);
+    RUN_TEST(long_accented_path_encodes);
 }

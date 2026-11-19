@@ -167,7 +167,7 @@ void ginfo_draw_info(app *a, const ctw_channel *ch, asp_rect r)
     int64_t start = air != NULL ? tn_airing_start(&a->tuner, ch->number, air) : -1;
     if (!info.valid || info.channel != ch->number || info.start != start || info.air != air) refresh(a, ch, air, start, r);
 
-    char path[320];
+    char path[ADDR_URL_BYTES];
     gt_icon_path(a->root, ch, info.icon_show, path, sizeof path);
     float iw = ICON_PX * ui_pixel_x();
     float band = r.h < GL_INFO_MIN_H ? r.h : GL_INFO_MIN_H;

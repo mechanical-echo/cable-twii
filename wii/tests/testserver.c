@@ -18,7 +18,7 @@
 #include <sys/socket.h>
 
 #define TS_MAX 8
-#define TS_HEAD_MAX 2048
+#define TS_HEAD_MAX 4096
 #define TS_TICK_MS 10
 
 #ifdef MSG_NOSIGNAL

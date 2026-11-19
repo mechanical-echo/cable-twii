@@ -5,9 +5,13 @@
 #include <stdint.h>
 
 #define ADDR_DEFAULT_PORT 4747
+#define ADDR_HOST_BYTES 64
+#define ADDR_REL_MAX 1023
+#define ADDR_URL_BYTES (sizeof "http://" + ADDR_HOST_BYTES + sizeof ":65535/wii/v1/files/" + ADDR_REL_MAX)
+#define ADDR_PATH_BYTES (sizeof "/wii/v1/files/" + 3 * ADDR_REL_MAX)
 
 typedef struct {
-    char host[64];
+    char host[ADDR_HOST_BYTES];
     uint16_t port;
 } srv_addr;
 

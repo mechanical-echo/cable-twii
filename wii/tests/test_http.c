@@ -8,6 +8,7 @@
 #define WAIT_MS 2000
 #define FILE_LEN 1000
 #define READ_STEP 64
+#define LONG_PATH_BYTES (sizeof "/wii/v1/files/" + 3 * ADDR_REL_MAX)
 #define OPEN_HEAD "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 0-0/1000\r\nContent-Length: 1\r\n\r\n"
 
 static unsigned char file[FILE_LEN];
@@ -53,6 +54,15 @@ static void range_head(char *out, size_t out_size, size_t start)
 {
     snprintf(out, out_size, "HTTP/1.1 206 Partial Content\r\nContent-Type: video/mpeg\r\nContent-Range: bytes %zu-%d/%d\r\nContent-Length: %zu\r\n\r\n",
              start, FILE_LEN - 1, FILE_LEN, FILE_LEN - start);
+}
+
+static void long_path(char *out, size_t out_size)
+{
+    static const char *const halves[] = { "%C3", "%A9" };
+    size_t n = (size_t)snprintf(out, out_size, "/wii/v1/files/");
+    for (size_t i = 0; n + 3 < out_size; i++, n += 3) memcpy(out + n, halves[i % 2], 3);
+    while (n + 1 < out_size) out[n++] = 'x';
+    out[n] = '\0';
 }
 
 static long read_up_to(http_stream *s, unsigned char *dst, size_t want)
@@ -213,6 +223,35 @@ TEST stream_non_206_is_status_error(void)
     PASS();
 }
 
+TEST get_sends_a_long_path(void)
+{
+    static char path[LONG_PATH_BYTES];
+    long_path(path, sizeof path);
+    ASSERT_EQ(sizeof path - 1, strlen(path));
+    replies[0] = (ts_reply){ "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n", "ok", 2, false };
+    uint16_t port = ts_start(replies, 1);
+    ASSERT(port != 0);
+    srv_addr a = local(port);
+    ASSERT_EQ(0, http_get(&a, path, 4096, WAIT_MS, NULL, &body));
+    ASSERT_STR_EQ("ok", body.data);
+    ASSERT_EQ(ts_request(0) + 4, strstr(ts_request(0), path));
+    PASS();
+}
+
+TEST stream_opens_a_long_path(void)
+{
+    static char path[LONG_PATH_BYTES];
+    long_path(path, sizeof path);
+    replies[0] = (ts_reply){ OPEN_HEAD, file, 1, false };
+    uint16_t port = ts_start(replies, 1);
+    ASSERT(port != 0);
+    srv_addr a = local(port);
+    ASSERT_EQ(0, hs_open(&stream, &a, path, WAIT_MS, NULL));
+    ASSERT_EQ(FILE_LEN, stream.length);
+    ASSERT_EQ(ts_request(0) + 4, strstr(ts_request(0), path));
+    PASS();
+}
+
 TEST connect_refused_is_connect_error(void)
 {
     uint16_t port = ts_start(NULL, 0);
@@ -238,6 +277,8 @@ SUITE(http_suite)
     RUN_TEST(stream_restart_drops_unfinished_body);
     RUN_TEST(stream_reconnects_after_server_close);
     RUN_TEST(stream_non_206_is_status_error);
+    RUN_TEST(get_sends_a_long_path);
+    RUN_TEST(stream_opens_a_long_path);
     RUN_TEST(connect_refused_is_connect_error);
     SET_TEARDOWN(NULL, NULL);
 }

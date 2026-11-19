@@ -17,8 +17,6 @@
 
 #define NET_PREFIX "http://"
 #define FETCH_SLOTS 8
-#define FETCH_URL_BYTES 320
-#define FETCH_PATH_BYTES 512
 #define FETCH_MAX_BYTES (256u * 1024u)
 #define FETCH_TIMEOUT_MS 5000u
 #define FETCH_RETRY_MS 3000u
@@ -30,7 +28,7 @@ typedef enum { FETCH_FREE, FETCH_QUEUED, FETCH_BUSY, FETCH_READY, FETCH_WAIT } f
 
 typedef struct {
     fetch_state state;
-    char url[FETCH_URL_BYTES];
+    char url[ADDR_URL_BYTES];
     http_body body;
     int result;
     bool stale;
@@ -65,8 +63,8 @@ void icons_init(void)
 static int fetch(const char *url, http_body *body)
 {
     srv_addr addr;
-    char raw[FETCH_PATH_BYTES];
-    char path[FETCH_PATH_BYTES];
+    char raw[ADDR_URL_BYTES];
+    char path[ADDR_PATH_BYTES];
     if (url_split(url, &addr, raw, sizeof raw) != 0 || url_encode_path(raw, path, sizeof path) != 0) return -1;
     return http_get(&addr, path, FETCH_MAX_BYTES, FETCH_TIMEOUT_MS, &cancel, body);
 }
@@ -121,7 +119,7 @@ static bool start_worker(void)
 
 static void request(const char *url)
 {
-    if (strlen(url) >= FETCH_URL_BYTES || !start_worker()) return;
+    if (strlen(url) >= ADDR_URL_BYTES || !start_worker()) return;
     LWP_MutexLock(lock);
     fetch_slot *open = NULL;
     bool pending = false;

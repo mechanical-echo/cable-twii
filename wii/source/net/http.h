@@ -24,7 +24,7 @@ void http_body_free(http_body *b);
 
 typedef struct {
     srv_addr addr;
-    char path[512];
+    char path[ADDR_PATH_BYTES];
     int fd;
     uint64_t length;
     uint64_t remaining;

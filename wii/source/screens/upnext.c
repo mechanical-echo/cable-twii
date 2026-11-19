@@ -124,7 +124,7 @@ void upnext_draw(app *a, const ctw_airing *gap, uint32_t gap_offset_ms, const ct
     }
 
     const ctw_channel *ch = ctw_db_channel(a->db, a->current_channel);
-    char path[320] = "";
+    char path[ADDR_URL_BYTES] = "";
     if (ch != NULL) gt_icon_path(a->root, ch, next_episode != NULL ? next_episode->show : NULL, path, sizeof path);
     float iw = ICON_PX * ui_pixel_x();
     icons_draw(path, CARD_X + ICON_X - (ICON_PX - iw) / 2.0f, CARD_Y + ICON_Y, ICON_PX);
