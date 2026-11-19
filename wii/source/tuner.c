@@ -47,10 +47,25 @@ void tn_free(tuner *t)
     t->count = 0;
 }
 
+static uint32_t channel_time(ctw_date *day, uint32_t ms_of_day, int64_t shift_ms)
+{
+    int64_t ms = (int64_t)ms_of_day + shift_ms;
+    while (ms < 0) {
+        *day = ctw_date_prev(*day);
+        ms += (int64_t)CTW_DAY_MS;
+    }
+    while (ms >= (int64_t)CTW_DAY_MS) {
+        *day = ctw_date_next(*day);
+        ms -= (int64_t)CTW_DAY_MS;
+    }
+    return (uint32_t)ms;
+}
+
 const ctw_airing *tn_current(tuner *t, int channel, ctw_date day, uint32_t ms_of_day, uint32_t *offset_ms)
 {
     tuner_entry *e = ensure_entry(t, channel);
     if (e == NULL) return NULL;
+    ms_of_day = channel_time(&day, ms_of_day, e->shift_ms);
 
     if (!e->valid || ctw_date_key(e->day) != ctw_date_key(day)) {
         if (e->valid) {
@@ -139,4 +154,74 @@ int64_t tn_airing_start(const tuner *t, int channel, const ctw_airing *a)
         return day * (int64_t)CTW_DAY_MS + a->start_ms;
     }
     return -1;
+}
+
+int64_t tn_shift(const tuner *t, int channel)
+{
+    for (size_t i = 0; i < t->count; i++) {
+        if (t->entries[i].channel == channel) return t->entries[i].shift_ms;
+    }
+    return 0;
+}
+
+const ctw_airing *tn_prev(tuner *t, int channel, const ctw_airing *a)
+{
+    tuner_entry *e = find_entry(t, channel);
+    if (e == NULL || !e->valid || a == NULL) return NULL;
+    if (in_lineup(&e->today, a)) {
+        if (a > e->today.items) return a - 1;
+        return e->yesterday.count > 0 ? &e->yesterday.items[e->yesterday.count - 1] : NULL;
+    }
+    if (in_lineup(&e->yesterday, a) && a > e->yesterday.items) return a - 1;
+    return NULL;
+}
+
+static bool looping(const tuner *t, int channel)
+{
+    const ctw_channel *ch = ctw_db_channel(t->db, channel);
+    return ch != NULL && ch->mode == CTW_MODE_LOOPING;
+}
+
+bool tn_skip(tuner *t, int channel, ctw_date day, uint32_t ms_of_day, int dir)
+{
+    if (!looping(t, channel)) return false;
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(t, channel, day, ms_of_day, &offset);
+    tuner_entry *e = find_entry(t, channel);
+    if (cur == NULL || e == NULL) return false;
+    if (dir > 0) {
+        e->shift_ms += (int64_t)tn_ms_remaining(cur, offset);
+        return true;
+    }
+    const ctw_airing *prev = tn_prev(t, channel, cur);
+    if (prev == NULL) return false;
+    e->shift_ms -= (int64_t)offset + (tn_airing_start(t, channel, cur) - tn_airing_start(t, channel, prev));
+    return true;
+}
+
+bool tn_jump(tuner *t, int channel, ctw_date day, uint32_t ms_of_day, const ctw_airing *to)
+{
+    if (!looping(t, channel)) return false;
+    int64_t target = tn_airing_start(t, channel, to);
+    if (target < 0) return false;
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(t, channel, day, ms_of_day, &offset);
+    tuner_entry *e = find_entry(t, channel);
+    if (cur == NULL || e == NULL) return false;
+    e->shift_ms += target - (tn_airing_start(t, channel, cur) + (int64_t)offset);
+    return true;
+}
+
+const ctw_lineup *tn_lineup_now(tuner *t, int channel, ctw_date day, uint32_t ms_of_day, ctw_date *lineup_day)
+{
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(t, channel, day, ms_of_day, &offset);
+    tuner_entry *e = find_entry(t, channel);
+    if (e == NULL || !e->valid) return NULL;
+    if (cur != NULL && in_lineup(&e->yesterday, cur)) {
+        *lineup_day = ctw_date_prev(e->day);
+        return &e->yesterday;
+    }
+    *lineup_day = e->day;
+    return &e->today;
 }

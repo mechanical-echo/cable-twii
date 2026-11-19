@@ -318,8 +318,279 @@ TEST rebuild_keeps_the_next_episode_start_across_midnight(void)
     PASS();
 }
 
+#define LOOP_CH 2
+#define TEN_OH_FIVE (10u * 3600000u + 5000u)
+
+static const ctw_date OCT_19 = { 2026, 10, 19 };
+static const ctw_date OCT_20 = { 2026, 10, 20 };
+static const ctw_date OCT_21 = { 2026, 10, 21 };
+
+TEST shift_zero_matches_today(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    const ctw_channel *ch = ctw_db_channel(db, LOOP_CH);
+    ASSERT(ch != NULL);
+    ctw_lineup today, yesterday;
+    memset(&today, 0, sizeof today);
+    memset(&yesterday, 0, sizeof yesterday);
+    ASSERT_EQ(0, ctw_lineup_build(db, ch, OCT_20, &today));
+    ASSERT_EQ(0, ctw_lineup_build(db, ch, OCT_19, &yesterday));
+    uint32_t ref_offset = 0;
+    const ctw_airing *ref = ctw_lineup_at(&today, &yesterday, TEN_OH_FIVE, &ref_offset);
+    ASSERT(ref != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ASSERT_EQ(0LL, tn_shift(&t, LOOP_CH));
+    uint32_t offset = 0;
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(ref->start_ms, got->start_ms);
+    ASSERT_EQ(ref_offset, offset);
+    ASSERT_EQ(0LL, tn_shift(&t, LOOP_CH));
+    tn_free(&t);
+    ctw_lineup_free(&today);
+    ctw_lineup_free(&yesterday);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST skip_next_starts_the_following_item(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(cur != NULL);
+    int64_t want = cur->start_ms + (int64_t)cur->duration_ms;
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, 1));
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(want, got->start_ms);
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST skip_prev_starts_the_item_before(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(cur != NULL);
+    ASSERT(offset > 0u);
+    ASSERT(cur > t.entries[0].today.items);
+    int64_t want = (cur - 1)->start_ms;
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, -1));
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(want, got->start_ms);
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST quick_presses_add_up(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(cur != NULL);
+    const ctw_airing *third = tn_next(&t, LOOP_CH, tn_next(&t, LOOP_CH, tn_next(&t, LOOP_CH, cur)));
+    ASSERT(third != NULL);
+    int64_t want = third->start_ms;
+    for (int i = 0; i < 3; i++) ASSERT(tn_skip(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, 1));
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(want, got->start_ms);
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST skip_next_crosses_midnight(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t wall = CTW_DAY_MS - 1000u;
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, wall, 1));
+    ASSERT_EQ(1000LL, tn_shift(&t, LOOP_CH));
+    uint32_t offset = 1;
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, wall, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(0LL, got->start_ms);
+    ASSERT_EQ(0u, offset);
+    ASSERT_EQ(ctw_date_key(OCT_21), ctw_date_key(t.entries[0].day));
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST skip_prev_crosses_midnight_back(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, 5000u, -1));
+    uint32_t offset = 1;
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, 5000u, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(ctw_date_key(OCT_19), ctw_date_key(t.entries[0].day));
+    const ctw_lineup *l = &t.entries[0].today;
+    ASSERT_EQ((size_t)&l->items[l->count - 1], (size_t)got);
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST prev_after_crossing_comes_back(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t wall = CTW_DAY_MS - 1000u;
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, wall, 1));
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, wall, -1));
+    uint32_t offset = 1;
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_20, wall, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(ctw_date_key(OCT_20), ctw_date_key(t.entries[0].day));
+    const ctw_lineup *l = &t.entries[0].today;
+    ASSERT_EQ((size_t)&l->items[l->count - 1], (size_t)got);
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST timed_channel_never_skips(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(&t, 1, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(cur != NULL);
+    ASSERT_FALSE(tn_skip(&t, 1, OCT_20, TEN_OH_FIVE, 1));
+    ASSERT_FALSE(tn_skip(&t, 1, OCT_20, TEN_OH_FIVE, -1));
+    ASSERT_FALSE(tn_jump(&t, 1, OCT_20, TEN_OH_FIVE, cur + 1));
+    ASSERT_EQ(0LL, tn_shift(&t, 1));
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST jump_starts_the_chosen_airing(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t offset = 0;
+    const ctw_airing *cur = tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset);
+    ASSERT(cur != NULL);
+    const ctw_lineup *l = &t.entries[0].today;
+    size_t k = (size_t)(cur - l->items);
+    ASSERT(k >= 3 && k + 5 < l->count);
+    const ctw_airing *later = &l->items[k + 5];
+    ASSERT(tn_jump(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, later));
+    ASSERT_EQ((size_t)later, (size_t)tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset));
+    ASSERT_EQ(0u, offset);
+    const ctw_airing *earlier = &l->items[k - 3];
+    ASSERT(tn_jump(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, earlier));
+    ASSERT_EQ((size_t)earlier, (size_t)tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset));
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST jump_reads_target_before_rebuild(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t offset = 0;
+    ASSERT(tn_current(&t, LOOP_CH, OCT_20, TEN_OH_FIVE, &offset) != NULL);
+    const ctw_airing *to = &t.entries[0].today.items[0];
+    ASSERT(tn_jump(&t, LOOP_CH, OCT_21, 5000u, to));
+    const ctw_airing *got = tn_current(&t, LOOP_CH, OCT_21, 5000u, &offset);
+    ASSERT(got != NULL);
+    ASSERT_EQ(ctw_date_key(OCT_20), ctw_date_key(t.entries[0].day));
+    ASSERT_EQ((size_t)t.entries[0].today.items, (size_t)got);
+    ASSERT_EQ(0u, offset);
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST lineup_now_timed_after_midnight_is_yesterday(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    ctw_date day = { 0, 0, 0 };
+    const ctw_lineup *l = tn_lineup_now(&t, 1, OCT_20, 2u * 3600000u, &day);
+    ASSERT_EQ((size_t)&t.entries[0].yesterday, (size_t)l);
+    ASSERT_EQ(ctw_date_key(OCT_19), ctw_date_key(day));
+    l = tn_lineup_now(&t, 1, OCT_20, 8u * 3600000u, &day);
+    ASSERT_EQ((size_t)&t.entries[0].today, (size_t)l);
+    ASSERT_EQ(ctw_date_key(OCT_20), ctw_date_key(day));
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
+TEST lineup_now_looping_is_the_channel_day(void)
+{
+    ctw_db *db = load_fixture();
+    ASSERT(db != NULL);
+    tuner t;
+    tn_init(&t, db);
+    uint32_t wall = CTW_DAY_MS - 1000u;
+    ASSERT(tn_skip(&t, LOOP_CH, OCT_20, wall, 1));
+    ctw_date day = { 0, 0, 0 };
+    const ctw_lineup *l = tn_lineup_now(&t, LOOP_CH, OCT_20, wall, &day);
+    ASSERT_EQ((size_t)&t.entries[0].today, (size_t)l);
+    ASSERT_EQ(ctw_date_key(OCT_21), ctw_date_key(day));
+    tn_free(&t);
+    ctw_db_free(db);
+    PASS();
+}
+
 SUITE(tuner_suite)
 {
+    RUN_TEST(shift_zero_matches_today);
+    RUN_TEST(skip_next_starts_the_following_item);
+    RUN_TEST(skip_prev_starts_the_item_before);
+    RUN_TEST(quick_presses_add_up);
+    RUN_TEST(skip_next_crosses_midnight);
+    RUN_TEST(skip_prev_crosses_midnight_back);
+    RUN_TEST(prev_after_crossing_comes_back);
+    RUN_TEST(timed_channel_never_skips);
+    RUN_TEST(jump_starts_the_chosen_airing);
+    RUN_TEST(jump_reads_target_before_rebuild);
+    RUN_TEST(lineup_now_timed_after_midnight_is_yesterday);
+    RUN_TEST(lineup_now_looping_is_the_channel_day);
     RUN_TEST(rebuild_keeps_the_next_episode_start_across_midnight);
     RUN_TEST(next_episode_skips_ads);
     RUN_TEST(next_episode_none_at_end);
