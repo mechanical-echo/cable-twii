@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 #include "clock.h"
-#include "loader.h"
 #include "playback.h"
 #include "storage.h"
 #include "media/player.h"
@@ -17,7 +16,6 @@ static uint32_t playing_since_ms;
 static bool streaming;
 static bool stalled;
 static bool lost;
-static bool probing;
 static bool probed;
 static uint32_t probe_ms;
 
@@ -61,6 +59,8 @@ void live_stop(void)
     streaming = false;
     stalled = false;
     lost = false;
+    probed = false;
+    end_probed = false;
     current_start_ms = -1;
 }
 
@@ -82,24 +82,6 @@ static bool drive_lost(app *a, const ctw_airing *air, uint32_t offset)
     return true;
 }
 
-static bool probe_answered(app *a)
-{
-    if (probing) {
-        ld_state st = ld_poll();
-        if (st == LD_RUNNING) return false;
-        probing = false;
-        srv_info info;
-        return st == LD_DONE && ld_take_info(&info) == SRV_OK;
-    }
-    if (lost && pb_probe_due(probed, a->now_ms - probe_ms) && ld_poll() == LD_IDLE) {
-        ld_info(&a->server);
-        probing = true;
-        probed = true;
-        probe_ms = a->now_ms;
-    }
-    return false;
-}
-
 static void server_update(app *a, const ctw_airing *air, uint32_t offset)
 {
     pl_state st = pl_status();
@@ -108,11 +90,6 @@ static void server_update(app *a, const ctw_airing *air, uint32_t offset)
     if (pb_lost(st, waiting)) {
         lost = true;
         stalled = false;
-    }
-    if (probe_answered(a) && lost) {
-        lost = false;
-        play_airing(a, tuned_channel, air, offset);
-        return;
     }
     if (lost || st != PL_PLAYING) {
         stalled = false;
@@ -140,6 +117,27 @@ bool live_update(app *a)
     if (!a->from_server) return !drive_lost(a, air, offset);
     server_update(a, air, offset);
     return true;
+}
+
+bool live_probe_due(const app *a)
+{
+    return tuned && lost && pb_probe_due(probed, a->now_ms - probe_ms);
+}
+
+void live_probe_sent(const app *a)
+{
+    probed = true;
+    probe_ms = a->now_ms;
+}
+
+void live_probe_done(app *a, bool answered)
+{
+    if (!answered || !tuned || !lost) return;
+    lost = false;
+    clk_now(&a->today, &a->ms_of_day);
+    uint32_t offset = 0;
+    const ctw_airing *air = tn_current(&a->tuner, tuned_channel, a->today, a->ms_of_day, &offset);
+    play_airing(a, tuned_channel, air, offset);
 }
 
 bool live_weak(void)

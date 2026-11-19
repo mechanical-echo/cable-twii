@@ -19,7 +19,7 @@
 #define TITLE_PX 24
 #define PLAYING_PX 13
 #define BIG_PX 20
-#define RESUME_PX 15
+#define SMALL_PX 15
 #define VOL_LABEL_PX 13
 #define BATTERY_PX 13
 #define BADGE_GLYPH_H 19.6f
@@ -57,11 +57,16 @@ void home_open(app *a)
     sfx_play(SFX_SELECT);
 }
 
-static void home_close(app *a)
+static void dismiss(app *a)
 {
     a->home_open = false;
     hot_btn = HOME_BTN_NONE;
     press.armed = 0;
+}
+
+static void home_close(app *a)
+{
+    dismiss(a);
     sfx_play(SFX_BACK);
 }
 
@@ -74,12 +79,13 @@ static void choose(app *a, home_btn btn)
     case HOME_BTN_HOMEBREW:
         app_quit(a, QUIT_DEST_HOMEBREW);
     case HOME_BTN_RESUME:
-        a->home_open = false;
-        hot_btn = HOME_BTN_NONE;
-        press.armed = 0;
+        dismiss(a);
+        break;
+    case HOME_BTN_RELOAD:
+        dismiss(a);
+        app_reload(a);
         break;
     case HOME_BTN_SETTINGS:
-    case HOME_BTN_RELOAD:
     case HOME_BTN_NONE:
         break;
     }
@@ -181,7 +187,9 @@ void home_draw(app *a)
 
     wii_menu_pill(l);
     ui_pill_ex(l->hbc.x, l->hbc.y, l->hbc.w, l->hbc.h, "Back to Homebrew Channel", BIG_PX, state_for(HOME_BTN_HOMEBREW), UI_SHADOW_VIDEO);
-    ui_pill_ex(l->resume.x, l->resume.y, l->resume.w, l->resume.h, "Resume", RESUME_PX, state_for(HOME_BTN_RESUME), UI_SHADOW_VIDEO);
+    ui_pill_ex(l->settings.x, l->settings.y, l->settings.w, l->settings.h, "Settings", SMALL_PX, state_for(HOME_BTN_SETTINGS), UI_SHADOW_VIDEO);
+    if (l->reload.w > 0.0f) ui_pill_ex(l->reload.x, l->reload.y, l->reload.w, l->reload.h, "Reload channels", SMALL_PX, state_for(HOME_BTN_RELOAD), UI_SHADOW_VIDEO);
+    ui_pill_ex(l->resume.x, l->resume.y, l->resume.w, l->resume.h, "Resume", SMALL_PX, state_for(HOME_BTN_RESUME), UI_SHADOW_VIDEO);
 
     bottom_bar(l);
     ui_text(FONT_BOLD, VOL_LABEL_PX, l->vol_label.x, l->vol_label.y, "Volume", THEME_TEXT_LABEL, ALIGN_LEFT);

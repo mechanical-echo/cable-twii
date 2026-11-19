@@ -72,6 +72,11 @@ typedef struct {
 
 static upnext_text text;
 
+void upnext_reset(void)
+{
+    memset(&text, 0, sizeof text);
+}
+
 static void refresh(const ctw_airing *ep)
 {
     memset(&text, 0, sizeof text);

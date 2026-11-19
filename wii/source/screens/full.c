@@ -82,6 +82,13 @@ static void panel_input(app *a)
     }
 }
 
+void full_reset(void)
+{
+    chip_valid = false;
+    panel_reset();
+    upnext_reset();
+}
+
 void tune(app *a, int channel)
 {
     sfx_play(SFX_CHANNEL);

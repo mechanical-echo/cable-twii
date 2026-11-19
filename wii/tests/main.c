@@ -35,6 +35,7 @@ SUITE_EXTERN(srcpick_suite);
 SUITE_EXTERN(netring_suite);
 SUITE_EXTERN(keyboard_suite);
 SUITE_EXTERN(settings_layout_suite);
+SUITE_EXTERN(ldqueue_suite);
 
 GREATEST_MAIN_DEFS();
 
@@ -76,5 +77,6 @@ int main(int argc, char **argv)
     RUN_SUITE(netring_suite);
     RUN_SUITE(keyboard_suite);
     RUN_SUITE(settings_layout_suite);
+    RUN_SUITE(ldqueue_suite);
     GREATEST_MAIN_END();
 }

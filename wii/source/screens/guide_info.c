@@ -73,6 +73,11 @@ typedef struct {
 static const ui_stop HINT_DISC_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 1.0f, THEME_HINT_DISC_BOTTOM } };
 static info_text info;
 
+void ginfo_reset(void)
+{
+    memset(&info, 0, sizeof info);
+}
+
 static void draw_upnext_card(app *a, asp_rect r)
 {
     uint32_t offset = 0;

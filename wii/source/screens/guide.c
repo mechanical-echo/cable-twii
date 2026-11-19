@@ -58,6 +58,22 @@ static void ensure_model(app *a)
     if (glist_init(row_count) != 0) row_count = 0;
 }
 
+void guide_reset(void)
+{
+    free(rows);
+    rows = NULL;
+    row_count = 0;
+    built = false;
+    highlight = -1;
+    last_hit = -1;
+    scroll = 0.0f;
+    scrolling = false;
+    mode = G_IDLE;
+    pv_reset(&pv, 0);
+    glist_init(0);
+    ginfo_reset();
+}
+
 void guide_prepare(app *a)
 {
     ensure_model(a);

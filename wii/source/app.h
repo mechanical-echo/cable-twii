@@ -44,6 +44,7 @@ typedef struct {
 
 void app_go(app *a, screen_id s);
 void app_fail(app *a, const char *title, const char *body);
+void app_reload(app *a);
 void app_quit(app *a, quit_dest dest) __attribute__((noreturn));
 
 #endif

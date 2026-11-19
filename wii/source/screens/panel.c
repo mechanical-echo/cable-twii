@@ -54,6 +54,13 @@ static panel_text text;
 static char countdown_text[16];
 static float countdown_w;
 
+void panel_reset(void)
+{
+    memset(&text, 0, sizeof text);
+    countdown_text[0] = '\0';
+    countdown_w = 0.0f;
+}
+
 static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start)
 {
     memset(&text, 0, sizeof text);

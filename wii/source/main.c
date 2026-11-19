@@ -8,6 +8,8 @@
 
 #include "app.h"
 #include "input.h"
+#include "ldqueue.h"
+#include "live.h"
 #include "loader.h"
 #include "storage.h"
 #include "quit.h"
@@ -37,6 +39,8 @@
 #endif
 
 static app g_app;
+static lq_state jobs;
+static uint32_t seen_day;
 
 void app_go(app *a, screen_id s)
 {
@@ -45,6 +49,7 @@ void app_go(app *a, screen_id s)
     if (s == SCR_FULL) full_enter(a);
     if (s == SCR_GUIDE) guide_enter(a);
     if (s == SCR_LOGO) logo_enter(a);
+    if (s == SCR_GUIDE && a->from_server && a->prev_screen != SCR_GUIDE && a->prev_screen != SCR_LOGO) lq_want(&jobs, LQ_CHECK);
 }
 
 void app_fail(app *a, const char *title, const char *body)
@@ -138,20 +143,48 @@ static int start_channel(const ctw_db *db, int last_channel)
     return channel;
 }
 
-static void start_guide(app *a)
+static void start_guide(app *a, bool keep)
 {
     tn_init(&a->tuner, a->db);
 
     ctw_state saved;
     state_load(a->state_dir, &saved);
-    a->volume = saved.volume;
-    a->current_channel = start_channel(a->db, saved.last_channel);
-    a->saved = current_state(a);
+    if (!keep) a->volume = saved.volume;
+    a->current_channel = start_channel(a->db, keep ? a->current_channel : saved.last_channel);
+    a->saved = keep ? saved : current_state(a);
     a->saved_ms = a->now_ms;
     guide_prepare(a);
 }
 
-static bool load_drive(app *a)
+static void drop_source(app *a)
+{
+    save_state(a, true);
+    live_stop();
+    guide_reset();
+    full_reset();
+    tn_free(&a->tuner);
+    ctw_db_free(a->db);
+    a->db = NULL;
+    if (a->drive.found) st_release(&a->drive);
+    a->from_server = false;
+    a->revision[0] = '\0';
+    a->notice[0] = '\0';
+    a->notice_until_ms = 0;
+}
+
+static void reenter(app *a)
+{
+    if (a->screen == SCR_LOGO) return;
+    app_go(a, a->screen == SCR_FULL && ctw_db_channel_count(a->db) > 0 ? SCR_FULL : SCR_GUIDE);
+}
+
+static void reloaded(app *a)
+{
+    notice_show(a, "Channels updated");
+    reenter(a);
+}
+
+static bool load_drive(app *a, bool keep)
 {
     int n = snprintf(a->state_dir, sizeof a->state_dir, "%s", a->root);
     if (n < 0 || (size_t)n >= sizeof a->state_dir) a->state_dir[0] = '\0';
@@ -179,18 +212,28 @@ static bool load_drive(app *a)
         return false;
     }
     ctw_issues_free(&issues);
-    start_guide(a);
+    start_guide(a, keep);
     return true;
 }
 
-static void start_server(app *a, ctw_db *db, const srv_info *info)
+static bool open_drive(app *a, bool keep)
+{
+    if (st_find_root(a->root, sizeof a->root, &a->drive) != 0) {
+        app_fail(a, "No cable-twii drive found",
+                  "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.");
+        return false;
+    }
+    return load_drive(a, keep);
+}
+
+static void start_server(app *a, ctw_db *db, const srv_info *info, bool keep)
 {
     a->db = db;
     a->from_server = true;
     srv_root(&a->server, a->root, sizeof a->root);
     snprintf(a->state_dir, sizeof a->state_dir, "%s", SETTINGS_DIR);
     snprintf(a->revision, sizeof a->revision, "%s", info->revision);
-    start_guide(a);
+    start_guide(a, keep);
 }
 
 static void fail_server(app *a, srv_result r)
@@ -210,13 +253,18 @@ static void finish_loading(app *a)
     srv_result r = ld_take_db(&db, &issues, &info);
     ctw_issues_free(&issues);
     a->loading = false;
+    bool reload = a->db != NULL;
+    if (reload) drop_source(a);
     bool drive_found = r != SRV_OK && st_find_root(a->root, sizeof a->root, &a->drive) == 0;
     switch (sp_after_server(r, drive_found)) {
     case SP_SERVER:
-        start_server(a, db, &info);
+        start_server(a, db, &info, reload);
+        if (reload) reloaded(a);
         break;
     case SP_DRIVE_WITH_NOTICE:
-        if (load_drive(a)) notice_show(a, sp_fallback_notice(a->drive.source));
+        if (!load_drive(a, reload)) break;
+        notice_show(a, sp_fallback_notice(a->drive.source));
+        if (reload) reenter(a);
         break;
     case SP_FAIL:
         fail_server(a, r);
@@ -224,28 +272,107 @@ static void finish_loading(app *a)
     }
 }
 
+static void finish_check(app *a)
+{
+    srv_info info;
+    if (ld_take_info(&info) == SRV_OK && a->from_server && strcmp(info.revision, a->revision) != 0) app_reload(a);
+}
+
+static void finish_probe(app *a)
+{
+    srv_info info;
+    live_probe_done(a, ld_take_info(&info) == SRV_OK);
+}
+
+static void watch_day(app *a)
+{
+    uint32_t day = a->from_server && a->db != NULL ? ctw_date_key(a->today) : 0;
+    if (lq_new_day(&seen_day, day)) lq_want(&jobs, LQ_CHECK);
+}
+
+static void loader_update(app *a)
+{
+    watch_day(a);
+    if (ld_poll() == LD_DONE) {
+        switch (lq_finish(&jobs)) {
+        case LQ_LOAD:
+            finish_loading(a);
+            break;
+        case LQ_CHECK:
+            finish_check(a);
+            break;
+        case LQ_PROBE:
+            finish_probe(a);
+            break;
+        case LQ_NONE:
+            break;
+        }
+        ld_drop();
+    }
+    switch (lq_start(&jobs, ld_poll() == LD_RUNNING, live_probe_due(a))) {
+    case LQ_LOAD:
+        ld_load(&a->server);
+        break;
+    case LQ_PROBE:
+        live_probe_sent(a);
+        ld_info(&a->server);
+        break;
+    case LQ_CHECK:
+        ld_info(&a->server);
+        break;
+    case LQ_NONE:
+        break;
+    }
+}
+
+static void want_server(app *a)
+{
+    addr_parse(a->settings.server, &a->server);
+    a->loading = true;
+    lq_want(&jobs, LQ_LOAD);
+}
+
+static void boot_source(app *a)
+{
+    if (sp_try_server(&a->settings)) {
+#ifdef CTW_DEBUG_SCRIPT
+        if (!dbg_script_active()) dbg_script_load(SETTINGS_DIR);
+#endif
+        want_server(a);
+        app_go(a, SCR_LOGO);
+        return;
+    }
+    if (open_drive(a, false)) app_go(a, SCR_LOGO);
+}
+
 static void boot(app *a)
 {
     st_config_mount();
     settings_load(SETTINGS_DIR, &a->settings);
     a->settings_saveable = st_config_writable();
+    boot_source(a);
+}
 
+void app_reload(app *a)
+{
+    lq_reset(&jobs);
+    a->loading = false;
+    if (a->db == NULL || a->screen == SCR_ERROR) {
+        drop_source(a);
+        boot_source(a);
+        return;
+    }
     if (sp_try_server(&a->settings)) {
-#ifdef CTW_DEBUG_SCRIPT
-        dbg_script_load(SETTINGS_DIR);
-#endif
-        addr_parse(a->settings.server, &a->server);
-        a->loading = true;
-        ld_load(&a->server);
-        app_go(a, SCR_LOGO);
+        char address[sizeof a->server.host + 8];
+        char text[sizeof a->notice];
+        want_server(a);
+        addr_format(&a->server, address, sizeof address);
+        sp_connecting(address, text, sizeof text);
+        notice_show(a, text);
         return;
     }
-    if (st_find_root(a->root, sizeof a->root, &a->drive) != 0) {
-        app_fail(a, "No cable-twii drive found",
-                  "Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on the SD card.");
-        return;
-    }
-    if (load_drive(a)) app_go(a, SCR_LOGO);
+    drop_source(a);
+    if (open_drive(a, true)) reloaded(a);
 }
 
 int main(int argc, char **argv)
@@ -277,7 +404,7 @@ int main(int argc, char **argv)
         g_app.now_ms += 16;
         if (in_power_requested()) app_quit(&g_app, QUIT_DEST_POWER_OFF);
         if (in_reset_requested()) app_quit(&g_app, QUIT_DEST_HOMEBREW);
-        if (g_app.loading && ld_poll() == LD_DONE) finish_loading(&g_app);
+        loader_update(&g_app);
 
         bool was_open = g_app.home_open;
         home_update(&g_app);

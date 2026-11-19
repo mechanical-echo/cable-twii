@@ -141,6 +141,13 @@ srv_result ld_take_info(srv_info *out)
     return result;
 }
 
+void ld_drop(void)
+{
+    if (ld_poll() != LD_DONE) return;
+    drop_result();
+    state = LD_IDLE;
+}
+
 #ifdef CTW_DEBUG_OVERLAY
 bool ld_debug_times(uint32_t *net_up_ms, uint32_t *load_ms)
 {
