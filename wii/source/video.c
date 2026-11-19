@@ -27,6 +27,9 @@ void video_init(void)
     GRRLIB_Init();
     rescale();
     for (int i = 0; i < 2; i++) {
+        VIDEO_ClearFrameBuffer(rmode, xfb[i], COLOR_BLACK);
+    }
+    for (int i = 0; i < 2; i++) {
         GRRLIB_FillScreen(0x000000FF);
         GRRLIB_Render();
     }
