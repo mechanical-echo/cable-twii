@@ -134,7 +134,7 @@
 <main>
   <h1>Wii Settings screen, keyboard and the new Settings pills</h1>
   <p class="lede">Mockup for plan 08, Task 8: the screens that let a Wii play from a cable-twii server, drawn in the Wii redesign style before anything is built. Every frame is the app's 640×480 picture at 1:1, drawn with the tokens from <code>wii/source/ui/theme.h</code>, the real wordmark, glyphs and pointer from <code>wii/data/</code>, and the app's text placement (em-box top, pill labels centred, labels shortened with "…" or wrapped exactly as <code>ui_text_fit</code> / <code>ui_text_wrap</code> do). The numbers at the bottom are what Tasks 9 and 11 will build.</p>
-  <span class="status">Proposed, pending owner approval</span>
+  <span class="status">Approved by the owner on 2026-11-19</span>
   <p id="err"></p>
 
   <div class="switch" role="group" aria-label="TV shape">
@@ -239,8 +239,8 @@
     </figcaption>
   </figure>
 
-  <h2>Proposed pixel numbers</h2>
-  <p><b>Proposed, pending owner approval.</b> Rects are <code>x, y, w, h</code> in the 640×480 frame. For text lines, <code>y</code> is the em-box top (what <code>ui_text</code> takes), <code>w</code> is the width the text is shortened or wrapped to, and <code>h</code> is the font size, or lines × line height. Where a rect is centred, the value is computed the same way the frames are.</p>
+  <h2>Approved pixel numbers</h2>
+  <p><b>Approved by the owner on 2026-11-19.</b> Rects are <code>x, y, w, h</code> in the 640×480 frame. For text lines, <code>y</code> is the em-box top (what <code>ui_text</code> takes), <code>w</code> is the width the text is shortened or wrapped to, and <code>h</code> is the font size, or lines × line height. Where a rect is centred, the value is computed the same way the frames are.</p>
   <p class="legend">About the second column: the brief asked for <code>pixel_x</code> 1.0 and 1.333, but the app's <code>ui_pixel_x()</code> is <b>0.75</b> on 16:9 (<code>asp_pixel_x</code>: (640/480)/(16/9)). 1.333 is how much a 16:9 TV stretches each pixel; parts that must look square are drawn 0.75× as wide to undo it. So the second column is <code>pixel_x</code> 0.75. Like every pill in the app today, pills, keys and fields keep their widths on both TVs, so most rows are the same in both columns. Rows that differ are highlighted.</p>
   <div class="tablewrap"><table id="numbers"></table></div>
 </main>
