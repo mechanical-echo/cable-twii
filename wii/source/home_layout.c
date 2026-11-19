@@ -38,6 +38,13 @@
 #define BATTERY_Y 431.1f
 #define BATTERY_W 41.7f
 #define BATTERY_H 26.7f
+#define PIC_LABEL_X 265.0f
+#define PIC_LABEL_W 49.0f
+#define PIC_X 322.0f
+#define PIC_Y 426.9f
+#define PIC_PART_W 56.0f
+#define PIC_H 32.0f
+#define PIC_THUMB_INSET 3.0f
 
 static asp_rect rect(float x, float y, float w, float h)
 {
@@ -69,6 +76,12 @@ home_layout home_layout_make(float pixel_x, bool from_server)
     l.vol_bar = rect(VOL_BAR_X, VOL_LABEL_Y, bar_w, VOL_BAR_H);
     l.battery_label = rect(BATTERY_LABEL_X, VOL_LABEL_Y, BATTERY_LABEL_W, VOL_LABEL_H);
     l.battery = rect(BATTERY_X, BATTERY_Y, BATTERY_W, BATTERY_H);
+    l.pic_label = rect(PIC_LABEL_X, VOL_LABEL_Y, PIC_LABEL_W, VOL_LABEL_H);
+    l.pic_track = rect(PIC_X, PIC_Y, PIC_PART_W * (float)ASP_MODES, PIC_H);
+    for (int i = 0; i < ASP_MODES; i++) {
+        l.pic[i] = rect(PIC_X + PIC_PART_W * (float)i, PIC_Y, PIC_PART_W, PIC_H);
+        l.pic_thumb[i] = rect(l.pic[i].x + PIC_THUMB_INSET * pixel_x, PIC_Y + PIC_THUMB_INSET, PIC_PART_W - 2.0f * PIC_THUMB_INSET * pixel_x, PIC_H - 2.0f * PIC_THUMB_INSET);
+    }
     return l;
 }
 
@@ -84,6 +97,9 @@ home_btn home_hit(const home_layout *l, float x, float y)
     if (inside(l->settings, x, y)) return HOME_BTN_SETTINGS;
     if (inside(l->reload, x, y)) return HOME_BTN_RELOAD;
     if (inside(l->resume, x, y)) return HOME_BTN_RESUME;
+    for (int i = 0; i < ASP_MODES; i++) {
+        if (inside(l->pic[i], x, y)) return (home_btn)(HOME_BTN_PIC_FIT + i);
+    }
     return HOME_BTN_NONE;
 }
 

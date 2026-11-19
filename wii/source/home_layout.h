@@ -17,7 +17,10 @@ typedef enum {
     HOME_BTN_HOMEBREW,
     HOME_BTN_RESUME,
     HOME_BTN_SETTINGS,
-    HOME_BTN_RELOAD
+    HOME_BTN_RELOAD,
+    HOME_BTN_PIC_FIT,
+    HOME_BTN_PIC_14_9,
+    HOME_BTN_PIC_FILL
 } home_btn;
 
 typedef struct {
@@ -35,6 +38,10 @@ typedef struct {
     asp_rect vol_bar;
     asp_rect battery_label;
     asp_rect battery;
+    asp_rect pic_label;
+    asp_rect pic_track;
+    asp_rect pic[ASP_MODES];
+    asp_rect pic_thumb[ASP_MODES];
 } home_layout;
 
 home_layout home_layout_make(float pixel_x, bool from_server);
