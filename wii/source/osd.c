@@ -35,13 +35,19 @@ bool osd_chip_visible(const osd_state *s, uint32_t now_ms)
 
 bool osd_visible(const osd_state *s, uint32_t now_ms)
 {
-    return s->osd && now_ms < s->osd_until;
+    return (s->osd && now_ms < s->osd_until) || now_ms < s->forced_until;
 }
 
 void osd_activity(osd_state *s, uint32_t now_ms)
 {
     if (!osd_visible(s, now_ms)) return;
     s->osd_until = now_ms + OSD_TIMEOUT_MS;
+}
+
+void osd_skipped(osd_state *s, uint32_t now_ms)
+{
+    if (!osd_visible(s, now_ms)) s->shown_at = now_ms;
+    s->forced_until = now_ms + OSD_TIMEOUT_MS;
 }
 
 float osd_slide(const osd_state *s, uint32_t now_ms)

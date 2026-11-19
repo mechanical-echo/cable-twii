@@ -49,6 +49,23 @@ static void flip(app *a, int dir)
     tune(a, nav_step(a->db, a->current_channel, dir));
 }
 
+void full_jumped(app *a)
+{
+    sfx_play(SFX_CHANNEL);
+    osd_skipped(&g_osd, a->now_ms);
+}
+
+static void skip(app *a, int dir)
+{
+    const ctw_channel *ch = ctw_db_channel(a->db, a->current_channel);
+    if (ch == NULL) return;
+    if (ch->mode != CTW_MODE_LOOPING) {
+        notice_show(a, "This channel is live");
+        return;
+    }
+    if (tn_skip(&a->tuner, a->current_channel, a->today, a->ms_of_day, dir)) full_jumped(a);
+}
+
 static void change_volume(app *a, int dir)
 {
     a->volume = osd_volume_step(a->volume, dir);
@@ -115,10 +132,14 @@ void full_update(app *a)
         return;
     }
 
-    if (in_pressed(WPAD_BUTTON_UP) || in_pressed(WPAD_BUTTON_RIGHT)) {
+    if (in_pressed(WPAD_BUTTON_UP)) {
         flip(a, 1);
-    } else if (in_pressed(WPAD_BUTTON_DOWN) || in_pressed(WPAD_BUTTON_LEFT)) {
+    } else if (in_pressed(WPAD_BUTTON_DOWN)) {
         flip(a, -1);
+    } else if (in_pressed(WPAD_BUTTON_RIGHT)) {
+        skip(a, 1);
+    } else if (in_pressed(WPAD_BUTTON_LEFT)) {
+        skip(a, -1);
     }
 
     if (in_pressed(WPAD_BUTTON_PLUS)) change_volume(a, 1);

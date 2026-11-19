@@ -65,6 +65,7 @@ typedef struct {
     int channel;
     const ctw_airing *episode;
     int64_t start;
+    int64_t shift;
     char title[TF_LINE_BYTES];
     char show[TF_LINE_BYTES];
     char at[16];
@@ -77,18 +78,19 @@ void upnext_reset(void)
     memset(&text, 0, sizeof text);
 }
 
-static void refresh(const ctw_airing *ep)
+static void refresh(const ctw_airing *ep, int64_t shift)
 {
     memset(&text, 0, sizeof text);
     text.valid = true;
     text.episode = ep;
+    text.shift = shift;
     if (ep == NULL || ep->episode == NULL) return;
     text.start = ep->start_ms;
     char buf[TF_LINE_BYTES];
     gt_episode(ep->episode, buf, sizeof buf);
     ui_text_fit(FONT_BOLD, TITLE_PX, buf, RIGHT_X - TITLE_X, text.title, sizeof text.title);
     ui_text_fit(FONT_BODY, SHOW_PX, ep->show != NULL ? ep->show->name : "", RIGHT_X - TITLE_X, text.show, sizeof text.show);
-    gt_at(ep->start_ms, text.at, sizeof text.at);
+    gt_at(ep->start_ms - shift, text.at, sizeof text.at);
 }
 
 static void draw_break_pill(void)
@@ -117,9 +119,10 @@ void upnext_draw(app *a, const ctw_airing *gap, uint32_t gap_offset_ms, const ct
     ui_rounded(CARD_X + DOT_X, CARD_Y + DOT_Y, dw, DOT_H, DOT_H / 2.0f, THEME_ACCENT);
     ui_text(FONT_BOLD, LABEL_PX, CARD_X + LABEL_X, CARD_Y + LABEL_Y, "Up next", THEME_ACCENT, ALIGN_LEFT);
 
-    if (!text.valid || text.channel != a->current_channel || text.episode != next_episode ||
+    int64_t shift = tn_shift(&a->tuner, a->current_channel);
+    if (!text.valid || text.channel != a->current_channel || text.episode != next_episode || text.shift != shift ||
         (next_episode != NULL && text.start != next_episode->start_ms)) {
-        refresh(next_episode);
+        refresh(next_episode, shift);
         text.channel = a->current_channel;
     }
 

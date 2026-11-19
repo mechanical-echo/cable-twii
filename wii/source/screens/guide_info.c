@@ -59,6 +59,7 @@ typedef struct {
     bool valid;
     int channel;
     int64_t start;
+    int64_t shift;
     const ctw_airing *air;
     char name[TF_LINE_BYTES];
     char line[TF_LINE_BYTES];
@@ -131,12 +132,13 @@ static float text_x(asp_rect r)
     return r.x + ICON_X + ICON_PX * ui_pixel_x() + NAME_GAP;
 }
 
-static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start, asp_rect r)
+static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start, int64_t shift, asp_rect r)
 {
     memset(&info, 0, sizeof info);
     info.valid = true;
     info.channel = ch->number;
     info.start = start;
+    info.shift = shift;
     info.air = air;
     float left_w = r.x + DIVIDER_X - DIVIDER_GAP - text_x(r);
     ui_text_fit(FONT_BOLD, NAME_PX, ch->name, left_w, info.name, sizeof info.name);
@@ -148,7 +150,7 @@ static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_
     char buf[TF_LINE_BYTES];
     gt_line(air, next, buf, sizeof buf);
     ui_text_fit(FONT_BOLD, LINE_PX, buf, left_w, info.line, sizeof info.line);
-    gt_times(air->start_ms, air->duration_ms, info.times, sizeof info.times);
+    gt_times(air->start_ms - shift, air->duration_ms, info.times, sizeof info.times);
     info.times_w = ui_text_width(FONT_BODY, TIMES_PX, info.times);
 
     info.next_ep = tn_next_episode(&a->tuner, ch->number, air);
@@ -165,7 +167,8 @@ void ginfo_draw_info(app *a, const ctw_channel *ch, asp_rect r)
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, ch->number, a->today, a->ms_of_day, &offset);
     int64_t start = air != NULL ? tn_airing_start(&a->tuner, ch->number, air) : -1;
-    if (!info.valid || info.channel != ch->number || info.start != start || info.air != air) refresh(a, ch, air, start, r);
+    int64_t shift = tn_shift(&a->tuner, ch->number);
+    if (!info.valid || info.channel != ch->number || info.start != start || info.shift != shift || info.air != air) refresh(a, ch, air, start, shift, r);
 
     char path[ADDR_URL_BYTES];
     gt_icon_path(a->root, ch, info.icon_show, path, sizeof path);

@@ -1,6 +1,7 @@
 #include <string.h>
 #include "greatest/greatest.h"
 #include "osd.h"
+#include "ui/theme.h"
 
 TEST chip_shows_two_seconds(void)
 {
@@ -167,8 +168,55 @@ TEST slide_restarts_after_hiding(void)
     PASS();
 }
 
+TEST skip_shows_panel_without_pointer(void)
+{
+    osd_state s;
+    memset(&s, 0, sizeof s);
+    osd_pointer(&s, false, false, 0);
+    osd_skipped(&s, 100);
+    ASSERT(osd_panel_visible(&s, 101));
+    osd_pointer(&s, false, false, 200);
+    ASSERT(osd_panel_visible(&s, 200));
+    ASSERT(osd_panel_visible(&s, 100 + THEME_OSD_TIMEOUT_MS - 1));
+    ASSERT(!osd_panel_visible(&s, 100 + THEME_OSD_TIMEOUT_MS));
+    PASS();
+}
+
+TEST skip_slides_in_when_hidden(void)
+{
+    osd_state s;
+    memset(&s, 0, sizeof s);
+    osd_skipped(&s, 100);
+    ASSERT_IN_RANGE(0.0f, osd_slide(&s, 100), 0.001f);
+    PASS();
+}
+
+TEST skip_keeps_slide_when_shown(void)
+{
+    osd_state s;
+    memset(&s, 0, sizeof s);
+    osd_pointer(&s, true, true, 0);
+    osd_skipped(&s, 500);
+    ASSERT_IN_RANGE(1.0f, osd_slide(&s, 500), 0.001f);
+    PASS();
+}
+
+TEST skip_hides_behind_volume(void)
+{
+    osd_state s;
+    memset(&s, 0, sizeof s);
+    osd_skipped(&s, 100);
+    osd_volume_changed(&s, 100);
+    ASSERT(!osd_panel_visible(&s, 101));
+    PASS();
+}
+
 SUITE(osd_suite)
 {
+    RUN_TEST(skip_shows_panel_without_pointer);
+    RUN_TEST(skip_slides_in_when_hidden);
+    RUN_TEST(skip_keeps_slide_when_shown);
+    RUN_TEST(skip_hides_behind_volume);
     RUN_TEST(chip_shows_two_seconds);
     RUN_TEST(osd_shows_on_motion);
     RUN_TEST(osd_hidden_without_ir);

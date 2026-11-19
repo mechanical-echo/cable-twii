@@ -32,6 +32,7 @@ typedef struct {
     bool valid;
     int channel;
     int64_t start;
+    int64_t shift;
     const ctw_airing *air;
     char name[TF_LINE_BYTES];
     float name_w;
@@ -61,12 +62,13 @@ void panel_reset(void)
     countdown_w = 0.0f;
 }
 
-static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start)
+static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_t start, int64_t shift)
 {
     memset(&text, 0, sizeof text);
     text.valid = true;
     text.channel = ch->number;
     text.start = start;
+    text.shift = shift;
     text.air = air;
     ui_text_fit(FONT_BOLD, NAME_PX, ch->name, NAME_MAX_W, text.name, sizeof text.name);
     text.name_w = ui_text_width(FONT_BOLD, NAME_PX, text.name);
@@ -79,14 +81,14 @@ static void refresh(app *a, const ctw_channel *ch, const ctw_airing *air, int64_
     char buf[TF_LINE_BYTES];
     gt_line(air, next, buf, sizeof buf);
     ui_text_fit(FONT_BOLD, LINE_PX, buf, probe.line.w, text.line, sizeof text.line);
-    gt_hhmm(air->start_ms, text.start_text, sizeof text.start_text);
-    gt_hhmm(air->start_ms + (int64_t)air->duration_ms, text.end_text, sizeof text.end_text);
+    gt_hhmm(air->start_ms - shift, text.start_text, sizeof text.start_text);
+    gt_hhmm(air->start_ms + (int64_t)air->duration_ms - shift, text.end_text, sizeof text.end_text);
     text.start_w = ui_text_width(FONT_BODY, TIMES_PX, text.start_text);
     text.next_ep = tn_next_episode(&a->tuner, ch->number, air);
     if (text.next_ep != NULL && text.next_ep->episode != NULL) {
         gt_episode(text.next_ep->episode, text.next_title, sizeof text.next_title);
         text.next_wrap_w = -1.0f;
-        gt_at(text.next_ep->start_ms, text.next_at, sizeof text.next_at);
+        gt_at(text.next_ep->start_ms - shift, text.next_at, sizeof text.next_at);
     }
 }
 
@@ -96,7 +98,8 @@ static const ctw_airing *current(app *a, const ctw_channel **ch, uint32_t *offse
     if (*ch == NULL) return NULL;
     const ctw_airing *air = tn_current(&a->tuner, (*ch)->number, a->today, a->ms_of_day, offset);
     int64_t start = air != NULL ? tn_airing_start(&a->tuner, (*ch)->number, air) : -1;
-    if (!text.valid || text.channel != (*ch)->number || text.start != start || text.air != air) refresh(a, *ch, air, start);
+    int64_t shift = tn_shift(&a->tuner, (*ch)->number);
+    if (!text.valid || text.channel != (*ch)->number || text.start != start || text.shift != shift || text.air != air) refresh(a, *ch, air, start, shift);
     return air;
 }
 
