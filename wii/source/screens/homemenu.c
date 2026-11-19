@@ -39,10 +39,10 @@ static ps_state press;
 static home_layout layout;
 static bool laid_out;
 
-static const home_layout *current_layout(void)
+static const home_layout *current_layout(const app *a)
 {
     if (!laid_out) {
-        layout = home_layout_make(ui_pixel_x());
+        layout = home_layout_make(ui_pixel_x(), a->from_server);
         laid_out = true;
     }
     return &layout;
@@ -51,6 +51,7 @@ static const home_layout *current_layout(void)
 void home_open(app *a)
 {
     a->home_open = true;
+    laid_out = false;
     hot_btn = HOME_BTN_NONE;
     press.armed = 0;
     sfx_play(SFX_SELECT);
@@ -77,6 +78,8 @@ static void choose(app *a, home_btn btn)
         hot_btn = HOME_BTN_NONE;
         press.armed = 0;
         break;
+    case HOME_BTN_SETTINGS:
+    case HOME_BTN_RELOAD:
     case HOME_BTN_NONE:
         break;
     }
@@ -94,7 +97,7 @@ void home_update(app *a)
     }
 
     home_btn btn = HOME_BTN_NONE;
-    if (cur_raw_visible()) btn = home_hit(current_layout(), cur_x(), cur_y());
+    if (cur_raw_visible()) btn = home_hit(current_layout(a), cur_x(), cur_y());
     if (btn != HOME_BTN_NONE && btn != hot_btn) {
         sfx_play(SFX_HOVER);
         in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
@@ -170,7 +173,7 @@ void home_draw(app *a)
     if (!a->home_open) return;
     GRRLIB_Rectangle(0, 0, 640, 480, RGBA(0, 0, 0, HOME_DIM_ALPHA), 1);
 
-    const home_layout *l = current_layout();
+    const home_layout *l = current_layout(a);
     top_bar(l);
     badge(l);
     ui_text(FONT_BOLD, TITLE_PX, l->title.x, l->title.y, "HOME Menu", THEME_TEXT_PRIMARY, ALIGN_LEFT);
