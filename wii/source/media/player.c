@@ -63,6 +63,7 @@ static volatile pl_state status = PL_IDLE;
 static int inited;
 static double last_shown_time;
 static bool widescreen_s;
+static asp_mode picture_s;
 #ifdef CTW_DEBUG_OVERLAY
 static volatile u32 frames_decoded, frames_shown, frames_dropped;
 #endif
@@ -360,6 +361,11 @@ void pl_set_widescreen(bool widescreen)
     widescreen_s = widescreen;
 }
 
+void pl_set_picture(asp_mode mode)
+{
+    picture_s = mode;
+}
+
 void pl_set_volume(int volume_0_100)
 {
     au_set_volume(volume_0_100);
@@ -383,7 +389,7 @@ int pl_video_size(int *w, int *h)
     return 0;
 }
 
-void pl_draw(float x, float y, float w, float h, float alpha)
+void pl_draw(float x, float y, float w, float h, float alpha, float crop)
 {
     if (plm == NULL || status == PL_IDLE || status == PL_ENDED || (status == PL_ERROR && net == NULL)) {
         GRRLIB_Rectangle(x, y, w, h, RGBA(0, 0, 0, 0xFF), 1);
@@ -422,10 +428,12 @@ void pl_draw(float x, float y, float w, float h, float alpha)
         return;
     }
 
-    asp_rect q = asp_fit(frame_h > 0 ? (float)frame_w / (float)frame_h : 0.0f, widescreen_s, x, y, w, h);
+    float src = frame_h > 0 ? (float)frame_w / (float)frame_h : 0.0f;
+    float shown = asp_shown(src, widescreen_s, picture_s, crop);
+    asp_rect q = asp_fit(shown, widescreen_s, x, y, w, h);
     float dx = q.x, dy = q.y, qw = q.w, qh = q.h;
     if (qw < w || qh < h) GRRLIB_Rectangle(x, y, w, h, RGBA(0, 0, 0, 0xFF), 1);
-    yg_draw(draw_slot, frame_w, frame_h, dx, dy, qw, qh);
+    yg_draw(draw_slot, frame_w, frame_h, asp_crop(src, shown), dx, dy, qw, qh);
     if (alpha < 1.0f) {
         uint8_t fade = (uint8_t)((1.0f - (alpha < 0.0f ? 0.0f : alpha)) * 255.0f);
         GRRLIB_Rectangle(dx, dy, qw, qh, RGBA(0, 0, 0, fade), 1);

@@ -325,13 +325,14 @@ volume = 80
 
 ## `settings.toml`
 
-**Purpose:** tells the Wii app where to play from: the drive or a server.
-**Location:** `sd:/apps/cable-twii/settings.toml` on the Wii's SD card, not on the drive and not in the library. **Writer:** the Wii app (Settings screen); the owner may also write it by hand. **Reader:** the Wii app.
+**Purpose:** tells the Wii app where to play from (the drive or a server) and how to fit pictures that don't match the TV.
+**Location:** `sd:/apps/cable-twii/settings.toml` on the Wii's SD card, not on the drive and not in the library. **Writer:** the Wii app (the Settings screen, and the HOME menu's Picture switch); the owner may also write it by hand. **Reader:** the Wii app.
 
 | Key | Type | Required | Default | Allowed |
 |---|---|---|---|---|
 | `source` | string | no | `"drive"` | `"drive"` or `"server"` |
 | `server` | string | no | empty | the server address as typed, at most 127 bytes: `192.168.1.20`, `192.168.1.20:4747`, `PC-NAME` or `http://192.168.1.20:4747/`. Port 4747 when left out. `https://`, bad ports and `.local` names are not supported. |
+| `picture` | string | no | `"fit"` | `"fit"`, `"14:9"` or `"fill"`. Fit shows the whole picture with bars. 14:9 cuts 1/16 off each side of a 16:9 show on a 4:3 TV (1/14 off the top and bottom of a 4:3 show on a 16:9 TV) and leaves thin bars. Fill cuts 1/8 and leaves no bars. Any other value means Fit. |
 
 Write rule: the app writes this file (as `settings.toml.tmp`, then a rename, like `state.toml`) only when no FAT partition on the SD card has a `wbfs/` or `games/` folder. Otherwise, and with no SD card, settings last for the session only. In server mode `state.toml` is saved in the same folder under the same rule.
 
@@ -342,6 +343,7 @@ A missing or broken file means the defaults, so the Wii plays from the drive. Th
 ```toml
 source = "server"
 server = "192.168.1.20:4747"
+picture = "fill"
 ```
 
 ---

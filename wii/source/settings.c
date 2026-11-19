@@ -12,10 +12,13 @@
 #define FORMAT_BYTES 1024
 #define PATH_MAX_BYTES 300
 
+static const char *const PICTURE_NAMES[ASP_MODES] = { "fit", "14:9", "fill" };
+
 static void set_defaults(ctw_settings *out)
 {
     out->source = SRC_DRIVE;
     out->server[0] = '\0';
+    out->picture = ASP_FIT;
 }
 
 static int read_string(const toml_table_t *t, const char *key, char *out, size_t out_size)
@@ -46,11 +49,16 @@ int settings_parse(const char *toml_text, ctw_settings *out)
     ctw_settings s;
     set_defaults(&s);
     char source[sizeof s.server] = "";
+    char picture[8] = "";
     int rc = 0;
     if (read_string(root, "source", source, sizeof source) != 0) rc = -1;
     if (read_string(root, "server", s.server, sizeof s.server) != 0) rc = -1;
+    if (read_string(root, "picture", picture, sizeof picture) != 0) picture[0] = '\0';
     toml_free(root);
     if (strcmp(source, "server") == 0) s.source = SRC_SERVER;
+    for (int i = 0; i < ASP_MODES; i++) {
+        if (strcmp(picture, PICTURE_NAMES[i]) == 0) s.picture = (asp_mode)i;
+    }
     if (rc == 0) *out = s;
     return rc;
 }
@@ -71,7 +79,7 @@ size_t settings_format(const ctw_settings *s, char *out, size_t out_size)
     char server[sizeof s->server * 6 + 1];
     escape(s->server, sizeof s->server, server);
     const char *source = s->source == SRC_SERVER ? "server" : "drive";
-    int n = snprintf(out, out_size, "source = \"%s\"\nserver = \"%s\"\n", source, server);
+    int n = snprintf(out, out_size, "source = \"%s\"\nserver = \"%s\"\npicture = \"%s\"\n", source, server, PICTURE_NAMES[s->picture]);
     if (n < 0 || (size_t)n >= out_size) {
         if (out_size > 0) out[0] = '\0';
         return 0;
@@ -134,7 +142,7 @@ int settings_save(const char *dir, const ctw_settings *s)
 
 bool settings_equal(const ctw_settings *a, const ctw_settings *b)
 {
-    return a->source == b->source && strcmp(a->server, b->server) == 0;
+    return a->source == b->source && strcmp(a->server, b->server) == 0 && a->picture == b->picture;
 }
 
 bool settings_restarts(const ctw_settings *was, const ctw_settings *now)

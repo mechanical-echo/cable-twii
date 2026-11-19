@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "aspect.h"
 
 #define SETTINGS_DIR "sd:/apps/cable-twii"
 
@@ -11,6 +12,7 @@ typedef enum { SRC_DRIVE, SRC_SERVER } ctw_source;
 typedef struct {
     ctw_source source;
     char server[128];
+    asp_mode picture;
 } ctw_settings;
 
 int settings_parse(const char *toml_text, ctw_settings *out);

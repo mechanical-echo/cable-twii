@@ -204,6 +204,75 @@ TEST dim_is_sixty_percent_black(void)
     PASS();
 }
 
+TEST home_picture_switch_matches_the_mockup(void)
+{
+    for (int i = 0; i < 2; i++) {
+        home_layout l = home_layout_make(i == 0 ? 1.0f : WIDE, true);
+        ASSERT_IN_RANGE(265.0f, l.pic_label.x, EPS);
+        ASSERT_IN_RANGE(436.4f, l.pic_label.y, EPS);
+        ASSERT_IN_RANGE(49.0f, l.pic_label.w, EPS);
+        ASSERT_IN_RANGE(16.0f, l.pic_label.h, EPS);
+        ASSERT_IN_RANGE(322.0f, l.pic_track.x, EPS);
+        ASSERT_IN_RANGE(426.9f, l.pic_track.y, EPS);
+        ASSERT_IN_RANGE(168.0f, l.pic_track.w, EPS);
+        ASSERT_IN_RANGE(32.0f, l.pic_track.h, EPS);
+        for (int m = 0; m < ASP_MODES; m++) {
+            ASSERT_IN_RANGE(322.0f + 56.0f * (float)m, l.pic[m].x, EPS);
+            ASSERT_IN_RANGE(426.9f, l.pic[m].y, EPS);
+            ASSERT_IN_RANGE(56.0f, l.pic[m].w, EPS);
+            ASSERT_IN_RANGE(32.0f, l.pic[m].h, EPS);
+        }
+    }
+    home_layout l = home_layout_make(WIDE, true);
+    ASSERT_IN_RANGE(380.25f, l.pic_thumb[1].x, EPS);
+    ASSERT_IN_RANGE(429.9f, l.pic_thumb[1].y, EPS);
+    ASSERT_IN_RANGE(51.5f, l.pic_thumb[1].w, EPS);
+    ASSERT_IN_RANGE(26.0f, l.pic_thumb[1].h, EPS);
+    home_layout square = home_layout_make(1.0f, true);
+    ASSERT_IN_RANGE(381.0f, square.pic_thumb[1].x, EPS);
+    ASSERT_IN_RANGE(50.0f, square.pic_thumb[1].w, EPS);
+    PASS();
+}
+
+TEST home_picture_switch_sits_in_the_bottom_bar(void)
+{
+    for (int i = 0; i < 2; i++) {
+        home_layout l = home_layout_make(i == 0 ? 1.0f : WIDE, i == 0);
+        ASSERT(within(l.pic_label, l.bottom) && within(l.pic_track, l.bottom));
+        ASSERT(l.vol_bar.x + l.vol_bar.w < l.pic_label.x);
+        ASSERT(l.pic_label.x + l.pic_label.w <= l.pic_track.x);
+        ASSERT(l.pic_track.x + l.pic_track.w < l.battery_label.x);
+        ASSERT_IN_RANGE(l.pic_track.x, l.pic[0].x, EPS);
+        ASSERT_IN_RANGE(l.pic_track.x + l.pic_track.w, l.pic[ASP_MODES - 1].x + l.pic[ASP_MODES - 1].w, EPS);
+        for (int m = 0; m < ASP_MODES; m++) {
+            ASSERT(within(l.pic[m], l.pic_track));
+            ASSERT(within(l.pic_thumb[m], l.pic[m]));
+            if (m > 0) {
+                ASSERT(apart(l.pic[m - 1], l.pic[m]));
+                ASSERT_IN_RANGE(l.pic[m - 1].x + l.pic[m - 1].w, l.pic[m].x, EPS);
+            }
+        }
+    }
+    PASS();
+}
+
+TEST hit_finds_each_picture_part(void)
+{
+    for (int i = 0; i < 2; i++) {
+        home_layout l = home_layout_make(WIDE, i == 0);
+        float x, y;
+        for (int m = 0; m < ASP_MODES; m++) {
+            centre(l.pic[m], &x, &y);
+            ASSERT_EQ(HOME_BTN_PIC_FIT + m, (int)home_hit(&l, x, y));
+        }
+        centre(l.pic_label, &x, &y);
+        ASSERT_EQ(HOME_BTN_NONE, home_hit(&l, x, y));
+    }
+    ASSERT_EQ(HOME_BTN_PIC_FIT + ASP_14_9, (int)HOME_BTN_PIC_14_9);
+    ASSERT_EQ(HOME_BTN_PIC_FIT + ASP_FILL, (int)HOME_BTN_PIC_FILL);
+    PASS();
+}
+
 SUITE(home_layout_suite)
 {
     RUN_TEST(layout_bars_span_the_screen_top_and_bottom);
@@ -220,4 +289,7 @@ SUITE(home_layout_suite)
     RUN_TEST(hit_misses_gaps_bars_and_corners);
     RUN_TEST(battery_maps_level_to_four_bars);
     RUN_TEST(dim_is_sixty_percent_black);
+    RUN_TEST(home_picture_switch_matches_the_mockup);
+    RUN_TEST(home_picture_switch_sits_in_the_bottom_bar);
+    RUN_TEST(hit_finds_each_picture_part);
 }

@@ -76,9 +76,9 @@ TEST automatic_reload_failure_is_silent(void)
 
 TEST try_server_needs_server_source_and_valid_address(void)
 {
-    ctw_settings drive = { SRC_DRIVE, "192.168.1.20" };
-    ctw_settings bad = { SRC_SERVER, "https://x" };
-    ctw_settings good = { SRC_SERVER, "192.168.1.20:4747" };
+    ctw_settings drive = { SRC_DRIVE, "192.168.1.20", ASP_FIT };
+    ctw_settings bad = { SRC_SERVER, "https://x", ASP_FIT };
+    ctw_settings good = { SRC_SERVER, "192.168.1.20:4747", ASP_FIT };
     ASSERT_FALSE(sp_try_server(&drive));
     ASSERT_FALSE(sp_try_server(&bad));
     ASSERT(sp_try_server(&good));
@@ -180,9 +180,9 @@ TEST test_result_failures_use_the_test_copy(void)
 
 TEST save_with_server_and_no_address_asks_for_one(void)
 {
-    ctw_settings was = { SRC_DRIVE, "" };
-    ctw_settings empty = { SRC_SERVER, "" };
-    ctw_settings spaces = { SRC_SERVER, " \t " };
+    ctw_settings was = { SRC_DRIVE, "", ASP_FIT };
+    ctw_settings empty = { SRC_SERVER, "", ASP_FIT };
+    ctw_settings spaces = { SRC_SERVER, " \t ", ASP_FIT };
     ASSERT_EQ(SP_SAVE_TYPE, sp_save_plan(&was, &empty, false, false));
     ASSERT_EQ(SP_SAVE_TYPE, sp_save_plan(&was, &spaces, false, false));
     ASSERT_EQ(SP_SAVE_TYPE, sp_save_plan(&empty, &empty, true, false));
@@ -191,8 +191,8 @@ TEST save_with_server_and_no_address_asks_for_one(void)
 
 TEST save_with_server_and_an_unusable_address_refuses(void)
 {
-    ctw_settings was = { SRC_DRIVE, "" };
-    ctw_settings bad = { SRC_SERVER, "https://pc" };
+    ctw_settings was = { SRC_DRIVE, "", ASP_FIT };
+    ctw_settings bad = { SRC_SERVER, "https://pc", ASP_FIT };
     ASSERT_EQ(SP_SAVE_BAD, sp_save_plan(&was, &bad, false, false));
     ASSERT_EQ(SP_SAVE_BAD, sp_save_plan(&bad, &bad, false, false));
     ASSERT_EQ(SP_SAVE_BAD, sp_save_plan(&bad, &bad, true, false));
@@ -201,8 +201,8 @@ TEST save_with_server_and_an_unusable_address_refuses(void)
 
 TEST save_with_nothing_changed_returns(void)
 {
-    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
-    ctw_settings drive = { SRC_DRIVE, "" };
+    ctw_settings server = { SRC_SERVER, "192.168.1.20", ASP_FIT };
+    ctw_settings drive = { SRC_DRIVE, "", ASP_FIT };
     ASSERT_EQ(SP_SAVE_RETURN, sp_save_plan(&server, &server, false, true));
     ASSERT_EQ(SP_SAVE_RETURN, sp_save_plan(&drive, &drive, false, false));
     PASS();
@@ -210,8 +210,8 @@ TEST save_with_nothing_changed_returns(void)
 
 TEST save_with_nothing_changed_on_the_error_screen_retries(void)
 {
-    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
-    ctw_settings drive = { SRC_DRIVE, "" };
+    ctw_settings server = { SRC_SERVER, "192.168.1.20", ASP_FIT };
+    ctw_settings drive = { SRC_DRIVE, "", ASP_FIT };
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&server, &server, true, false));
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&drive, &drive, true, false));
     PASS();
@@ -219,16 +219,16 @@ TEST save_with_nothing_changed_on_the_error_screen_retries(void)
 
 TEST save_with_nothing_changed_on_the_drive_fallback_retries_the_server(void)
 {
-    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings server = { SRC_SERVER, "192.168.1.20", ASP_FIT };
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&server, &server, false, false));
     PASS();
 }
 
 TEST save_switches_when_the_source_restarts(void)
 {
-    ctw_settings drive = { SRC_DRIVE, "192.168.1.20" };
-    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
-    ctw_settings moved = { SRC_SERVER, "192.168.1.21:4748" };
+    ctw_settings drive = { SRC_DRIVE, "192.168.1.20", ASP_FIT };
+    ctw_settings server = { SRC_SERVER, "192.168.1.20", ASP_FIT };
+    ctw_settings moved = { SRC_SERVER, "192.168.1.21:4748", ASP_FIT };
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&drive, &server, false, false));
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&server, &drive, false, true));
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&server, &moved, false, true));
@@ -237,9 +237,9 @@ TEST save_switches_when_the_source_restarts(void)
 
 TEST save_in_drive_mode_stores_any_address(void)
 {
-    ctw_settings was = { SRC_DRIVE, "" };
-    ctw_settings typed = { SRC_DRIVE, "192.168.1.20" };
-    ctw_settings bad = { SRC_DRIVE, "https://pc" };
+    ctw_settings was = { SRC_DRIVE, "", ASP_FIT };
+    ctw_settings typed = { SRC_DRIVE, "192.168.1.20", ASP_FIT };
+    ctw_settings bad = { SRC_DRIVE, "https://pc", ASP_FIT };
     ASSERT_EQ(SP_SAVE_STORE, sp_save_plan(&was, &typed, false, false));
     ASSERT_EQ(SP_SAVE_STORE, sp_save_plan(&was, &bad, false, false));
     PASS();
@@ -247,8 +247,8 @@ TEST save_in_drive_mode_stores_any_address(void)
 
 TEST save_in_drive_mode_on_the_error_screen_retries(void)
 {
-    ctw_settings was = { SRC_DRIVE, "" };
-    ctw_settings typed = { SRC_DRIVE, "192.168.1.20" };
+    ctw_settings was = { SRC_DRIVE, "", ASP_FIT };
+    ctw_settings typed = { SRC_DRIVE, "192.168.1.20", ASP_FIT };
     ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&was, &typed, true, false));
     PASS();
 }

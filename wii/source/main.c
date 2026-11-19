@@ -359,6 +359,14 @@ void app_open_settings(app *a)
     app_go(a, SCR_SETTINGS);
 }
 
+void app_set_picture(app *a, asp_mode mode)
+{
+    if (a->settings.picture == mode) return;
+    a->settings.picture = mode;
+    pl_set_picture(mode);
+    if (a->settings_saveable && settings_save(SETTINGS_DIR, &a->settings) != 0) a->settings_saveable = false;
+}
+
 void app_switch_source(app *a, const ctw_settings *s)
 {
     lq_reset(&jobs);
@@ -448,6 +456,7 @@ static void boot(app *a)
 {
     st_config_mount();
     settings_load(SETTINGS_DIR, &a->settings);
+    pl_set_picture(a->settings.picture);
     a->settings_saveable = st_config_writable();
     boot_source(a);
 }

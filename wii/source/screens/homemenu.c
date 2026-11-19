@@ -30,6 +30,9 @@
 #define BAR_SHADOW_BLUR 9.0f
 #define BADGE_RING_SPREAD 2.0f
 #define BADGE_HIGHLIGHT 0xFFFFFF80u
+#define PIC_PX 13
+
+static const char *const PIC_LABELS[ASP_MODES] = { "Fit", "14:9", "Fill" };
 
 static const ui_stop TOP_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 0.6f, THEME_PANEL_FILL }, { 1.0f, THEME_GLOSS_COOL } };
 static const ui_stop BOTTOM_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 0.5f, THEME_PANEL_FILL }, { 1.0f, THEME_GLOSS_DEEP } };
@@ -88,6 +91,11 @@ static void choose(app *a, home_btn btn)
     case HOME_BTN_SETTINGS:
         dismiss(a);
         app_open_settings(a);
+        break;
+    case HOME_BTN_PIC_FIT:
+    case HOME_BTN_PIC_14_9:
+    case HOME_BTN_PIC_FILL:
+        app_set_picture(a, (asp_mode)(btn - HOME_BTN_PIC_FIT));
         break;
     case HOME_BTN_NONE:
         break;
@@ -177,6 +185,17 @@ static void wii_menu_pill(const home_layout *l)
     ui_text(FONT_BOLD, BIG_PX, gx + gw + MENU_GLYPH_GAP, y + r.h / 2.0f - (float)BIG_PX / 2.0f, "Wii Menu", THEME_TEXT_PRIMARY, ALIGN_LEFT);
 }
 
+static void picture_switch(const app *a, const home_layout *l)
+{
+    ui_text(FONT_BOLD, VOL_LABEL_PX, l->pic_label.x, l->pic_label.y, "Picture", THEME_TEXT_LABEL, ALIGN_LEFT);
+    asp_rect t = l->pic_track;
+    ui_rounded(t.x, t.y, t.w, t.h, t.h / 2.0f, THEME_TRACK_INSET);
+    ui_rounded(t.x, t.y + 1.0f, t.w, t.h - 1.0f, t.h / 2.0f, THEME_BAR_TRACK);
+    for (int i = 0; i < ASP_MODES; i++) {
+        ui_segment(l->pic[i], l->pic_thumb[i], PIC_LABELS[i], PIC_PX, a->settings.picture == (asp_mode)i, state_for((home_btn)(HOME_BTN_PIC_FIT + i)));
+    }
+}
+
 void home_draw(app *a)
 {
     if (!a->home_open) return;
@@ -198,4 +217,5 @@ void home_draw(app *a)
     ui_text(FONT_BOLD, VOL_LABEL_PX, l->vol_label.x, l->vol_label.y, "Volume", THEME_TEXT_LABEL, ALIGN_LEFT);
     ui_segments(l->vol_bar.x, l->vol_bar.y, l->vol_bar.w, l->vol_bar.h, HOME_SEGMENTS, HOME_SEGMENT_GAP, osd_segments_lit(a->volume), false);
     ui_battery(l->battery_label.x, l->battery.y, l->battery.h, home_battery_bars(in_battery_level()), BATTERY_PX, NULL);
+    picture_switch(a, l);
 }

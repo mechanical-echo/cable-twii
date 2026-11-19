@@ -151,6 +151,7 @@ Point the Wii Remote at the screen to see the cursor. If you do not point it at 
 
 **HOME menu**
 - Press **HOME** to open it. Choose **Wii Menu**, **Homebrew Channel** or **Resume** by pointing and pressing **A**. Pressing **HOME** again also resumes. It shows the remote's battery level.
+- The bottom bar has **Picture**. **Fit** shows the whole picture with black bars when a show doesn't match the TV's shape. **14:9** cuts a little off the sides (or the top and bottom) and leaves thin bars. **Fill** cuts more and fills the screen: on a 4:3 TV it cuts 1/8 off each side of a 16:9 show. Nothing is ever stretched. Point at one and press **A**; the picture changes at once. The guide's preview always shows the whole picture. The choice is saved in `settings.toml` on the SD card, with the same rules as Settings (section 15).
 
 **Power and Reset**
 - **Power** (on the remote or the console) saves your place and turns the Wii off.

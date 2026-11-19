@@ -116,7 +116,7 @@ void ginfo_draw_preview(app *a, asp_rect r, float expand)
     bool live = live_on(a->current_channel);
     if (live) {
         if (pl_status() != PL_IDLE) {
-            pl_draw(in.x, in.y, in.w, in.h, live_fade_in(a, THEME_PREVIEW_FADE_MS));
+            pl_draw(in.x, in.y, in.w, in.h, live_fade_in(a, THEME_PREVIEW_FADE_MS), expand);
         } else {
             draw_upnext_card(a, in);
         }

@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <grrlib.h>
+#include "../aspect.h"
 
 typedef struct {
     float pos;
@@ -21,6 +22,7 @@ void ui_stripes_rect(float x, float y, float w, float h, float alpha);
 void ui_panel(float x, float y, float w, float h, float radius, uint32_t fill, uint32_t border);
 void ui_pill(float x, float y, float w, float h, const char *label, bool hot);
 void ui_pill_ex(float x, float y, float w, float h, const char *label, int px, ui_pill_state state, ui_shadow_kind shadow);
+void ui_segment(asp_rect part, asp_rect thumb, const char *label, int px, bool chosen, ui_pill_state state);
 void ui_pill_radius(float x, float y, float w, float h, float radius, const char *label, int px, uint32_t color, ui_pill_state state, ui_shadow_kind shadow);
 void ui_glow(float x, float y, float w, float h, float radius, float alpha);
 void ui_ring(float x, float y, float w, float h, float radius, uint32_t color, float spread);

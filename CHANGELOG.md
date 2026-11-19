@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wii app: a Picture switch in the HOME menu's bottom bar. Fit (as before), 14:9 or Fill lets 16:9 shows fill a 4:3 TV by cutting the sides instead of showing black bars, never by stretching. Saved in `settings.toml`. Checked on a real Wii with a 4:3 TV at 50 Hz.
 - Wii app plays from a home server as an alternative to the USB drive or SD card. A Settings screen (HOME, or the Settings pill on the error and empty screens) picks Drive or Server, takes the address with an on-screen keyboard and has Test connection. The choice is saved in `settings.toml` on the SD card, only when the card has no `wbfs` or `games` folder. Start-up shows `Connecting to <address>…` and falls back to the drive if the server does not answer. HOME has Reload channels in server mode, and the app checks the server's library when the guide opens and at midnight. Video streams with about 10 seconds read ahead, shows `Weak signal` when data stalls, rejoins live, and returns by itself once a lost server answers. Not yet run on a real Wii. See `docs/USER-GUIDE.md` section 15 and `docs/SERVER.md`.
 - Wii app: video keeps time with the sound. Before, each new picture showed on the next screen refresh even when it was early, so on a fast enough Wii the video ran ahead of the sound.
 - Wii app: no flickering coloured line along the bottom of the screen on 50 Hz TVs. The picture copy fills all but the last line of the frame buffer, which used to show leftover memory; both frame buffers are now cleared to black at start.

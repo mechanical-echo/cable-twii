@@ -36,10 +36,7 @@
 #define KB_DIM 0x00000099u
 #define BORDER 2.0f
 #define DOT_RING 2.0f
-#define PRESS_DY 2.0f
 #define CARET_GAP 2.0f
-#define PILL_SHADOW_DY 1.0f
-#define PILL_SHADOW_BLUR 4.0f
 
 static const char NO_SD[] = "No SD card. These settings last until cable-twii closes.";
 
@@ -134,6 +131,7 @@ static void open_keyboard(void)
 
 static void save(app *a)
 {
+    edited.picture = a->settings.picture;
     sp_save plan = sp_save_plan(&a->settings, &edited, a->prev_screen == SCR_ERROR, a->from_server || a->loading);
     if (plan == SP_SAVE_TYPE) {
         open_keyboard();
@@ -293,23 +291,7 @@ static void dot(asp_rect r, uint32_t color, bool ring)
 
 static void source_half(asp_rect half, asp_rect thumb, const char *label, bool chosen, set_btn btn)
 {
-    ui_pill_state state = state_for(btn);
-    float dy = state == UI_PILL_PRESSED ? PRESS_DY : 0.0f;
-    float cx = half.x + half.w / 2.0f;
-    float ly = half.y + half.h / 2.0f - (float)LABEL_PX / 2.0f + dy;
-    if (!chosen) {
-        if (state != UI_PILL_REST) ui_pill_ex(thumb.x, thumb.y, thumb.w, thumb.h, NULL, LABEL_PX, state, UI_SHADOW_PANEL);
-        ui_text(FONT_BOLD, LABEL_PX, cx, ly, label, state != UI_PILL_REST ? THEME_TEXT_PRIMARY : THEME_TEXT_LABEL, ALIGN_CENTER);
-        return;
-    }
-    float px = ui_pixel_x();
-    float y = thumb.y + dy, r = thumb.h / 2.0f;
-    if (state != UI_PILL_PRESSED) ui_shadow(thumb.x, y, thumb.w, thumb.h, r, THEME_PILL_SHADOW, PILL_SHADOW_DY, PILL_SHADOW_BLUR);
-    if (state == UI_PILL_HOT) ui_ring(thumb.x, y, thumb.w, thumb.h, r, THEME_RING_STRONG, THEME_RING_SPREAD);
-    if (state == UI_PILL_PRESSED) ui_ring(thumb.x, y, thumb.w, thumb.h, r, THEME_RING, THEME_RING_SPREAD);
-    ui_rounded(thumb.x, y, thumb.w, thumb.h, r, THEME_ACCENT_DARK);
-    ui_accent_tile(thumb.x + BORDER * px, y + BORDER, thumb.w - 2.0f * BORDER * px, thumb.h - 2.0f * BORDER, r - BORDER);
-    ui_text(FONT_BOLD, LABEL_PX, cx, ly, label, THEME_PANEL_FILL, ALIGN_CENTER);
+    ui_segment(half, thumb, label, LABEL_PX, chosen, state_for(btn));
 }
 
 static void result_line(void)
