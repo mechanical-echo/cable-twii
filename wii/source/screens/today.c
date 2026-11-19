@@ -56,7 +56,7 @@
 #define SCROLL_MIN_THUMB 20.0f
 #define KEY_GAP 5.0f
 #define HINT_GAP 22.0f
-#define WIDEST_TIME "23:30 \xE2\x80\x93 00:45 +1"
+#define WIDEST_TIME "00:30 +1 \xE2\x80\x93 01:00 +1"
 #define WIDEST_CODE "S00E00"
 
 typedef struct {
@@ -211,6 +211,7 @@ static void play(app *a)
         live_tune(a, ch);
         app_go(a, SCR_FULL);
     } else if (ch == a->current_channel) {
+        live_tune(a, ch);
         full_jumped(a);
     }
 }
@@ -403,6 +404,7 @@ static void draw_footer(app *a)
 
 void today_draw(app *a)
 {
+    if (rebuild(a)) place_at_now(a);
     int64_t s = tn_shift(&a->tuner, channel);
     if (s != shift) {
         shift = s;

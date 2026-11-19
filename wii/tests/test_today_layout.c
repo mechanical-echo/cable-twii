@@ -48,9 +48,9 @@ TEST list_sits_between_the_rules(void)
 static enum greatest_test_res columns_fit(float px)
 {
     asp_rect row = { 38.0f, 90.0f, 550.0f, 32.0f };
-    today_cols c = today_cols_for(row, 96.0f, 46.0f, px);
+    today_cols c = today_cols_for(row, 126.0f, 46.0f, px);
     ASSERT(c.time_x > row.x);
-    ASSERT(c.time_x + 96.0f < c.icon_x);
+    ASSERT(c.time_x + 126.0f < c.icon_x);
     ASSERT(c.icon_x + c.icon_w < c.show_x);
     ASSERT(c.show_x + c.show_w < c.code_x);
     ASSERT(c.code_x + 46.0f < c.title_x);
