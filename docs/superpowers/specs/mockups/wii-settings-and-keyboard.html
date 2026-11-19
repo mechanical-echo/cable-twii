@@ -331,8 +331,8 @@ function homeLayout(px, fromServer) {
   L.settings = fromServer ? R(150, 270, 165, 40) : R(225, 270, 190, 40);
   L.reload = fromServer ? R(325, 270, 165, 40) : R(0, 0, 0, 0);
   L.resume = R(225, 330, 190, 40);
-  L.volLabel = R(26, 436.4, 36, 16);
-  L.volBar = R(68.2, 436.4, 121.15, 16);
+  L.volLabel = R(26, 436.4, 48, 16);
+  L.volBar = R(80.2, 436.4, 121.15, 16);
   return L;
 }
 
@@ -905,6 +905,8 @@ function tableRows() {
   add("Settings, drive mode", px => homeLayout(px, false).settings, "new; label bold 15");
   add("Reload channels, drive mode", px => homeLayout(px, false).reload, "empty rect, not drawn, no hit");
   add("Resume", px => homeLayout(px, true).resume, "was 225, 311.1; label bold 15");
+  add("Volume label", px => homeLayout(px, true).volLabel, "changed after approval (2026-11-19) to fix the 4:3 overlap: was 26, 436.4, 36, 16; bold 13 “Volume” is 48 wide");
+  add("Volume bar", px => homeLayout(px, true).volBar, "changed after approval (2026-11-19): was x 68.2, so the label ran into the first segment; now x 80.2");
   add("badge (unchanged)", px => homeLayout(px, true).badge, "for reference: square, width × pixel_x");
 
   group("Error card (height still follows the body; numbers for the server error)");

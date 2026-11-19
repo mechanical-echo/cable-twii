@@ -3,6 +3,7 @@
 
 #define EPS 0.2f
 #define WIDE 0.75f
+#define VOLUME_TEXT_W 48.0f
 
 static void centre(asp_rect r, float *x, float *y)
 {
@@ -134,15 +135,12 @@ TEST layout_battery_and_volume_sit_in_the_bottom_bar(void)
     PASS();
 }
 
-TEST home_volume_label_clears_the_segments(void)
+TEST home_volume_label_holds_its_text_and_clears_the_segments(void)
 {
     for (int i = 0; i < 2; i++) {
         home_layout l = home_layout_make(i == 0 ? 1.0f : WIDE, true);
-        ASSERT_IN_RANGE(48.0f, l.vol_label.w, EPS);
-        ASSERT(apart(l.vol_label, l.vol_bar));
-        float seg = l.vol_bar.x;
-        asp_rect first = { seg, l.vol_bar.y, HOME_SEGMENT_W, l.vol_bar.h };
-        ASSERT(apart(l.vol_label, first));
+        ASSERT(l.vol_label.w >= VOLUME_TEXT_W);
+        ASSERT(l.vol_label.x + l.vol_label.w <= l.vol_bar.x);
         ASSERT(apart(l.vol_bar, l.battery));
     }
     PASS();
@@ -216,7 +214,7 @@ SUITE(home_layout_suite)
     RUN_TEST(layout_badge_title_and_playing_sit_in_the_top_bar);
     RUN_TEST(home_4_3_title_clears_badge);
     RUN_TEST(layout_battery_and_volume_sit_in_the_bottom_bar);
-    RUN_TEST(home_volume_label_clears_the_segments);
+    RUN_TEST(home_volume_label_holds_its_text_and_clears_the_segments);
     RUN_TEST(layout_segments_fit_the_volume_bar);
     RUN_TEST(hit_finds_each_pill_at_its_centre);
     RUN_TEST(hit_misses_gaps_bars_and_corners);
