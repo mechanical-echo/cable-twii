@@ -147,7 +147,10 @@ static void save(app *a)
         leave(a);
         return;
     }
-    if (a->settings_saveable && !settings_equal(&a->settings, &edited)) settings_save(SETTINGS_DIR, &edited);
+    if (a->settings_saveable && !settings_equal(&a->settings, &edited) && settings_save(SETTINGS_DIR, &edited) != 0) {
+        a->settings_saveable = false;
+        return;
+    }
     if (plan == SP_SAVE_SWITCH) {
         typing = false;
         testing = false;

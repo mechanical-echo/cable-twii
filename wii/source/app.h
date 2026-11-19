@@ -21,6 +21,7 @@ typedef struct {
     bool settings_saveable;
     bool from_server;
     bool loading;
+    bool failed;
     srv_addr server;
     char revision[64];
     ctw_db *db;

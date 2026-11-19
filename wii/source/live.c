@@ -86,16 +86,16 @@ static void server_update(app *a, const ctw_airing *air, uint32_t offset)
 {
     pl_state st = pl_status();
     uint32_t played = playing ? a->now_ms - playing_since_ms : 0;
-    uint32_t waiting = pb_play_waiting(st, st == PL_PLAYING ? pl_waiting_ms() : 0, played);
+    uint32_t waiting = pb_play_waiting(st, pl_waiting_ms(), played);
     if (pb_lost(st, waiting)) {
         lost = true;
         stalled = false;
     }
-    if (lost || st != PL_PLAYING) {
+    if (lost || (st != PL_PLAYING && st != PL_SEEKING)) {
         stalled = false;
         return;
     }
-    pb_stall act = pb_stall_action(waiting, stalled, pl_position_ms(), offset);
+    pb_stall act = pb_stall_action(st, waiting, stalled, pl_position_ms(), offset);
     stalled = act == PB_STALL_NOTE;
     if (act == PB_STALL_REJOIN) play_airing(a, tuned_channel, air, offset);
 }
@@ -107,6 +107,7 @@ bool live_update(app *a)
     if (!playing && pl_status() == PL_PLAYING) {
         playing = true;
         playing_since_ms = a->now_ms;
+        stalled = false;
     }
     uint32_t offset = 0;
     const ctw_airing *air = tn_current(&a->tuner, tuned_channel, a->today, a->ms_of_day, &offset);

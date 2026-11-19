@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <grrlib.h>
 #include <ogc/lwp.h>
+#include <ogc/lwp_watchdog.h>
 #include <ogc/mutex.h>
 
 #include "draw.h"
@@ -20,16 +21,20 @@
 #define FETCH_PATH_BYTES 512
 #define FETCH_MAX_BYTES (256u * 1024u)
 #define FETCH_TIMEOUT_MS 5000u
+#define FETCH_RETRY_MS 3000u
 #define FETCH_IDLE_US 10000
 #define FETCH_STACK (32 * 1024)
 #define FETCH_PRIO 50
 
-typedef enum { FETCH_FREE, FETCH_QUEUED, FETCH_BUSY, FETCH_READY } fetch_state;
+typedef enum { FETCH_FREE, FETCH_QUEUED, FETCH_BUSY, FETCH_READY, FETCH_WAIT } fetch_state;
 
 typedef struct {
     fetch_state state;
     char url[FETCH_URL_BYTES];
     http_body body;
+    int result;
+    bool stale;
+    u64 failed_at;
 } fetch_slot;
 
 static tc_cache cache;
@@ -40,6 +45,11 @@ static lwp_t worker;
 static bool worker_on;
 static bool quit;
 static volatile bool cancel;
+
+static uint32_t since_ms(u64 start)
+{
+    return (uint32_t)ticks_to_millisecs(diff_ticks(start, gettime()));
+}
 
 static void free_icon(void *payload)
 {
@@ -84,9 +94,11 @@ static void *fetch_main(void *arg)
             continue;
         }
         http_body body = { NULL, 0, 0 };
-        if (fetch(s->url, &body) != 0) http_body_free(&body);
+        int result = fetch(s->url, &body);
+        if (result != 0) http_body_free(&body);
         LWP_MutexLock(lock);
         s->body = body;
+        s->result = result;
         s->state = FETCH_READY;
         LWP_MutexUnlock(lock);
     }
@@ -122,9 +134,22 @@ static void request(const char *url)
     }
     if (!pending && open != NULL) {
         snprintf(open->url, sizeof open->url, "%s", url);
+        open->stale = false;
         open->state = FETCH_QUEUED;
     }
     LWP_MutexUnlock(lock);
+}
+
+static void set_state(fetch_slot *s, fetch_state state)
+{
+    LWP_MutexLock(lock);
+    s->state = state;
+    LWP_MutexUnlock(lock);
+}
+
+static bool lasting(int result)
+{
+    return result == 0 || result == HTTP_E_STATUS;
 }
 
 static void decode_fetched(void)
@@ -135,12 +160,30 @@ static void decode_fetched(void)
         bool ready = s->state == FETCH_READY;
         LWP_MutexUnlock(lock);
         if (!ready) continue;
+        if (s->stale) {
+            http_body_free(&s->body);
+            set_state(s, FETCH_FREE);
+            continue;
+        }
+        if (!lasting(s->result)) {
+            s->failed_at = gettime();
+            set_state(s, FETCH_WAIT);
+            continue;
+        }
         loads_left--;
         GRRLIB_texImg *tex = ui_load_png_buffer((const uint8_t *)s->body.data, s->body.len);
         if (tc_insert(&cache, 0, 0, 0, s->url, tex) == NULL && tex != NULL) free_icon(tex);
         http_body_free(&s->body);
+        set_state(s, FETCH_FREE);
+    }
+}
+
+static void expire_waits(void)
+{
+    for (int i = 0; i < FETCH_SLOTS; i++) {
+        fetch_slot *s = &slots[i];
         LWP_MutexLock(lock);
-        s->state = FETCH_FREE;
+        if (s->state == FETCH_WAIT && since_ms(s->failed_at) >= FETCH_RETRY_MS) s->state = FETCH_FREE;
         LWP_MutexUnlock(lock);
     }
 }
@@ -148,7 +191,9 @@ static void decode_fetched(void)
 void icons_frame(void)
 {
     loads_left = ICON_LOADS_PER_FRAME;
-    if (worker_on) decode_fetched();
+    if (!worker_on) return;
+    decode_fetched();
+    expire_waits();
 }
 
 static bool is_net(const char *path)
@@ -184,6 +229,19 @@ void icons_draw(const char *path, float x, float y, float size)
         return;
     }
     ui_image(tex, ix, y, w, size, 1.0f);
+}
+
+void icons_reset(void)
+{
+    tc_clear(&cache);
+    if (!worker_on) return;
+    LWP_MutexLock(lock);
+    for (int i = 0; i < FETCH_SLOTS; i++) {
+        fetch_slot *s = &slots[i];
+        if (s->state == FETCH_WAIT) s->state = FETCH_FREE;
+        else if (s->state == FETCH_BUSY || s->state == FETCH_READY) s->stale = true;
+    }
+    LWP_MutexUnlock(lock);
 }
 
 void icons_stop(void)

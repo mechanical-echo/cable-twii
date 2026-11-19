@@ -7,6 +7,7 @@
 void icons_init(void);
 void icons_frame(void);
 void icons_draw(const char *path, float x, float y, float size);
+void icons_reset(void);
 void icons_stop(void);
 
 #endif

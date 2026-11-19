@@ -19,7 +19,7 @@ pb_end pb_classify_end(bool read_error, bool path_ok);
 bool pb_needs_probe(pl_state status, uint32_t ms_remaining);
 pb_action pb_on_status(pl_state status, uint32_t ms_remaining, bool drive_present);
 uint32_t pb_play_waiting(pl_state status, uint32_t waiting_ms, uint32_t playing_ms);
-pb_stall pb_stall_action(uint32_t waiting_ms, bool was_stalled, uint32_t position_ms, uint32_t expected_ms);
+pb_stall pb_stall_action(pl_state status, uint32_t waiting_ms, bool was_stalled, uint32_t position_ms, uint32_t expected_ms);
 bool pb_lost(pl_state status, uint32_t waiting_ms);
 bool pb_probe_due(bool probed, uint32_t since_probe_ms);
 

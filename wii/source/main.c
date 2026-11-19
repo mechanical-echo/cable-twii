@@ -64,6 +64,7 @@ void app_fail(app *a, const char *title, const char *body)
     a->error_title[sizeof(a->error_title) - 1] = '\0';
     strncpy(a->error_body, body, sizeof(a->error_body) - 1);
     a->error_body[sizeof(a->error_body) - 1] = '\0';
+    a->failed = true;
     if (a->screen == SCR_SETTINGS) {
         a->prev_screen = SCR_ERROR;
         return;
@@ -80,7 +81,7 @@ static ctw_state current_state(const app *a)
 
 static bool can_save(const app *a)
 {
-    if (a->db == NULL || a->screen == SCR_ERROR || a->state_dir[0] == '\0') return false;
+    if (a->db == NULL || a->failed || a->screen == SCR_ERROR || a->state_dir[0] == '\0') return false;
     if (strcmp(a->state_dir, SETTINGS_DIR) == 0) return st_config_writable();
     return a->drive.found && a->drive.writable;
 }
@@ -155,6 +156,8 @@ static int start_channel(const ctw_db *db, int last_channel)
 
 static void start_guide(app *a, bool keep)
 {
+    a->failed = false;
+    icons_reset();
     tn_init(&a->tuner, a->db);
 
     ctw_state saved;
