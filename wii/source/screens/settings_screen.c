@@ -103,23 +103,6 @@ static void leave(app *a)
     app_go(a, a->prev_screen);
 }
 
-static void save(app *a)
-{
-    if (settings_equal(&a->settings, &edited)) {
-        leave(a);
-        return;
-    }
-    if (a->settings_saveable) settings_save(SETTINGS_DIR, &edited);
-    if (settings_restarts(&a->settings, &edited)) {
-        typing = false;
-        testing = false;
-        app_switch_source(a, &edited);
-        return;
-    }
-    a->settings = edited;
-    leave(a);
-}
-
 static void start_test(void)
 {
     char text[LINE_BYTES];
@@ -147,6 +130,32 @@ static void open_keyboard(void)
     hot_key = key_id(kb.row, kb.col);
     last_key = 0;
     refresh_typed();
+}
+
+static void save(app *a)
+{
+    sp_save plan = sp_save_plan(&a->settings, &edited);
+    if (plan == SP_SAVE_TYPE) {
+        open_keyboard();
+        return;
+    }
+    if (plan == SP_SAVE_BAD) {
+        start_test();
+        return;
+    }
+    if (plan == SP_SAVE_RETURN) {
+        leave(a);
+        return;
+    }
+    if (a->settings_saveable) settings_save(SETTINGS_DIR, &edited);
+    if (plan == SP_SAVE_SWITCH) {
+        typing = false;
+        testing = false;
+        app_switch_source(a, &edited);
+        return;
+    }
+    a->settings = edited;
+    leave(a);
 }
 
 static void close_keyboard(void)
@@ -204,7 +213,7 @@ static void keyboard_update(void)
         in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
     }
     last_key = hit;
-    hot_key = hit != 0 ? hit : key_id(kb.row, kb.col);
+    hot_key = key_id(kb.row, kb.col);
     int fired = ps_update(&press, hot_key, in_pressed(WPAD_BUTTON_A), in_held(WPAD_BUTTON_A), in_released(WPAD_BUTTON_A));
     if (fired != 0) type_key(fired);
 }

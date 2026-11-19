@@ -78,3 +78,16 @@ sp_line sp_test_result(srv_result r, const char *name, const char *server_name, 
     srv_test_message(r, name, server_name, out, out_size);
     return r == SRV_OK ? SP_LINE_OK : SP_LINE_FAIL;
 }
+
+static bool blank(const char *s)
+{
+    while (is_space(*s)) s++;
+    return *s == '\0';
+}
+
+sp_save sp_save_plan(const ctw_settings *was, const ctw_settings *now)
+{
+    if (now->source == SRC_SERVER && !sp_try_server(now)) return blank(now->server) ? SP_SAVE_TYPE : SP_SAVE_BAD;
+    if (settings_equal(was, now)) return SP_SAVE_RETURN;
+    return settings_restarts(was, now) ? SP_SAVE_SWITCH : SP_SAVE_STORE;
+}

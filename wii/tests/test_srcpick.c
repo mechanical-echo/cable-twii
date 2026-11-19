@@ -172,6 +172,55 @@ TEST test_result_failures_use_the_test_copy(void)
     PASS();
 }
 
+TEST save_with_server_and_no_address_asks_for_one(void)
+{
+    ctw_settings was = { SRC_DRIVE, "" };
+    ctw_settings empty = { SRC_SERVER, "" };
+    ctw_settings spaces = { SRC_SERVER, " \t " };
+    ASSERT_EQ(SP_SAVE_TYPE, sp_save_plan(&was, &empty));
+    ASSERT_EQ(SP_SAVE_TYPE, sp_save_plan(&was, &spaces));
+    PASS();
+}
+
+TEST save_with_server_and_an_unusable_address_refuses(void)
+{
+    ctw_settings was = { SRC_DRIVE, "" };
+    ctw_settings bad = { SRC_SERVER, "https://pc" };
+    ASSERT_EQ(SP_SAVE_BAD, sp_save_plan(&was, &bad));
+    ASSERT_EQ(SP_SAVE_BAD, sp_save_plan(&bad, &bad));
+    PASS();
+}
+
+TEST save_with_nothing_changed_returns(void)
+{
+    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings drive = { SRC_DRIVE, "" };
+    ASSERT_EQ(SP_SAVE_RETURN, sp_save_plan(&server, &server));
+    ASSERT_EQ(SP_SAVE_RETURN, sp_save_plan(&drive, &drive));
+    PASS();
+}
+
+TEST save_switches_when_the_source_restarts(void)
+{
+    ctw_settings drive = { SRC_DRIVE, "192.168.1.20" };
+    ctw_settings server = { SRC_SERVER, "192.168.1.20" };
+    ctw_settings moved = { SRC_SERVER, "192.168.1.21:4748" };
+    ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&drive, &server));
+    ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&server, &drive));
+    ASSERT_EQ(SP_SAVE_SWITCH, sp_save_plan(&server, &moved));
+    PASS();
+}
+
+TEST save_in_drive_mode_stores_any_address(void)
+{
+    ctw_settings was = { SRC_DRIVE, "" };
+    ctw_settings typed = { SRC_DRIVE, "192.168.1.20" };
+    ctw_settings bad = { SRC_DRIVE, "https://pc" };
+    ASSERT_EQ(SP_SAVE_STORE, sp_save_plan(&was, &typed));
+    ASSERT_EQ(SP_SAVE_STORE, sp_save_plan(&was, &bad));
+    PASS();
+}
+
 SUITE(srcpick_suite)
 {
     RUN_TEST(after_server_ok_uses_server);
@@ -192,4 +241,9 @@ SUITE(srcpick_suite)
     RUN_TEST(test_start_with_an_empty_address_shows_nothing);
     RUN_TEST(test_result_connected_names_the_server);
     RUN_TEST(test_result_failures_use_the_test_copy);
+    RUN_TEST(save_with_server_and_no_address_asks_for_one);
+    RUN_TEST(save_with_server_and_an_unusable_address_refuses);
+    RUN_TEST(save_with_nothing_changed_returns);
+    RUN_TEST(save_switches_when_the_source_restarts);
+    RUN_TEST(save_in_drive_mode_stores_any_address);
 }
