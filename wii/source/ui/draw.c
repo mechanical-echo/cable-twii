@@ -25,6 +25,13 @@
 #define BATTERY_BARS 4
 #define NUMBER_PILL_MIN_W 22.0f
 #define NUMBER_PILL_PAD 10.0f
+#define HINT_H 26.7f
+#define HINT_DISC_X 2.7f
+#define HINT_DISC_Y 3.6f
+#define HINT_DISC_H 19.6f
+#define HINT_LABEL_GAP 4.0f
+#define HINT_LABEL_Y 6.4f
+#define HINT_PX 12
 
 static float pixel_x = 1.0f;
 static GRRLIB_texImg *corner_mask;
@@ -660,4 +667,16 @@ GRRLIB_texImg *ui_load_png_buffer(const uint8_t *data, size_t len)
     }
     GX_InvalidateTexAll();
     return tex;
+}
+
+void ui_key_hint(float x, float y, float w, const char *key, const char *label, bool hot)
+{
+    static const ui_stop disc[] = { { 0.0f, THEME_PANEL_FILL }, { 1.0f, THEME_HINT_DISC_BOTTOM } };
+    if (hot) ui_ring(x, y, w, HINT_H, HINT_H / 2.0f, THEME_RING_STRONG, THEME_RING_SPREAD);
+    ui_rounded(x, y, w, HINT_H, HINT_H / 2.0f, THEME_HINT_FILL);
+    float dw = HINT_DISC_H * ui_pixel_x();
+    float dx = x + HINT_DISC_X, dy = y + HINT_DISC_Y;
+    ui_rounded_gradient(dx, dy, dw, HINT_DISC_H, HINT_DISC_H / 2.0f, disc, 2);
+    ui_text(FONT_BOLD, HINT_PX, dx + dw / 2.0f, dy + (HINT_DISC_H - (float)HINT_PX) / 2.0f, key, THEME_TEXT_PRIMARY, ALIGN_CENTER);
+    ui_text(FONT_BOLD, HINT_PX, dx + dw + HINT_LABEL_GAP, y + HINT_LABEL_Y, label, THEME_PANEL_FILL, ALIGN_LEFT);
 }

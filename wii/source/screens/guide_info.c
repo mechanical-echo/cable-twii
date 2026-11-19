@@ -8,6 +8,7 @@
 #include "../guide_text.h"
 #include "../live.h"
 #include "../media/player.h"
+#include "../today_layout.h"
 #include "../ui/draw.h"
 #include "../ui/icons.h"
 #include "../ui/text.h"
@@ -45,13 +46,6 @@
 #define HINT_X 9.0f
 #define HINT_BOTTOM 33.8f
 #define HINT_W 73.3f
-#define HINT_H 26.7f
-#define HINT_DISC_X 2.7f
-#define HINT_DISC_Y 3.6f
-#define HINT_DISC_H 19.6f
-#define HINT_LABEL_GAP 4.0f
-#define HINT_LABEL_Y 6.4f
-#define HINT_PX 12
 #define GAP_TEXT_PX 14
 #define GAP_COUNT_PX 20
 
@@ -71,7 +65,6 @@ typedef struct {
     const ctw_airing *next_ep;
 } info_text;
 
-static const ui_stop HINT_DISC_STOPS[] = { { 0.0f, THEME_PANEL_FILL }, { 1.0f, THEME_HINT_DISC_BOTTOM } };
 static info_text info;
 
 void ginfo_reset(void)
@@ -96,16 +89,16 @@ static void draw_upnext_card(app *a, asp_rect r)
 
 static void draw_hint(asp_rect in)
 {
-    float hx = in.x + HINT_X, hy = in.y + in.h - HINT_BOTTOM;
-    ui_rounded(hx, hy, HINT_W, HINT_H, HINT_H / 2.0f, THEME_HINT_FILL);
-    float dw = HINT_DISC_H * ui_pixel_x();
-    float dx = hx + HINT_DISC_X, dy = hy + HINT_DISC_Y;
-    ui_rounded_gradient(dx, dy, dw, HINT_DISC_H, HINT_DISC_H / 2.0f, HINT_DISC_STOPS, 2);
-    ui_text(FONT_BOLD, HINT_PX, dx + dw / 2.0f, dy + (HINT_DISC_H - (float)HINT_PX) / 2.0f, "A", THEME_TEXT_PRIMARY, ALIGN_CENTER);
-    ui_text(FONT_BOLD, HINT_PX, dx + dw + HINT_LABEL_GAP, hy + HINT_LABEL_Y, "Watch", THEME_PANEL_FILL, ALIGN_LEFT);
+    ui_key_hint(in.x + HINT_X, in.y + in.h - HINT_BOTTOM, HINT_W, "A", "Watch", false);
 }
 
-void ginfo_draw_preview(app *a, asp_rect r, float expand)
+asp_rect ginfo_today_hint(asp_rect preview)
+{
+    float px = ui_pixel_x();
+    return today_hint_guide(preview, today_hint_w(ui_text_width(FONT_BOLD, TL_HINT_PX, "Today"), px), px);
+}
+
+void ginfo_draw_preview(app *a, asp_rect r, float expand, bool today_hot)
 {
     float keep = 1.0f - expand;
     float border = FRAME_PX * keep;
@@ -125,6 +118,10 @@ void ginfo_draw_preview(app *a, asp_rect r, float expand)
     }
     if (keep > 0.0f) ui_corner_mask(in.x, in.y, in.w, in.h, in_radius, THEME_PANEL_FILL);
     if (keep >= 1.0f && live) draw_hint(in);
+    if (keep >= 1.0f) {
+        asp_rect h = ginfo_today_hint(r);
+        ui_key_hint(h.x, h.y, h.w, "1", "Today", today_hot);
+    }
 }
 
 static float text_x(asp_rect r)

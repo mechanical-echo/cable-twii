@@ -12,6 +12,7 @@
 #include "../clock.h"
 #include "../guide_text.h"
 #include "../media/player.h"
+#include "../today_layout.h"
 #include "../ui/draw.h"
 #include "../ui/icons.h"
 #include "../ui/press.h"
@@ -31,6 +32,7 @@ static osd_state g_osd;
 static float last_cx, last_cy;
 static bool have_last_cursor;
 static osd_btn hot_btn;
+static bool today_hot;
 static ps_state press;
 static bool chip_valid;
 static int chip_channel;
@@ -80,10 +82,29 @@ static float slide_offset(const app *a)
     return (1.0f - osd_slide(&g_osd, a->now_ms)) * (480.0f - rest.panel.y);
 }
 
+static asp_rect today_hint(const osd_layout *l)
+{
+    return today_hint_full(l->panel, today_hint_w(ui_text_width(FONT_BOLD, TL_HINT_PX, "Today"), ui_pixel_x()));
+}
+
+static void today_input(app *a, const osd_layout *l)
+{
+    asp_rect r = today_hint(l);
+    float px = cur_x(), py = cur_y();
+    bool hint = cur_visible() && osd_panel_visible(&g_osd, a->now_ms) && px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    if (hint && !today_hot) {
+        sfx_play(SFX_HOVER);
+        in_rumble_pulse(THEME_HOVER_RUMBLE_MS);
+    }
+    today_hot = hint;
+    if (today_hot && in_pressed(WPAD_BUTTON_A)) today_open(a, a->current_channel);
+}
+
 static void panel_input(app *a)
 {
     bool volume = osd_volume_visible(&g_osd, a->now_ms);
     osd_layout l = panel_layout(a, slide_offset(a));
+    today_input(a, &l);
     osd_btn btn = cur_visible() && volume ? osd_hit(&l, cur_x(), cur_y(), true) : OSD_BTN_NONE;
     if (btn != OSD_BTN_NONE && btn != hot_btn) {
         sfx_play(SFX_HOVER);
@@ -120,6 +141,7 @@ void full_enter(app *a)
     memset(&g_osd, 0, sizeof g_osd);
     memset(&press, 0, sizeof press);
     hot_btn = OSD_BTN_NONE;
+    today_hot = false;
     osd_channel_changed(&g_osd, a->now_ms);
     if (!live_on(a->current_channel)) live_tune(a, a->current_channel);
 }
@@ -225,6 +247,8 @@ void full_draw(app *a)
     if (osd_panel_visible(&g_osd, a->now_ms)) {
         osd_layout l = panel_layout(a, slide_offset(a));
         panel_draw(a, &l);
+        asp_rect h = today_hint(&l);
+        ui_key_hint(h.x, h.y, h.w, "1", "Today", today_hot);
     } else if (osd_volume_visible(&g_osd, a->now_ms)) {
         osd_layout l = panel_layout(a, 0.0f);
         panel_draw_volume(&l, a->volume, hot_btn, (osd_btn)ps_pressed(&press, (int)hot_btn));
