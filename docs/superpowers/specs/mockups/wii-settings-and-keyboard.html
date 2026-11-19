@@ -128,6 +128,9 @@
   tr.diff td.r2 { background: var(--page-diff); }
   .legend { font-size: 13px; color: var(--page-muted); }
   #err { display: none; color: #B00020; font-weight: 600; }
+  .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+  .trio .tv { padding: 5px; border-radius: 10px; }
+  .trio .cap { font-size: 13px; color: var(--page-muted); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -135,6 +138,7 @@
   <h1>Wii Settings screen, keyboard and the new Settings pills</h1>
   <p class="lede">Mockup for plan 08, Task 8: the screens that let a Wii play from a cable-twii server, drawn in the Wii redesign style before anything is built. Every frame is the app's 640×480 picture at 1:1, drawn with the tokens from <code>wii/source/ui/theme.h</code>, the real wordmark, glyphs and pointer from <code>wii/data/</code>, and the app's text placement (em-box top, pill labels centred, labels shortened with "…" or wrapped exactly as <code>ui_text_fit</code> / <code>ui_text_wrap</code> do). The numbers at the bottom are what Tasks 9 and 11 will build.</p>
   <span class="status">Approved by the owner on 2026-11-19</span>
+  <span class="status">Picture setting (frames 8–9): approved by the owner on 2026-11-19</span>
   <p id="err"></p>
 
   <div class="switch" role="group" aria-label="TV shape">
@@ -214,6 +218,43 @@
       </ul>
     </figcaption>
   </figure>
+
+  <h2>HOME menu: Picture setting</h2>
+  <p>One global setting for how a show that doesn't match the TV's shape fills it: <b>Fit</b> (today, the default) shows the whole picture with bars, <b>14:9</b> cuts 1/16 off each side and leaves thin bars, <b>Fill</b> cuts 1/8 off each side and fills the screen. Nothing is ever stretched. A change shows at once behind the dim and is saved to <code>settings.toml</code>. The guide preview keeps Fit; when the preview zooms to full screen the crop eases in during the zoom.</p>
+  <figure>
+    <div class="tv" data-frame="home-pic-bar"></div>
+    <figcaption>
+      <h3><span class="num">8</span>Picture switch in the bottom bar, Fit chosen, pointer on Fill</h3>
+      <ul>
+        <li>Picture sits beside Volume, so both "how it looks and sounds" controls are in the bottom bar. The pills above stay exactly as approved (frame 4).</li>
+        <li>"Picture" bold 13 like "Volume", then a 168×32 track of three 56×32 parts (the size of the system bar's CH pills). It works like Play from on the Settings card: the chosen part is the blue thumb with a white label; a pointed part is drawn as a pointed pill.</li>
+        <li>Point at the one you want and press A: one press reaches any mode, and all three are always in view.</li>
+        <li>Behind the dim: a 16:9 show on a 4:3 TV at Fit. Its bars sit under the HOME bars, so what you see change is the sides.</li>
+      </ul>
+    </figcaption>
+  </figure>
+  <figure>
+    <div class="tv" data-frame="home-pic-bar-fill"></div>
+    <figcaption>
+      <h3><span class="num">9</span>After pressing Fill</h3>
+      <ul>
+        <li>The picture behind now fills the screen: 1/8 is cut off each side, so the trees at the edges and the start of the name box are gone.</li>
+        <li>On a 16:9 TV (switch at the top) 16:9 shows fill the screen in every mode; Fill there cuts the top and bottom of 4:3 shows instead (see the full-screen frames below).</li>
+      </ul>
+    </figcaption>
+  </figure>
+  <div class="note">
+    <h3>Full screen in each mode, no menu</h3>
+    <p class="legend">Top row a 16:9 show, bottom row a 4:3 show, on the TV the switch at the top picks. On a 4:3 TV a 4:3 show is the same in every mode; on a 16:9 TV a 16:9 show is.</p>
+    <div class="trio">
+      <div><div class="tv" data-frame="full-wide-fit"></div><div class="cap">16:9 show · Fit</div></div>
+      <div><div class="tv" data-frame="full-wide-149"></div><div class="cap">16:9 show · 14:9</div></div>
+      <div><div class="tv" data-frame="full-wide-fill"></div><div class="cap">16:9 show · Fill</div></div>
+      <div><div class="tv" data-frame="full-std-fit"></div><div class="cap">4:3 show · Fit</div></div>
+      <div><div class="tv" data-frame="full-std-149"></div><div class="cap">4:3 show · 14:9</div></div>
+      <div><div class="tv" data-frame="full-std-fill"></div><div class="cap">4:3 show · Fill</div></div>
+    </div>
+  </div>
 
   <h2>Error and empty cards</h2>
   <figure>
@@ -318,7 +359,7 @@ function keyboardLayout(px) {
   return L;
 }
 
-function homeLayout(px, fromServer) {
+function homeLayout(px, fromServer, pic) {
   const L = {};
   L.top = R(0, 0, 640, 72);
   L.bottom = R(0, 408, 640, 72);
@@ -333,7 +374,88 @@ function homeLayout(px, fromServer) {
   L.resume = R(225, 330, 190, 40);
   L.volLabel = R(26, 436.4, 48, 16);
   L.volBar = R(80.2, 436.4, 121.15, 16);
+  if (pic === "bar") {
+    L.picLabel = R(265, 436.4, 49, 16);
+    L.picTrack = R(322, 426.9, 168, 32);
+    L.pic = {};
+    PIC_MODES.forEach(([key], i) => { L.pic[key] = R(322 + 56 * i, 426.9, 56, 32); });
+  }
   return L;
+}
+
+const PIC_MODES = [["fit", "Fit"], ["14:9", "14:9"], ["fill", "Fill"]];
+
+function shownAspect(a, T, mode) {
+  if (mode === "fill") return T;
+  if (mode === "14:9") return Math.min(Math.max(14 / 9, Math.min(a, T)), Math.max(a, T));
+  return a;
+}
+
+function pictureView(a, mode, x, y, w, h) {
+  const T = w / PX / h;
+  const S = shownAspect(a, T, mode);
+  const vw = S >= T ? w : w * S / T, vh = S >= T ? h * T / S : h;
+  const vis = R(x + (w - vw) / 2, y + (h - vh) / 2, vw, vh);
+  const fw = S < a ? vw * a / S : vw, fh = S > a ? vh * S / a : vh;
+  return { vis, full: R(vis.x + (vis.w - fw) / 2, vis.y + (vis.h - fh) / 2, fw, fh) };
+}
+
+function scene(s, a, full, vis) {
+  const id = s.uid("c");
+  s.defs.push(`<clipPath id="${id}"><rect x="${n2(vis.x)}" y="${n2(vis.y)}" width="${n2(vis.w)}" height="${n2(vis.h)}"/></clipPath>`);
+  const W = 900 * a, H = 900;
+  const sky = s.grad([[0, "#5FAEE6"], [1, "#CDEAF9"]]);
+  const tree = x => `<rect x="${n2(x - 14)}" y="560" width="28" height="140" fill="#6B4A2E"/><ellipse cx="${n2(x)}" cy="520" rx="70" ry="110" fill="#2F7D3E"/>`;
+  const parts = [
+    `<rect width="${n2(W)}" height="${H}" fill="${sky}"/>`,
+    `<circle cx="${n2(W * 0.78)}" cy="200" r="70" fill="#FFD766"/>`,
+    `<ellipse cx="${n2(W * 0.25)}" cy="700" rx="${n2(W * 0.4)}" ry="200" fill="#8ACB7E"/>`,
+    `<ellipse cx="${n2(W * 0.75)}" cy="720" rx="${n2(W * 0.45)}" ry="220" fill="#74BD6B"/>`,
+    `<rect y="680" width="${n2(W)}" height="220" fill="#5FAF5A"/>`,
+    `<rect x="${n2(W / 2 - 110)}" y="480" width="220" height="200" fill="#F2E3C6"/>`,
+    `<path d="M${n2(W / 2 - 140)} 490 L${n2(W / 2)} 370 L${n2(W / 2 + 140)} 490 Z" fill="#C8553D"/>`,
+    `<rect x="${n2(W / 2 - 30)}" y="580" width="60" height="100" fill="#7A4B2A"/>`,
+    tree(W * 0.045), tree(W * 0.955),
+    `<rect x="${n2(W * 0.05)}" y="760" width="${n2(W * 0.34)}" height="76" rx="8" fill="#FFFFFFE0"/>`,
+    `<rect x="${n2(W * 0.05)}" y="760" width="16" height="76" rx="4" fill="#34BEED"/>`,
+    `<rect x="${n2(W * 0.05 + 34)}" y="776" width="${n2(W * 0.2)}" height="18" rx="4" fill="#444444"/>`,
+    `<rect x="${n2(W * 0.05 + 34)}" y="804" width="${n2(W * 0.14)}" height="14" rx="4" fill="#999999"/>`,
+  ];
+  s.add(`<g clip-path="url(#${id})"><g transform="translate(${n2(full.x)} ${n2(full.y)}) scale(${(full.w / W).toFixed(5)} ${(full.h / H).toFixed(5)})">${parts.join("")}</g></g>`);
+}
+
+function videoFull(s, a, mode) {
+  s.rr(0, 0, 640, 480, 0, "#000000");
+  const v = pictureView(a, mode, 0, 0, 640, 480);
+  scene(s, a, v.full, v.vis);
+}
+
+function picSwitch(s, L, mode, hot, pressed) {
+  s.text("bold", 13, L.picLabel.x, L.picLabel.y, "Picture", tok("text-label"));
+  const t = L.picTrack;
+  s.rr(t.x, t.y, t.w, t.h, t.h / 2, tok("track-inset"));
+  s.rr(t.x, t.y + 1, t.w, t.h - 1, t.h / 2, tok("bar-track"));
+  for (const [key, label] of PIC_MODES) {
+    const part = L.pic[key];
+    const th = R(part.x + 3 * PX, part.y + 3, part.w - 6 * PX, part.h - 6);
+    const isOn = mode === key, isHot = hot === "pic:" + key, isDown = pressed === "pic:" + key;
+    const dy = isDown ? 2 : 0;
+    const ly = part.y + part.h / 2 - 6.5 + dy;
+    if (isOn) {
+      const y = th.y + dy, r = th.h / 2;
+      if (!isDown) s.shadow(th.x, y, th.w, th.h, r, tok("pill-shadow"), 1, 4);
+      if (isHot) s.ring(th.x, y, th.w, th.h, r, tok("ring-strong"), num("ring-spread"));
+      if (isDown) s.ring(th.x, y, th.w, th.h, r, tok("ring"), num("ring-spread"));
+      s.rr(th.x, y, th.w, th.h, r, tok("accent-dark"));
+      s.rr(th.x + 2 * PX, y + 2, th.w - 4 * PX, th.h - 4, r - 2, s.grad(ACCENT_STOPS()));
+      s.text("bold", 13, part.x + part.w / 2, ly, label, "#FFFFFF", "center");
+    } else if (isHot || isDown) {
+      pill(s, th, null, 13, isDown ? "pressed" : "hot", "panel");
+      s.text("bold", 13, part.x + part.w / 2, ly, label, tok("text-primary"), "center");
+    } else {
+      s.text("bold", 13, part.x + part.w / 2, ly, label, tok("text-label"), "center");
+    }
+  }
 }
 
 function errorLayout(bodyLines) {
@@ -732,9 +854,9 @@ function homeBar(s, r, stops, top) {
 }
 
 function drawHome(s, o) {
-  guideBehind(s);
+  (o.behind || guideBehind)(s);
   s.rr(0, 0, 640, 480, 0, "#00000099");
-  const L = homeLayout(PX, o.fromServer);
+  const L = homeLayout(PX, o.fromServer, o.pic);
   homeBar(s, L.top, [[0, tok("panel-fill")], [0.6, tok("panel-fill")], [1, tok("gloss-cool")]], true);
   const b = L.badge;
   s.ring(b.x, b.y, b.w, b.h, b.h / 2, tok("ring"), 2);
@@ -766,6 +888,7 @@ function drawHome(s, o) {
     }
   }
   battery(s, 554.1, 431.1, 26.7, 3, 13);
+  if (o.pic === "bar") picSwitch(s, L, o.mode, o.hot, o.pressed);
   return L;
 }
 
@@ -826,6 +949,22 @@ const FRAMES = {
     pointer(s, L.settings.x + L.settings.w - 22, L.settings.y + L.settings.h / 2 + 4);
   },
   "home-drive": s => { drawHome(s, { fromServer: false }); },
+  "home-pic-bar": s => {
+    const L = drawHome(s, { fromServer: true, pic: "bar", mode: "fit", hot: "pic:fill", behind: v => videoFull(v, 16 / 9, "fit") });
+    const p = L.pic.fill;
+    pointer(s, p.x + p.w - 2, p.y + p.h - 4);
+  },
+  "home-pic-bar-fill": s => {
+    const L = drawHome(s, { fromServer: true, pic: "bar", mode: "fill", hot: "pic:fill", behind: v => videoFull(v, 16 / 9, "fill") });
+    const p = L.pic.fill;
+    pointer(s, p.x + p.w - 2, p.y + p.h - 4);
+  },
+  "full-wide-fit": s => videoFull(s, 16 / 9, "fit"),
+  "full-wide-149": s => videoFull(s, 16 / 9, "14:9"),
+  "full-wide-fill": s => videoFull(s, 16 / 9, "fill"),
+  "full-std-fit": s => videoFull(s, 4 / 3, "fit"),
+  "full-std-149": s => videoFull(s, 4 / 3, "14:9"),
+  "full-std-fill": s => videoFull(s, 4 / 3, "fill"),
   "error": s => {
     const L = drawError(s, { hot: "settings" });
     pointer(s, L.settings.x + L.settings.w - 18, L.settings.y + L.settings.h / 2 + 4);
@@ -908,6 +1047,12 @@ function tableRows() {
   add("Volume label", px => homeLayout(px, true).volLabel, "changed after approval (2026-11-19) to fix the 4:3 overlap: was 26, 436.4, 36, 16; bold 13 “Volume” is 48 wide");
   add("Volume bar", px => homeLayout(px, true).volBar, "changed after approval (2026-11-19): was x 68.2, so the label ran into the first segment; now x 80.2");
   add("badge (unchanged)", px => homeLayout(px, true).badge, "for reference: square, width × pixel_x");
+
+  group("HOME menu: Picture switch in the bottom bar (new; the pills above stay as they are)");
+  add("label “Picture”", px => homeLayout(px, true, "bar").picLabel, "bold 13, #555555, em top 436.4 like “Volume”; centred with the track between the volume bar and P1");
+  add("track", px => homeLayout(px, true, "bar").picTrack, "#E1E5E9 with the 1 px #C7CED4 inset line, full radius");
+  for (const [key, label] of PIC_MODES) add(`part “${label}” (hit rect)`, px => homeLayout(px, true, "bar").pic[key], "label bold 13 centred, em top 436.4; chosen thumb inset 3×pixel_x / 3, accent gloss, white label");
+
 
   group("Error card (height still follows the body; numbers for the server error)");
   const errLines = px => { const keep = PX; PX = px; const n = wrap("body", 15, ERROR_BODY, 392, 14).length; PX = keep; return n; };
