@@ -134,7 +134,7 @@ static void open_keyboard(void)
 
 static void save(app *a)
 {
-    sp_save plan = sp_save_plan(&a->settings, &edited);
+    sp_save plan = sp_save_plan(&a->settings, &edited, a->prev_screen == SCR_ERROR, a->from_server || a->loading);
     if (plan == SP_SAVE_TYPE) {
         open_keyboard();
         return;
@@ -147,7 +147,7 @@ static void save(app *a)
         leave(a);
         return;
     }
-    if (a->settings_saveable) settings_save(SETTINGS_DIR, &edited);
+    if (a->settings_saveable && !settings_equal(&a->settings, &edited)) settings_save(SETTINGS_DIR, &edited);
     if (plan == SP_SAVE_SWITCH) {
         typing = false;
         testing = false;

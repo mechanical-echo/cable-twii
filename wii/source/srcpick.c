@@ -85,9 +85,9 @@ static bool blank(const char *s)
     return *s == '\0';
 }
 
-sp_save sp_save_plan(const ctw_settings *was, const ctw_settings *now)
+sp_save sp_save_plan(const ctw_settings *was, const ctw_settings *now, bool on_error, bool from_server)
 {
     if (now->source == SRC_SERVER && !sp_try_server(now)) return blank(now->server) ? SP_SAVE_TYPE : SP_SAVE_BAD;
-    if (settings_equal(was, now)) return SP_SAVE_RETURN;
-    return settings_restarts(was, now) ? SP_SAVE_SWITCH : SP_SAVE_STORE;
+    if (on_error || (now->source == SRC_SERVER && !from_server) || settings_restarts(was, now)) return SP_SAVE_SWITCH;
+    return settings_equal(was, now) ? SP_SAVE_RETURN : SP_SAVE_STORE;
 }
