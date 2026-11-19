@@ -3,26 +3,68 @@
 
 TEST after_server_ok_uses_server(void)
 {
-    ASSERT_EQ(SP_SERVER, sp_after_server(SRV_OK, false));
-    ASSERT_EQ(SP_SERVER, sp_after_server(SRV_OK, true));
+    ASSERT_EQ(SP_SERVER, sp_after_server(SRV_OK, false, false));
+    ASSERT_EQ(SP_SERVER, sp_after_server(SRV_OK, false, true));
     PASS();
 }
 
 TEST after_server_failure_falls_back_to_drive(void)
 {
-    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_NO_ANSWER, true));
-    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_BAD_LIBRARY, true));
-    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_NOT_CABLE_TWII, true));
-    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_NO_NETWORK, true));
+    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_NO_ANSWER, false, true));
+    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_BAD_LIBRARY, false, true));
+    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_NOT_CABLE_TWII, false, true));
+    ASSERT_EQ(SP_DRIVE_WITH_NOTICE, sp_after_server(SRV_NO_NETWORK, false, true));
     PASS();
 }
 
 TEST after_server_failure_without_drive_fails(void)
 {
-    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_NO_ANSWER, false));
-    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_BAD_LIBRARY, false));
-    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_NOT_CABLE_TWII, false));
-    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_NO_NETWORK, false));
+    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_NO_ANSWER, false, false));
+    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_BAD_LIBRARY, false, false));
+    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_NOT_CABLE_TWII, false, false));
+    ASSERT_EQ(SP_FAIL, sp_after_server(SRV_NO_NETWORK, false, false));
+    PASS();
+}
+
+TEST after_reload_ok_swaps_to_the_new_library(void)
+{
+    ASSERT_EQ(SP_SERVER, sp_after_server(SRV_OK, true, false));
+    ASSERT_EQ(SP_SERVER, sp_after_server(SRV_OK, true, true));
+    PASS();
+}
+
+TEST after_reload_failure_keeps_the_library(void)
+{
+    srv_result failures[] = { SRV_NO_ANSWER, SRV_BAD_LIBRARY, SRV_NOT_CABLE_TWII, SRV_NO_NETWORK };
+    for (size_t i = 0; i < sizeof failures / sizeof failures[0]; i++) {
+        ASSERT_EQ(SP_KEEP, sp_after_server(failures[i], true, false));
+        ASSERT_EQ(SP_KEEP, sp_after_server(failures[i], true, true));
+    }
+    PASS();
+}
+
+TEST reload_notice_on_success(void)
+{
+    ASSERT_STR_EQ("Channels updated", sp_reload_notice(SRV_OK, true));
+    ASSERT_STR_EQ("Channels updated", sp_reload_notice(SRV_OK, false));
+    PASS();
+}
+
+TEST manual_reload_failure_cant_reach_the_server(void)
+{
+    srv_result failures[] = { SRV_NO_ANSWER, SRV_BAD_LIBRARY, SRV_NOT_CABLE_TWII, SRV_NO_NETWORK };
+    for (size_t i = 0; i < sizeof failures / sizeof failures[0]; i++) {
+        ASSERT_STR_EQ("Can't reach the server", sp_reload_notice(failures[i], true));
+    }
+    PASS();
+}
+
+TEST automatic_reload_failure_is_silent(void)
+{
+    srv_result failures[] = { SRV_NO_ANSWER, SRV_BAD_LIBRARY, SRV_NOT_CABLE_TWII, SRV_NO_NETWORK };
+    for (size_t i = 0; i < sizeof failures / sizeof failures[0]; i++) {
+        ASSERT_EQ(NULL, sp_reload_notice(failures[i], false));
+    }
     PASS();
 }
 
@@ -78,6 +120,11 @@ SUITE(srcpick_suite)
     RUN_TEST(after_server_ok_uses_server);
     RUN_TEST(after_server_failure_falls_back_to_drive);
     RUN_TEST(after_server_failure_without_drive_fails);
+    RUN_TEST(after_reload_ok_swaps_to_the_new_library);
+    RUN_TEST(after_reload_failure_keeps_the_library);
+    RUN_TEST(reload_notice_on_success);
+    RUN_TEST(manual_reload_failure_cant_reach_the_server);
+    RUN_TEST(automatic_reload_failure_is_silent);
     RUN_TEST(try_server_needs_server_source_and_valid_address);
     RUN_TEST(fallback_notice_names_the_drive);
     RUN_TEST(fail_body_names_the_address);

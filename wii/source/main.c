@@ -41,6 +41,7 @@
 static app g_app;
 static lq_state jobs;
 static uint32_t seen_day;
+static bool reload_manual;
 
 void app_go(app *a, screen_id s)
 {
@@ -178,10 +179,10 @@ static void reenter(app *a)
     app_go(a, a->screen == SCR_FULL && ctw_db_channel_count(a->db) > 0 ? SCR_FULL : SCR_GUIDE);
 }
 
-static void reloaded(app *a)
+static void reload_notice(app *a, srv_result r, bool manual)
 {
-    notice_show(a, "Channels updated");
-    reenter(a);
+    const char *text = sp_reload_notice(r, manual);
+    if (text != NULL) notice_show(a, text);
 }
 
 static bool load_drive(app *a, bool keep)
@@ -254,28 +255,86 @@ static void finish_loading(app *a)
     ctw_issues_free(&issues);
     a->loading = false;
     bool reload = a->db != NULL;
-    if (reload) drop_source(a);
-    bool drive_found = r != SRV_OK && st_find_root(a->root, sizeof a->root, &a->drive) == 0;
-    switch (sp_after_server(r, drive_found)) {
+    bool drive_found = !reload && r != SRV_OK && st_find_root(a->root, sizeof a->root, &a->drive) == 0;
+    switch (sp_after_server(r, reload, drive_found)) {
     case SP_SERVER:
+        if (reload) drop_source(a);
         start_server(a, db, &info, reload);
-        if (reload) reloaded(a);
+        if (reload) reenter(a);
+        break;
+    case SP_KEEP:
+        ctw_db_free(db);
         break;
     case SP_DRIVE_WITH_NOTICE:
-        if (!load_drive(a, reload)) break;
-        notice_show(a, sp_fallback_notice(a->drive.source));
-        if (reload) reenter(a);
+        if (load_drive(a, false)) notice_show(a, sp_fallback_notice(a->drive.source));
         break;
     case SP_FAIL:
         fail_server(a, r);
         break;
     }
+    if (reload) reload_notice(a, r, reload_manual);
+}
+
+static void want_server(app *a)
+{
+    addr_parse(a->settings.server, &a->server);
+    a->loading = true;
+    lq_want(&jobs, LQ_LOAD);
+}
+
+static void boot_source(app *a)
+{
+    if (sp_try_server(&a->settings)) {
+#ifdef CTW_DEBUG_SCRIPT
+        if (!dbg_script_active()) dbg_script_load(SETTINGS_DIR);
+#endif
+        want_server(a);
+        app_go(a, SCR_LOGO);
+        return;
+    }
+    if (open_drive(a, false)) app_go(a, SCR_LOGO);
+}
+
+static void connecting_notice(app *a)
+{
+    char address[sizeof a->server.host + 8];
+    char text[sizeof a->notice];
+    addr_format(&a->server, address, sizeof address);
+    sp_connecting(address, text, sizeof text);
+    notice_show(a, text);
+}
+
+static void start_reload(app *a, bool manual)
+{
+    lq_reset(&jobs);
+    a->loading = false;
+    if (a->db == NULL || a->screen == SCR_ERROR) {
+        drop_source(a);
+        boot_source(a);
+        return;
+    }
+    if (sp_try_server(&a->settings)) {
+        reload_manual = manual;
+        want_server(a);
+        if (manual) connecting_notice(a);
+        return;
+    }
+    drop_source(a);
+    if (!open_drive(a, true)) return;
+    reload_notice(a, SRV_OK, manual);
+    reenter(a);
+}
+
+void app_reload(app *a)
+{
+    if (a->loading) return;
+    start_reload(a, true);
 }
 
 static void finish_check(app *a)
 {
     srv_info info;
-    if (ld_take_info(&info) == SRV_OK && a->from_server && strcmp(info.revision, a->revision) != 0) app_reload(a);
+    if (ld_take_info(&info) == SRV_OK && a->from_server && strcmp(info.revision, a->revision) != 0) start_reload(a, false);
 }
 
 static void finish_probe(app *a)
@@ -325,54 +384,12 @@ static void loader_update(app *a)
     }
 }
 
-static void want_server(app *a)
-{
-    addr_parse(a->settings.server, &a->server);
-    a->loading = true;
-    lq_want(&jobs, LQ_LOAD);
-}
-
-static void boot_source(app *a)
-{
-    if (sp_try_server(&a->settings)) {
-#ifdef CTW_DEBUG_SCRIPT
-        if (!dbg_script_active()) dbg_script_load(SETTINGS_DIR);
-#endif
-        want_server(a);
-        app_go(a, SCR_LOGO);
-        return;
-    }
-    if (open_drive(a, false)) app_go(a, SCR_LOGO);
-}
-
 static void boot(app *a)
 {
     st_config_mount();
     settings_load(SETTINGS_DIR, &a->settings);
     a->settings_saveable = st_config_writable();
     boot_source(a);
-}
-
-void app_reload(app *a)
-{
-    lq_reset(&jobs);
-    a->loading = false;
-    if (a->db == NULL || a->screen == SCR_ERROR) {
-        drop_source(a);
-        boot_source(a);
-        return;
-    }
-    if (sp_try_server(&a->settings)) {
-        char address[sizeof a->server.host + 8];
-        char text[sizeof a->notice];
-        want_server(a);
-        addr_format(&a->server, address, sizeof address);
-        sp_connecting(address, text, sizeof text);
-        notice_show(a, text);
-        return;
-    }
-    drop_source(a);
-    if (open_drive(a, true)) reloaded(a);
 }
 
 int main(int argc, char **argv)
