@@ -61,7 +61,7 @@ Success: the owner picks a folder of new episodes, unticks the ones they don't w
 The look is "A · Wii Menu" (owner's choice): the same look as the Wii app.
 
 - **Tokens:** come from `wii/source/ui/theme.h` and the Design System artifact (see memory `cable-twii-design-system-artifact`): stripes `#F4F5F7`/`#ECEEF1`, white panels with border `#D6DBE0` and a soft shadow, accent `#34BEED` (light `#7FD0EF`, dark `#2A8FB3`), text `#444` / `#999`, active row `#EEFAFF`, focus ring `#34BEED40`, warm `#F3CF8A` for warnings. Define them as CSS variables on `:root`, named after the theme (`THEME_ACCENT` → `--accent`) **(my call)**.
-- **Font:** bundle the Wii's Rounded M+ 1c (convert to WOFF2 if that is easy, else serve the TTF) and use it for all Studio text, with the system font as fallback **(my call)**.
+- **Font:** use the Wii's Rounded M+ 1c for all Studio text, with the system font as fallback **(my call)**. No WOFF2 tools are installed, so the build copies the two TTFs (about 3.5 MB each, cached by the browser) and `OFL.txt` from `wii/data` and `wii/` into the web build. They are not duplicated in git.
 - **Surfaces:** a striped page background, a glossy top bar, rounded white panels (14 px radius), pill buttons with a top-to-bottom gloss, and a filled Wii-blue pill for the main action.
 - **Shared components** (built once, used everywhere) **(my call)**:
   - PillButton (plain, primary, danger)
@@ -115,6 +115,7 @@ Mockup: "Adding episodes". This is a full page, not a dialog.
   - The imports folder (server mode) starts with today's folder browser (breadcrumbs and subfolders). Only the folder you choose is scanned, so the Pi doesn't re-probe the whole imports folder, which is never emptied **(my call)**.
   - A picked folder (drive mode) is scanned as today.
   - Both use the existing scan, which already has lengths and aspect. Files the server has converted before (its source records) are listed unticked as "Already added" **(my call)**.
+  - Browser files are checked the same way before upload, by name and size against earlier uploads (the rule the upload endpoint already uses for `already on the server`) **(my call)**.
 - **Each row:**
   - a tick box
   - a preview button that plays the source file in a small player
@@ -173,9 +174,8 @@ Mockup: right half. The header has the number, logo, name, "category · mode · 
   - This is where the later Wii-like player will go.
 - **Schedule:**
   - The existing editor (timeline, library panel, block editor, undo/redo, zoom, Reshuffle, Save) in the new look, for this channel only. The channel chips at its top go away.
-  - Rough edges to fix while restyling **(my call)**:
-    - The timeline is too tall to scroll comfortably at the default zoom. Pick a default that fits a typical day on screen.
-    - The right "Block" panel is empty until something is clicked. Show a short how-to there.
+  - Rough edge to fix while restyling **(my call)**: at the default zoom (120 px per hour) a timed day is about 2,900 px tall. Timed channels open at 30 px per hour so a whole day fits on screen. Looping channels keep 120.
+  - The Block panel already shows a how-to when nothing is selected; it keeps it.
 - **Shows:**
   - The channel's shows, each with its icon, name, "Edit info" (the existing show meta: name, icon, descriptions), and seasons with episodes.
   - Each episode row has its title, length and a status chip: **On air**, **Converting 62%**, **Queued** or **Failed**. Status comes from the library plus the job list.
@@ -211,13 +211,12 @@ The same form in the new look.
    - Add `finishedAt` (and `startedAt` if cheap) to `Job`.
    - Uploaded files are still swept after 24 hours as today. A failed job whose source file is gone is flagged, shows "Add the file again" instead of being retried, and is left out of Retry failed **(my call)**.
 2. **Replace an episode:**
-   - `/api/import/show` accepts `replace: true` per episode.
-   - The conversion targets the existing episode's file name.
-   - The old file is only overwritten once the new conversion has succeeded.
-   - A failure leaves the old file and marks the job failed.
+   - `/api/import/show` accepts, per episode, the library path of the episode it replaces.
+   - The conversion targets that file name.
+   - Conversions already write to `<target>.part` and rename only after ffmpeg succeeds, so the old file stays on air until then, and a failure leaves it untouched.
 3. **Preview a server-side source:** a new endpoint streams a file from the last import scan (imports folder or picked folder), with range requests so the browser player can seek. It is contained to those folders and gives 404 for anything else.
-4. **Rebuild notes:** remember the notes from the last library rebuild, manual or automatic, and serve them, so the Ads and Server/Drive pages can show skipped files without a slow full rebuild **(my call)**.
-5. **Already-added flag in scans:** the import scan marks sources the server has converted before, using the existing source records.
+4. **Rebuild notes:** remember the notes from the last library rebuild, manual or automatic, in memory, and serve them, so the Ads and Server/Drive pages can show skipped files without a slow full rebuild. After a restart they are empty until the next rebuild **(my call)**.
+5. **Already-added checks:** the import scan marks sources the server has converted before, using the existing source records. A new upload check answers which browser files (by name and size) were uploaded and converted before.
 6. **Nothing else.** The library, config, preview, validate, show-meta, icon, shrink and drive endpoints are reused as they are.
 
 ## Staging
