@@ -1,3 +1,4 @@
+import { channelFolder } from "../server/scheduleRefs.js";
 import type { Channel, Config, Mode } from "../server/types.js";
 import type { WebLibrary } from "./tree.js";
 
@@ -28,10 +29,7 @@ export function sortChannels(channels: Channel[]): Channel[] {
   return [...channels].sort((a, b) => a.number - b.number);
 }
 
-export function effectiveFolder(channel: Pick<Channel, "name" | "folder">): string {
-  const folder = channel.folder?.trim() ?? "";
-  return folder !== "" ? folder : channel.name.trim();
-}
+export const effectiveFolder = channelFolder;
 
 export function iconPath(channel: Pick<Channel, "name" | "folder" | "icon">): string {
   return channel.icon ?? `${effectiveFolder(channel)}/channel.png`;
