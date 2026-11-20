@@ -112,7 +112,7 @@ The **Shows** tab lists every show, grouped by the channel folder it is stored i
   - the channels it airs on;
   - **Title**, **Season**, **Episode** and **Description**. Changing the title or number renames the file, and schedules that name the episode follow it. A number already used in the show is refused. In a show without seasons only the title can change;
   - **On air / Off air**. An episode switched off stays on the drive but the Wii doesn't play it on any channel. If a schedule names it directly, Studio lists those items and removes them. Switching it back on doesn't put them back;
-  - **Delete episode**, which can't be undone.
+  - **Delete episode**, which can't be undone. In a show without seasons the later episodes move up a number, and schedules that name them follow.
 - **Ad page:** click an ad on the Ads tab. It has the same player, **Name**, **Plays on** (all channels or one channel), On air / Off air and Delete.
 
 Studio refuses a change that would break a schedule (for example switching off every episode a rule can pick) and says which channel to fix first. Errors that were already there don't block. A file that is still converting can't be changed until it is done.

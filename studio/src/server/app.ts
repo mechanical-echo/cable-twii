@@ -1052,24 +1052,19 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         if (plan.moves.length > 0) throw bad("This change can't be previewed.");
         return { mtimeMs, removed: plan.removed, issues: await check(), moves: plan.moves };
       }
-      const undo = await applyPlan(root, plan);
+      const applied = await applyPlan(root, plan);
       let saved = mtimeMs;
       try {
         const added = await check();
         if (added.length > 0) throw new HttpError(422, "This change would break a schedule.", added);
         if (JSON.stringify(plan.config) !== JSON.stringify(config)) saved = await writeConfig(root, plan.config, mtimeMs);
       } catch (err) {
-        await undo();
+        await applied.undo();
         throw err;
       }
       if (plan.deletes.length > 0 || plan.deleteDirs.length > 0) {
         const gone = new Set(plan.deletes);
-        for (const rel of plan.deletes) await rm(path.join(root, ...rel.split("/")), { force: true });
-        for (const rel of plan.deleteDirs) {
-          const dir = path.join(root, ...rel.split("/"));
-          assertContained(root, dir);
-          await rm(dir, { recursive: true, force: true });
-        }
+        await applied.finish().catch((err: unknown) => app.log.warn(err));
         const records = await readSources(root);
         if (records.some((r) => gone.has(r.target))) await writeSources(root, records.filter((r) => !gone.has(r.target)));
       }

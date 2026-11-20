@@ -212,6 +212,23 @@ test("probe reports the bit rate of a real file", async () => {
   expect(typeof p.bitRateKbps).toBe("number");
 });
 
+test("remux without ffmpeg ends the stream with an error", async () => {
+  const saved = process.env.PATH;
+  process.env.PATH = "";
+  let remuxed: ReturnType<typeof remux>;
+  try {
+    remuxed = remux("/nowhere/clip.mpg", 0);
+  } finally {
+    process.env.PATH = saved;
+  }
+  const ended = new Promise((resolve, reject) => {
+    remuxed.stream.on("error", reject);
+    remuxed.stream.on("end", resolve);
+    remuxed.stream.resume();
+  });
+  await expect(ended).rejects.toThrow(/ffmpeg/);
+});
+
 test("remux produces mpegts", async () => {
   const file = makeVideo("clip.mpg", "320x240", 2, ["-c:v", "mpeg1video", "-c:a", "mp2"]);
   const { stream, stop } = remux(file, 0);

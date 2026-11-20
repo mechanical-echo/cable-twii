@@ -119,9 +119,22 @@ export async function lineup(root: string, channel: number, date: string, bin: s
   return result.ok ? result.value : result;
 }
 
+const ITEM_POSITION = /^(channel \d+ (?:slot \d+ item|loop item)) \d+: /;
+
+// The engine names an item by its position, which shifts when an edit removes an earlier item.
+function errorKey(i: Issue): string {
+  return `${i.code}|${i.channel}|${i.message.replace(ITEM_POSITION, "$1 #: ")}`;
+}
+
 export function newErrors(before: Issue[], after: Issue[]): Issue[] {
-  const known = new Set(before.filter((i) => i.level === "error").map((i) => `${i.code}|${i.channel}|${i.message}`));
-  return after.filter((i) => i.level === "error" && !known.has(`${i.code}|${i.channel}|${i.message}`));
+  const known = new Map<string, number>();
+  for (const i of before) if (i.level === "error") known.set(errorKey(i), (known.get(errorKey(i)) ?? 0) + 1);
+  return after.filter((i) => {
+    if (i.level !== "error") return false;
+    const left = known.get(errorKey(i)) ?? 0;
+    if (left > 0) known.set(errorKey(i), left - 1);
+    return left === 0;
+  });
 }
 
 export async function validateCandidate(root: string, cfg: Config, bin: string = schedBinPath(), library?: Library): Promise<ValidateResult> {

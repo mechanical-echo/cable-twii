@@ -703,6 +703,38 @@ test("delete removes the file and its direct items", async () => {
   expect(items.some((i) => i.type === "episode")).toBe(false);
 });
 
+test("deleting a video in a show without seasons keeps picks on the same videos", async () => {
+  await useFixture();
+  const res = await edit(app, { kind: "delete", paths: ["mtv-00s/Music Videos/Artist 1 - Song 1.mpg"] });
+  expect(res.statusCode).toBe(200);
+  expect((await getConfig()).config.channel[1]!.loop![3]).toEqual({ type: "episode", show: "Music Videos", season: 0, episode: 2 });
+  const library = (await app.inject({ method: "GET", url: "/api/library" })).json() as WebLibrary;
+  const videos = library.show.find((s) => s.folder === "Music Videos")!;
+  expect(videos.episode.find((e) => e.episode === 2)!.path).toBe("mtv-00s/Music Videos/Artist 3 - Song 3.mpg");
+  expect(existsSync(path.join(root, ".studio", "trash"))).toBe(false);
+});
+
+test("a refused delete puts the files back", async () => {
+  await useFixture();
+  const before = await readFile(path.join(root, "config.toml"), "utf8");
+  const res = await edit(app, { kind: "delete", paths: SEASON5 });
+  expect(res.statusCode).toBe(422);
+  for (const file of SEASON5) expect(existsSync(path.join(root, ...file.split("/")))).toBe(true);
+  expect(existsSync(path.join(root, ".studio", "trash"))).toBe(false);
+  expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
+});
+
+test("an error already in the config doesn't block an edit that shifts it", async () => {
+  await useFixture();
+  const file = path.join(root, "config.toml");
+  const text = await readFile(file, "utf8");
+  const broken = text.replace('  { type = "episode", show = "Music Videos", season = 0, episode = 3 },\n]', '  { type = "episode", show = "Music Videos", season = 0, episode = 3 },\n  { type = "random", show = "Gone Show", count = 1 },\n]');
+  expect(broken).not.toBe(text);
+  await writeFile(file, broken);
+  const res = await edit(app, { kind: "off", paths: ["mtv-00s/Music Videos/Artist 3 - Song 3.mpg"], off: true });
+  expect(res.statusCode).toBe(200);
+});
+
 test("switching off keeps the file and hides it from the library", async () => {
   await useFixture();
   expect((await edit(app, { kind: "off", paths: [BEN], off: true })).statusCode).toBe(200);

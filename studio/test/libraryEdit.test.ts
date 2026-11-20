@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -141,6 +142,13 @@ describe("move to season", () => {
     expect(plan.config.channel[1]!.loop![1]).toEqual({ type: "episode", show: "Gumball", season: 2, episode: 2, from: "Cartoon Network" });
   });
 
+  it("episodes already in the season stay where they are", () => {
+    const plan = planEdit({ kind: "move-season", paths: ["Cartoon Network/Gumball/Season 1/S01E02 - Two.mpg", "Cartoon Network/Gumball/Season 2/S02E01 - Next.mpg"], season: 1 }, ctx());
+    expect(plan.moves).toEqual([{ from: "Cartoon Network/Gumball/Season 2/S02E01 - Next.mpg", to: "Cartoon Network/Gumball/Season 1/S01E04 - Next.mpg" }]);
+    expect(plan.describeKeys).toEqual([{ showDir: "Cartoon Network/Gumball", from: "S02E01", to: "S01E04" }]);
+    expect(planEdit({ kind: "move-season", paths: ["Cartoon Network/Gumball/Season 1/S01E03 - Three.mpg"], season: 1 }, ctx()).moves).toEqual([]);
+  });
+
   it("moving out of a show without seasons renumbers the files left behind", () => {
     const plan = planEdit({ kind: "move-season", paths: ["Cartoon Network/Videos/A.mpg"], season: 1 }, ctx());
     expect(plan.moves).toEqual([{ from: "Cartoon Network/Videos/A.mpg", to: "Cartoon Network/Videos/Season 1/S01E01 - A.mpg" }]);
@@ -171,6 +179,11 @@ describe("off and delete", () => {
     expect(plan.deletes).toEqual(["Cartoon Network/Gumball/Season 1/S01E03 - Three.mpg"]);
     expect(plan.exclude.has("Cartoon Network/Gumball/Season 1/S01E03 - Three.mpg")).toBe(true);
     expect(plan.config.channel[1]!.loop).toEqual([config.channel[1]!.loop![0]]);
+  });
+
+  it("deleting a video in a show without seasons keeps later picks on the same videos", () => {
+    const plan = planEdit({ kind: "delete", paths: ["Cartoon Network/Videos/A.mpg"] }, ctx());
+    expect(plan.config.channel[1]!.loop![0]).toEqual({ type: "episode", show: "Videos", season: 0, episode: 2, from: "Cartoon Network" });
   });
 
   it("delete show takes every file and every item naming it", () => {
@@ -259,7 +272,7 @@ describe("applyPlan", () => {
 
   it("undo puts files, sources, off and show.toml back", async () => {
     await tree();
-    const undo = await applyPlan(
+    const { undo } = await applyPlan(
       root,
       plan({
         moves: [{ from: "CN/Gumball/Season 1/S01E01 - One.mpg", to: "CN/Gumball/Season 2/S02E01 - One.mpg" }],
@@ -272,6 +285,41 @@ describe("applyPlan", () => {
     expect((await readSources(root)).map((r) => r.target)).toEqual(["CN/Gumball/Season 1/S01E01 - One.mpg"]);
     expect((await readOff(root)).size).toBe(0);
     expect((await readShowMeta(path.join(root, "CN", "Gumball"))).episodes).toEqual({ S01E01: "First" });
+  });
+
+  it("description keys move together", async () => {
+    await tree();
+    await writeShowMeta(root, path.join(root, "CN", "Gumball"), { episodes: { S01E01: "First", S01E02: "Second" } });
+    await applyPlan(
+      root,
+      plan({
+        describeKeys: [
+          { showDir: "CN/Gumball", from: "S01E01", to: "S01E02" },
+          { showDir: "CN/Gumball", from: "S01E02", to: "S01E03" },
+        ],
+      }),
+    );
+    expect((await readShowMeta(path.join(root, "CN", "Gumball"))).episodes).toEqual({ S01E02: "First", S01E03: "Second" });
+  });
+
+  it("a rename that only changes capitals works", async () => {
+    await tree();
+    await applyPlan(root, plan({ moves: [{ from: "CN/Gumball/Season 1/S01E01 - One.mpg", to: "CN/Gumball/Season 1/S01E01 - ONE.mpg" }] }));
+    expect((await readdir(path.join(root, "CN", "Gumball", "Season 1"))).sort()).toEqual(["S01E01 - ONE.mpg", "S01E02 - Two.mpg"]);
+  });
+
+  it("deletes wait until finish and come back on undo", async () => {
+    await tree();
+    const two = path.join(root, "CN", "Gumball", "Season 1", "S01E02 - Two.mpg");
+    const refused = await applyPlan(root, plan({ deletes: ["CN/Gumball/Season 1/S01E02 - Two.mpg"] }));
+    expect(existsSync(two)).toBe(false);
+    await refused.undo();
+    expect(await readFile(two, "utf8")).toBe("two");
+    expect(existsSync(path.join(root, ".studio", "trash"))).toBe(false);
+    const done = await applyPlan(root, plan({ deletes: ["CN/Gumball/Season 1/S01E01 - One.mpg", "CN/Gumball/Season 1/S01E02 - Two.mpg"], deleteDirs: ["CN/Gumball"] }));
+    expect(existsSync(path.join(root, "CN", "Gumball"))).toBe(false);
+    await done.finish();
+    expect(existsSync(path.join(root, ".studio", "trash"))).toBe(false);
   });
 
   it("a failed move puts the earlier moves back", async () => {

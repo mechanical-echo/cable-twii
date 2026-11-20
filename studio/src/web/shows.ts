@@ -1,5 +1,6 @@
 import { type ShowRef, channelFolder, channelsAiring, itemsNaming } from "../server/scheduleRefs.js";
 import type { Config, LibAd, LibEpisode, LibShow } from "../server/types.js";
+import { formatEpisodeCode } from "./preview.js";
 import type { WebLibrary } from "./tree.js";
 
 export interface ShowEntry {
@@ -92,4 +93,9 @@ export function pickedFrom(config: Config, ref: ShowRef): number[] {
     })
     .map((r) => r.channel);
   return [...new Set(numbers)].sort((a, b) => a - b);
+}
+
+export function episodeNames(show: LibShow, paths: string[]): string[] {
+  const picked = new Set(paths);
+  return show.episode.filter((e) => picked.has(e.path)).map((e) => (e.season >= 1 ? `${formatEpisodeCode(e.season, e.episode)} · ${e.title}` : e.title));
 }

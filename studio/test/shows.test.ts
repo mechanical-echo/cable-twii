@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Config, LibShow } from "../src/server/types.js";
-import { findAd, findEpisode, pickedFrom, seasonTargets, showGroups } from "../src/web/shows.js";
+import { episodeNames, findAd, findEpisode, pickedFrom, seasonTargets, showGroups } from "../src/web/shows.js";
 import type { WebLibrary } from "../src/web/tree.js";
 
 function show(channel: string, folder: string, name: string, seasons: number[], path = (s: number, e: number) => `${channel}/${folder}/Season ${s}/S0${s}E0${e} - E.mpg`): LibShow {
@@ -76,5 +76,14 @@ describe("management helpers", () => {
     };
     expect(pickedFrom(picks, { channel: "Nick", show: "SpongeBob" })).toEqual([7]);
     expect(pickedFrom(picks, { channel: "Cartoon Network", show: "Gumball" })).toEqual([]);
+  });
+});
+
+describe("episodeNames", () => {
+  it("names the ticked episodes in show order", () => {
+    const gumball = show("CN", "Gumball", "Gumball", [1, 2]);
+    expect(episodeNames(gumball, [gumball.episode[2]!.path, gumball.episode[0]!.path])).toEqual(["S01E01 · T11", "S02E01 · T21"]);
+    const videos = show("CN", "Videos", "Videos", [0], (_s, e) => `CN/Videos/V${e}.mpg`);
+    expect(episodeNames(videos, ["CN/Videos/V2.mpg"])).toEqual(["T02"]);
   });
 });

@@ -8,7 +8,7 @@ import { IconImage } from "../IconImage";
 import { SlotPicker } from "../library/SlotPicker";
 import { formatEpisodeCode } from "../preview";
 import { type Route, parentsOf } from "../router";
-import { allShows, offPaths, seasonTargets } from "../shows";
+import { allShows, episodeNames, offPaths, seasonTargets } from "../shows";
 import { buildTree, seasonLabel } from "../tree";
 import { Checkbox, PillButton, Select } from "../ui/controls";
 import { Banner, Crumbs, EmptyState, Panel, rowLink } from "../ui/layout";
@@ -70,13 +70,23 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
     reload();
   }
 
-  const confirmRemoved = (title: string, confirm: string, danger = false, extra?: string) => (dry: { removed: { channel: number; label: string }[] }) =>
+  const confirmRemoved = (title: string, confirm: string, danger = false, extra?: string, files?: string[]) => (dry: { removed: { channel: number; label: string }[] }) =>
     dry.removed.length === 0 && !danger
       ? Promise.resolve(true)
       : ask({
           title,
           body: (
             <>
+              {files !== undefined && (
+                <>
+                  <p>These files will be deleted:</p>
+                  <ul>
+                    {files.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
               <RemovedList removed={dry.removed} channelName={channelName} />
               {extra !== undefined && <p>{extra}</p>}
             </>
@@ -174,7 +184,7 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
             kind="danger"
             disabled={edit.busy}
             onClick={() =>
-              void edit.run({ kind: "delete", paths: picked }, { done: "Deleted.", confirm: confirmRemoved(`Delete ${picked.length} episodes?`, "Delete", true, "Delete can't be undone.") }).then(after)
+              void edit.run({ kind: "delete", paths: picked }, { done: "Deleted.", confirm: confirmRemoved(`Delete ${picked.length} episodes?`, "Delete", true, "Delete can't be undone.", episodeNames(show, picked)) }).then(after)
             }
           >
             Delete

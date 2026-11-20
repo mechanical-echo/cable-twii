@@ -109,6 +109,13 @@ test("only new errors count", () => {
   expect(newErrors(before, after).map((i) => i.code)).toEqual(["empty_pool"]);
 });
 
+test("errors already there still match after items shift", () => {
+  const issue = (message: string): Issue => ({ level: "error", code: "unknown_show", channel: 2, slot: 0, item: 0, line: 0, file: "config", message });
+  const before = [issue("channel 2 loop item 5: no show Gone Show in mtv-00s")];
+  expect(newErrors(before, [issue("channel 2 loop item 4: no show Gone Show in mtv-00s")])).toEqual([]);
+  expect(newErrors(before, [issue("channel 2 loop item 4: no show Gone Show in mtv-00s"), issue("channel 2 loop item 6: no show Gone Show in mtv-00s")])).toHaveLength(1);
+});
+
 test("validates against a given library", async () => {
   const cfg = parseConfig(await readFile(path.join(root, "config.toml"), "utf8"));
   const { library } = await buildLibrary(root, [], async () => ({ durationMs: 60000, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0, bitRateKbps: null }));

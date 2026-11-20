@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { lstat, rename, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
-import { checkRename, mkdirContained } from "./contain.js";
+import { assertContained, checkRename, mkdirContained } from "./contain.js";
 import { seasonlessOrder } from "./library.js";
 import { readOff, writeOff } from "./off.js";
 import { episodeFileName, fatSafe } from "./names.js";
@@ -36,6 +37,11 @@ export interface EditContext {
   off: Set<string>;
   busy: Set<string>;
   showFiles: (ref: ShowRef) => string[];
+}
+
+export interface AppliedPlan {
+  undo: () => Promise<void>;
+  finish: () => Promise<void>;
 }
 
 export class EditRefused extends Error {
@@ -87,6 +93,21 @@ function seasonlessMoves(before: string[], after: string[], renamed: Map<string,
     if (j >= 0 && j !== i) moves.push({ from: [0, i + 1], to: [0, j + 1] });
   });
   return moves;
+}
+
+function closeSeasonlessGaps(ctx: EditContext, config: Config, gone: string[]): Config {
+  const names = new Map<LibShow, Set<string>>();
+  for (const p of gone) {
+    const found = findEpisode(ctx.library, p);
+    if (!found || found.episode.season !== 0) continue;
+    names.set(found.show, (names.get(found.show) ?? new Set()).add(path.posix.basename(p)));
+  }
+  let next = config;
+  for (const [show, removed] of names) {
+    const before = seasonlessOrder(ctx.showFiles(refOf(show)));
+    next = retargetEpisodes(next, refOf(show), seasonlessMoves(before, before.filter((f) => !removed.has(f)), new Map()));
+  }
+  return next;
 }
 
 function labels(ctx: EditContext, refs: ItemRef[]): { channel: number; label: string }[] {
@@ -190,23 +211,24 @@ function planMoveSeason(action: Extract<EditAction, { kind: "move-season" }>, ct
   if (found.some((f) => f === null)) throw new EditRefused(400, "Only episodes can move to a season.");
   const show = found[0]!.show;
   if (found.some((f) => f!.show !== show)) throw new EditRefused(400, "Pick episodes of one show.");
-  checkBusy(action.paths, ctx.busy);
+  const moving = found.filter((f) => f!.episode.season !== action.season);
+  if (moving.length === 0) return plan;
+  checkBusy(moving.map((f) => f!.episode.path), ctx.busy);
   const ref = refOf(show);
   const showDir = `${show.channel}/${show.folder}`;
-  const moving = new Set(action.paths);
-  let last = Math.max(0, ...show.episode.filter((e) => e.season === action.season && !moving.has(e.path)).map((e) => e.episode));
+  let last = Math.max(0, ...show.episode.filter((e) => e.season === action.season).map((e) => e.episode));
   const dir = seasonDir(show, action.season);
   const moves: { from: string; to: string }[] = [];
   const numbers: Move[] = [];
   const keys: EditPlan["describeKeys"] = [];
-  for (const f of found) {
+  for (const f of moving) {
     const ep = f!.episode;
     last += 1;
     moves.push({ from: ep.path, to: `${dir}/${episodeFileName({ season: action.season, episode: last, title: ep.title })}` });
     numbers.push({ from: [ep.season, ep.episode], to: [action.season, last] });
     keys.push({ showDir, from: ep.season >= 1 ? code(ep.season, ep.episode) : path.posix.basename(ep.path).replace(/\.mpg$/i, ""), to: code(action.season, last) });
   }
-  const movedNames = new Set(found.filter((f) => f!.episode.season === 0).map((f) => path.posix.basename(f!.episode.path)));
+  const movedNames = new Set(moving.filter((f) => f!.episode.season === 0).map((f) => path.posix.basename(f!.episode.path)));
   if (movedNames.size > 0) {
     const before = seasonlessOrder(ctx.showFiles(ref));
     const after = before.filter((f) => !movedNames.has(f));
@@ -242,6 +264,7 @@ export function planEdit(action: EditAction, ctx: EditContext): EditPlan {
       requireKnown(ctx, action.paths);
       checkBusy(action.paths, ctx.busy);
       plan = withRemoved(ctx, { ...plan, deletes: [...action.paths] }, directRefs(ctx, action.paths));
+      plan.config = closeSeasonlessGaps(ctx, plan.config, action.paths);
       for (const p of action.paths) plan.off.delete(p);
       plan.exclude = new Set([...plan.off, ...action.paths]);
       break;
@@ -297,24 +320,49 @@ function abs(root: string, rel: string): string {
   return path.join(root, ...rel.split("/"));
 }
 
-export async function applyPlan(root: string, plan: EditPlan): Promise<() => Promise<void>> {
+async function sameFile(a: string, b: string): Promise<boolean> {
+  try {
+    const [x, y] = await Promise.all([lstat(a), lstat(b)]);
+    return x.dev === y.dev && x.ino === y.ino;
+  } catch {
+    return false;
+  }
+}
+
+// On case-insensitive drives (macOS, FAT, exFAT) a rename that only changes capitals
+// sees its own file at the destination, so it goes through a temporary name.
+async function renameFile(from: string, to: string): Promise<void> {
+  if (!(await sameFile(from, to))) return rename(from, to);
+  const step = path.join(path.dirname(from), `.ctw-${randomUUID()}.tmp`);
+  await rename(from, step);
+  await rename(step, to);
+}
+
+async function clearTrash(trashRoot: string, trash: string): Promise<void> {
+  await rm(trash, { recursive: true, force: true });
+  await rmdir(trashRoot).catch(() => undefined);
+}
+
+export async function applyPlan(root: string, plan: EditPlan): Promise<AppliedPlan> {
   const undo: (() => Promise<void>)[] = [];
   const rollback = async () => {
     for (const step of undo.reverse()) await step();
     undo.length = 0;
   };
+  const trashRoot = abs(root, ".studio/trash");
+  const trash = path.join(trashRoot, randomUUID());
   try {
     for (const move of plan.moves) {
       const from = abs(root, move.from);
       const to = abs(root, move.to);
-      if (await exists(to)) throw new Error(`${move.to} already exists.`);
+      if ((await exists(to)) && !(await sameFile(from, to))) throw new Error(`${move.to} already exists.`);
       const dir = path.dirname(to);
       const madeDir = !(await exists(dir));
       mkdirContained(root, dir);
       checkRename(root, from, to);
-      await rename(from, to);
+      await renameFile(from, to);
       undo.push(async () => {
-        await rename(to, from);
+        await renameFile(to, from);
         if (madeDir) await rmdir(dir).catch(() => undefined);
       });
     }
@@ -333,23 +381,43 @@ export async function applyPlan(root: string, plan: EditPlan): Promise<() => Pro
       await writeOff(root, plan.off);
       undo.push(async () => (hadFile ? writeOff(root, off) : rm(offFile, { force: true })));
     }
-    const metas = new Map<string, ShowMeta>();
-    for (const key of plan.describeKeys) {
-      const showDir = abs(root, key.showDir);
-      const meta = await readShowMeta(showDir);
-      if (!metas.has(key.showDir)) {
-        metas.set(key.showDir, meta);
-        undo.push(() => writeShowMeta(root, showDir, metas.get(key.showDir)!));
+    const keysByShow = new Map<string, EditPlan["describeKeys"]>();
+    for (const key of plan.describeKeys) keysByShow.set(key.showDir, [...(keysByShow.get(key.showDir) ?? []), key]);
+    for (const [rel, keys] of keysByShow) {
+      const showDir = abs(root, rel);
+      const meta: ShowMeta = await readShowMeta(showDir);
+      const episodes = { ...meta.episodes };
+      for (const key of keys) delete episodes[key.from];
+      for (const key of keys) {
+        const text = meta.episodes[key.from];
+        if (text !== undefined) episodes[key.to] = text;
       }
-      const text = meta.episodes[key.from];
-      if (text === undefined) continue;
-      const episodes = { ...meta.episodes, [key.to]: text };
-      delete episodes[key.from];
+      if (JSON.stringify(episodes) === JSON.stringify(meta.episodes)) continue;
       await writeShowMeta(root, showDir, { ...meta, episodes });
+      undo.push(() => writeShowMeta(root, showDir, meta));
+    }
+    // Deleted files wait in .studio/trash until the config is saved, so the new
+    // numbering can be checked and a refused delete can be put back.
+    const dirs = plan.deleteDirs;
+    const staged = [...dirs, ...plan.deletes.filter((p) => !dirs.some((d) => p.startsWith(`${d}/`)))];
+    if (staged.length > 0) undo.push(() => clearTrash(trashRoot, trash));
+    for (const rel of staged) {
+      const from = abs(root, rel);
+      if (!(await exists(from))) continue;
+      const to = path.join(trash, ...rel.split("/"));
+      mkdirContained(root, path.dirname(to));
+      if (dirs.includes(rel)) {
+        assertContained(root, from);
+        if (!(await lstat(from)).isDirectory()) throw new Error(`${rel} is not a folder.`);
+      } else {
+        checkRename(root, from, to);
+      }
+      await rename(from, to);
+      undo.push(() => rename(to, from));
     }
   } catch (err) {
     await rollback();
     throw err;
   }
-  return rollback;
+  return { undo: rollback, finish: () => clearTrash(trashRoot, trash) };
 }

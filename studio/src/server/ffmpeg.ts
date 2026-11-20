@@ -266,6 +266,7 @@ export function remux(file: string, startSec: number): { stream: Readable; stop:
   const child = spawn("ffmpeg", ["-v", "error", "-ss", String(startSec), "-i", `file:${file}`, "-c", "copy", "-f", "mpegts", "pipe:1"], {
     stdio: ["ignore", "pipe", "ignore"],
   });
+  child.on("error", (err) => child.stdout.destroy(new Error(`ffmpeg failed to start: ${err.message}`)));
   return {
     stream: child.stdout,
     stop: () => {

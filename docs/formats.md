@@ -422,6 +422,8 @@ aspect = "16:9"
 
 `off-library.toml` has the same shape as `library.toml` and lists only the switched-off episodes and ads, so Studio can still show them. Studio rewrites it with every library rebuild. In shows without seasons, episode numbers are counted over all files, on and off, so switching one off doesn't renumber the others.
 
+While an edit deletes files, Studio first moves them to `.studio/trash/<id>/` and removes that folder once `config.toml` is saved. If the edit is refused, the files go back. A `trash` folder left after a crash can be deleted.
+
 ### Complete example
 
 ```toml
