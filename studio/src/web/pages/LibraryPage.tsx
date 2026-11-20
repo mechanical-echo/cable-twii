@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type WebBuildResult, getLibrary, mediaUrl, rebuildLibrary } from "../api";
 import { baseName, formatDuration } from "../format";
-import { ShowMetaDialog } from "../library/ShowMetaDialog";
+import { ShowInfoDialog } from "../channel/ShowInfoDialog";
 import type { Route } from "../router";
 import { type ShowNode, type WebLibrary, buildTree, seasonLabel } from "../tree";
 
@@ -119,7 +119,7 @@ export function LibraryPage({ onNavigate }: Props) {
           )}
         </div>
       ))}
-      {dialog?.kind === "meta" && <ShowMetaDialog node={dialog.node} onClose={() => setDialog(null)} onSaved={setLibrary} />}
+      {dialog?.kind === "meta" && <ShowInfoDialog node={dialog.node} channelFolder={dialog.node.show.channel} onClose={() => setDialog(null)} onSaved={(next) => setLibrary(next)} />}
     </section>
   );
 }

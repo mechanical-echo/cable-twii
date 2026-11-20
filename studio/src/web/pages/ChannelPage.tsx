@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Config, getConfig, getLibrary, mediaUrl } from "../api";
 import { TodayTab } from "../channel/TodayTab";
-import { iconPath } from "../channels";
+import { ShowsTab } from "../channel/ShowsTab";
+import { effectiveFolder, iconPath } from "../channels";
 import { IconImage } from "../IconImage";
 import type { ChannelTab, Route } from "../router";
 import type { WebLibrary } from "../tree";
@@ -106,11 +107,7 @@ export function ChannelPage({ number, tab, onNavigate }: Props) {
           </EmptyState>
         </Panel>
       )}
-      {tab === "shows" && (
-        <Panel>
-          <EmptyState>The shows of this channel arrive here next.</EmptyState>
-        </Panel>
-      )}
+      {tab === "shows" && <ShowsTab folder={effectiveFolder(channel)} onAdd={() => onNavigate({ page: "add", to: "episodes", channel: channel.number })} />}
       {tab === "settings" && (
         <Panel>
           <EmptyState>Channel settings arrive here next.</EmptyState>

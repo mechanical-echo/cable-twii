@@ -967,3 +967,44 @@ strong {
   font-size: 12px;
   font-weight: 800;
 }
+
+.ui-dialog.wide {
+  width: min(640px, 100%);
+}
+
+.ui-subhead {
+  margin: 6px 0 2px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ui-season + .ui-season {
+  margin-top: 8px;
+}
+
+.ui-ep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--band);
+}
+
+.ui-ep:last-child {
+  border-bottom: 0;
+}
+
+.ui-ep-code {
+  width: 64px;
+  flex: none;
+  color: var(--accent-dark);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-empty > p {
+  margin: 0 0 10px;
+}
