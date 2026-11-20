@@ -406,6 +406,20 @@ test("picked folder marks files converted before", async () => {
   ]);
 });
 
+test("serves a file from a picked folder", async () => {
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  await writeFile(path.join(src, "x.mp4"), "video");
+  const picked = make({ pickFolderFn: async () => src });
+  const before = await picked.inject({ method: "GET", url: "/api/import/file", query: { path: path.join(src, "x.mp4") } });
+  expect(before.statusCode).toBe(404);
+  await picked.inject({ method: "POST", url: "/api/import/pick-source" });
+  const res = await picked.inject({ method: "GET", url: "/api/import/file", query: { path: path.join(src, "x.mp4") } });
+  await picked.close();
+  expect(res.statusCode).toBe(200);
+  expect(res.body).toBe("video");
+});
+
 test("sched lineup through GET /api/preview", async () => {
   await useFixture();
   const res = await app.inject({ method: "GET", url: "/api/preview?channel=1&date=2026-10-20" });

@@ -232,6 +232,10 @@ export function subscribeJobs(cb: (job: Job) => void, handlers: JobStreamHandler
   return () => source.close();
 }
 
+export function sourceUrl(path: string): string {
+  return `/api/import/file?path=${encodeURIComponent(path)}`;
+}
+
 export function mediaUrl(rel: string): string {
   return `/media/${rel.split("/").map(encodeURIComponent).join("/")}`;
 }

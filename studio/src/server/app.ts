@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createReadStream, existsSync, realpathSync } from "node:fs";
-import { lstat, readFile, readdir, realpath, rm, rmdir, stat, statfs } from "node:fs/promises";
+import { type FileHandle, lstat, open, readFile, readdir, realpath, rm, rmdir, stat, statfs } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -27,7 +27,7 @@ import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./s
 import type { Config, Issue, Job, SourceRecord } from "./types.js";
 import { shrinkCandidates } from "./shrink.js";
 import { UPLOAD_LIMIT, convertedUpload, discardUploads, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
-import { registerWiiApi } from "./wiiApi.js";
+import { parseRange, registerWiiApi } from "./wiiApi.js";
 
 export interface ServerModeOptions {
   library: string;
@@ -88,6 +88,13 @@ const API_HEADER = "x-cable-twii";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const SESSION_GUARDED = /^\/(?:api|media)\//;
 const SESSION_OPEN = new Set(["/api/mode", "/api/login", "/api/logout"]);
+const SOURCE_TYPES: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".mkv": "video/x-matroska",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+};
 
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string, readonly issues?: Issue[]) {
@@ -230,6 +237,26 @@ async function markAdded(root: string, records: SourceRecord[], files: ScanResul
   return files;
 }
 
+async function openPreviewFile(dirs: ReadonlySet<string>, file: string): Promise<{ handle: FileHandle; size: number; type: string } | null> {
+  if (!path.isAbsolute(file) || !isVideoFile(path.basename(file))) return null;
+  let handle: FileHandle | undefined;
+  try {
+    const real = await realpath(file);
+    if (!isVideoFile(path.basename(real)) || ![...dirs].some((dir) => contained(dir, real))) return null;
+    if (!(await stat(real)).isFile()) return null;
+    handle = await open(real, "r");
+    const info = await handle.stat();
+    if (!info.isFile()) {
+      await handle.close();
+      return null;
+    }
+    return { handle, size: info.size, type: SOURCE_TYPES[path.extname(real).toLowerCase()] ?? "application/octet-stream" };
+  } catch {
+    await handle?.close().catch(() => undefined);
+    return null;
+  }
+}
+
 async function isDirectory(p: string): Promise<boolean> {
   try {
     return (await stat(p)).isDirectory();
@@ -298,6 +325,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
   const queues = new Map<string, ConversionQueue>();
+  const previewDirs = new Set<string>();
   const rebuildTimers = new Map<string, NodeJS.Timeout>();
   const rebuildChains = new Map<string, Promise<unknown>>();
   const streams = new Set<{ raw: ServerResponse; cleanup: () => void }>();
@@ -648,6 +676,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const dir = await pick("Choose a folder with videos");
       if (dir === null) return sendNull(reply);
       const files = await scanSource(dir, probeFn);
+      previewDirs.add(await realpath(dir));
       const root = await requireRoot().catch(() => null);
       return { dir, files: root === null ? files : await markAdded(root, await sourceRecords(root), files) };
     });
@@ -771,10 +800,32 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       const root = await requireRoot();
       return inImports(async () => {
         const dir = await resolveImportsDir(server.imports, rel);
-        return { dir, files: await markAdded(root, await sourceRecords(root), await scanSource(dir, probeFn)) };
+        const files = await scanSource(dir, probeFn);
+        previewDirs.add(await realpath(dir));
+        return { dir, files: await markAdded(root, await sourceRecords(root), files) };
       });
     });
   }
+
+  app.get("/api/import/file", async (request, reply) => {
+    const raw = (request.query as Record<string, unknown>).path;
+    const file = typeof raw === "string" ? await openPreviewFile(previewDirs, raw) : null;
+    if (file === null) return reply.code(404).send({ error: "Not found" });
+    const { handle, size, type } = file;
+    reply.header("accept-ranges", "bytes");
+    const range = parseRange(request.headers.range, size);
+    if (range === "unsatisfiable") {
+      await handle.close();
+      return reply.code(416).header("content-range", `bytes */${size}`).send({ error: "Range not satisfiable" });
+    }
+    reply.type(type);
+    if (range === null) return reply.header("content-length", size).send(handle.createReadStream());
+    return reply
+      .code(206)
+      .header("content-range", `bytes ${range.start}-${range.end}/${size}`)
+      .header("content-length", range.end - range.start + 1)
+      .send(handle.createReadStream(range));
+  });
 
   app.post("/api/import/show", async (request) => {
     const body = objectBody(request.body);
