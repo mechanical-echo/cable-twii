@@ -1385,3 +1385,35 @@ button.mini {
   border-color: var(--warm);
   background: var(--warn-fill);
 }
+
+.ui-crumbs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 10px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.ui-crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-crumbs-bar a {
+  color: var(--accent-dark);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ui-crumbs-bar a:hover {
+  text-decoration: underline;
+}
+
+.ui-crumbs-bar a:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px var(--ring);
+}

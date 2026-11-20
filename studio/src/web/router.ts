@@ -76,7 +76,8 @@ export function topTab(route: Route): TopTab | null {
     case "episodes":
       return "episodes";
     case "add":
-      return route.to === "ads" ? "ads" : "episodes";
+      if (route.to === "ads") return "ads";
+      return route.channel === null ? "episodes" : "channels";
     case "channels":
     case "channel":
     case "folder":
@@ -87,6 +88,27 @@ export function topTab(route: Route): TopTab | null {
       return "server";
     default:
       return null;
+  }
+}
+
+export interface Crumb {
+  label: string;
+  route: Route;
+}
+
+const CHANNELS: Crumb = { label: "Channels", route: { page: "channels" } };
+
+export function parentsOf(route: Route, channelName: (number: number) => string | null): Crumb[] {
+  switch (route.page) {
+    case "channel":
+    case "folder":
+      return [CHANNELS];
+    case "add":
+      if (route.to === "ads") return [{ label: "Ads", route: { page: "ads" } }];
+      if (route.channel === null) return [{ label: "Episodes", route: { page: "episodes" } }];
+      return [CHANNELS, { label: channelName(route.channel) ?? `Channel ${route.channel}`, route: { page: "channel", number: route.channel, tab: "today" } }];
+    default:
+      return [];
   }
 }
 

@@ -6,10 +6,10 @@ import { baseName, formatBytes } from "../format";
 import { AddGroupPanel, type GroupEdit } from "../library/AddGroupPanel";
 import { ImportsBrowser } from "../library/ImportsBrowser";
 import { SourcePreview } from "../library/SourcePreview";
-import type { Route } from "../router";
+import { type Route, parentsOf } from "../router";
 import type { WebLibrary } from "../tree";
 import { PillButton } from "../ui/controls";
-import { Banner, EmptyState, PageHead, Panel } from "../ui/layout";
+import { Banner, Crumbs, EmptyState, PageHead, Panel } from "../ui/layout";
 import { type AddPlan, type AddStart, type Uploads, clearHandOff, readHandOff } from "../useUploads";
 
 interface Props {
@@ -17,6 +17,7 @@ interface Props {
   server: boolean;
   uploads: Uploads;
   onDone: () => void;
+  onNavigate: (route: Route) => void;
 }
 
 interface Base {
@@ -55,7 +56,7 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-export function AddPage({ route, server, uploads, onDone }: Props) {
+export function AddPage({ route, server, uploads, onDone, onNavigate }: Props) {
   const ads = route.to === "ads";
   const [start] = useState<AddStart | null>(() => readHandOff());
   const [base, setBase] = useState<Base | null>(null);
@@ -285,6 +286,8 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
   const showOptions = (channel: string) =>
     base === null ? [] : base.library.show.filter((s) => s.channel === channel).map((s) => ({ value: s.folder, label: s.name }));
 
+  const parents = parentsOf(route, (n) => base?.config.channel.find((c) => c.number === n)?.name ?? null);
+  const cancel = () => onNavigate(parents[parents.length - 1]?.route ?? { page: "episodes" });
   const noun = ads ? ["ad", "ads"] : ["episode", "episodes"];
   const title = ads ? "Add ads" : "Add episodes";
   let sub: string | undefined;
@@ -293,6 +296,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
 
   return (
     <section>
+      <Crumbs items={parents} onNavigate={onNavigate} />
       <PageHead
         title={title}
         sub={sub}
@@ -365,7 +369,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
               </PillButton>
             )}
             <span className="grow" />
-            <PillButton onClick={onDone}>Cancel</PillButton>
+            <PillButton onClick={cancel}>Cancel</PillButton>
           </div>
         </Panel>
       )}
@@ -396,7 +400,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
             />
           ))}
           <div className="ui-foot">
-            <PillButton onClick={onDone}>Cancel</PillButton>
+            <PillButton onClick={cancel}>Cancel</PillButton>
             <span className="ui-muted grow">
               {totals.ticked} of {totals.total} ticked{picked?.kind === "files" ? ` · ${formatBytes(totals.bytes)} to upload` : ""}
             </span>

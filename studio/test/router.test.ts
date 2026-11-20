@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leaveAllowed, parseRoute, routeHash, topTab, type Route } from "../src/web/router.js";
+import { leaveAllowed, parentsOf, parseRoute, routeHash, topTab, type Route } from "../src/web/router.js";
 
 describe("parseRoute", () => {
   it("parses every route", () => {
@@ -67,7 +67,8 @@ describe("routeHash", () => {
 describe("topTab", () => {
   it("top tab", () => {
     expect(topTab({ page: "add", to: "ads", channel: null })).toBe("ads");
-    expect(topTab({ page: "add", to: "episodes", channel: 2 })).toBe("episodes");
+    expect(topTab({ page: "add", to: "episodes", channel: 2 })).toBe("channels");
+    expect(topTab({ page: "add", to: "episodes", channel: null })).toBe("episodes");
     expect(topTab({ page: "channel", number: 1, tab: "today" })).toBe("channels");
     expect(topTab({ page: "folder", folder: "x" })).toBe("channels");
     expect(topTab({ page: "server" })).toBe("server");
@@ -83,5 +84,28 @@ describe("leaveAllowed", () => {
         throw new Error("asked");
       }),
     ).toBe(true);
+  });
+});
+
+describe("parentsOf", () => {
+  const names = (n: number) => (n === 3 ? "CN" : null);
+
+  it("top pages have no parents", () => {
+    for (const route of [{ page: "episodes" }, { page: "channels" }, { page: "ads" }, { page: "server" }] as Route[]) expect(parentsOf(route, names)).toEqual([]);
+  });
+
+  it("channel and folder pages sit under Channels", () => {
+    expect(parentsOf({ page: "channel", number: 3, tab: "shows" }, names)).toEqual([{ label: "Channels", route: { page: "channels" } }]);
+    expect(parentsOf({ page: "folder", folder: "Old" }, names)).toEqual([{ label: "Channels", route: { page: "channels" } }]);
+  });
+
+  it("add pages lead back where they came from", () => {
+    expect(parentsOf({ page: "add", to: "episodes", channel: null }, names)).toEqual([{ label: "Episodes", route: { page: "episodes" } }]);
+    expect(parentsOf({ page: "add", to: "ads", channel: null }, names)).toEqual([{ label: "Ads", route: { page: "ads" } }]);
+    expect(parentsOf({ page: "add", to: "episodes", channel: 3 }, names)).toEqual([
+      { label: "Channels", route: { page: "channels" } },
+      { label: "CN", route: { page: "channel", number: 3, tab: "today" } },
+    ]);
+    expect(parentsOf({ page: "add", to: "episodes", channel: 7 }, names)[1]).toEqual({ label: "Channel 7", route: { page: "channel", number: 7, tab: "today" } });
   });
 });

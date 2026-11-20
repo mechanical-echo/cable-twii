@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { type Crumb, type Route, routeHash } from "../router";
 
 export function Panel({ title, actions, children }: { title?: string; actions?: ReactNode; children: ReactNode }) {
   return (
@@ -61,5 +62,28 @@ export function PageHead({ title, sub, actions }: { title: string; sub?: ReactNo
       </div>
       {actions !== undefined && <div className="ui-pagehead-actions">{actions}</div>}
     </header>
+  );
+}
+
+export function Crumbs({ items, onNavigate }: { items: Crumb[]; onNavigate: (route: Route) => void }) {
+  if (items.length === 0) return null;
+  return (
+    <nav className="ui-crumbs-bar" aria-label="You are here">
+      <span aria-hidden="true">‹</span>
+      {items.map((item, i) => (
+        <span key={routeHash(item.route)} className="ui-crumb-item">
+          {i > 0 && <span aria-hidden="true">›</span>}
+          <a
+            href={routeHash(item.route)}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate(item.route);
+            }}
+          >
+            {item.label}
+          </a>
+        </span>
+      ))}
+    </nav>
   );
 }

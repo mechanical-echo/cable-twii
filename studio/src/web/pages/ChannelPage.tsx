@@ -6,10 +6,10 @@ import { TodayTab } from "../channel/TodayTab";
 import { ShowsTab } from "../channel/ShowsTab";
 import { effectiveFolder, iconPath } from "../channels";
 import { IconImage } from "../IconImage";
-import type { ChannelTab, Route } from "../router";
+import { type ChannelTab, type Route, parentsOf } from "../router";
 import type { WebLibrary } from "../tree";
 import { PillButton } from "../ui/controls";
-import { Banner, EmptyState } from "../ui/layout";
+import { Banner, Crumbs, EmptyState } from "../ui/layout";
 import { Tabs } from "../ui/Tabs";
 
 interface Props {
@@ -75,6 +75,7 @@ export function ChannelPage({ number, tab, onNavigate, onDirty }: Props) {
   const facts = [channel.category, channel.mode === "timed" ? "Timed" : "Looping", channel.ads ? "ads on" : "ads off"].filter((f) => f !== "");
   return (
     <section>
+      <Crumbs items={parentsOf({ page: "channel", number, tab }, () => null)} onNavigate={onNavigate} />
       <header className="ui-pagehead">
         <span className="ui-num">{channel.number}</span>
         <span className="ui-logo">
