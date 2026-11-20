@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Config, getConfig, getLibrary, mediaUrl } from "../api";
+import { SettingsTab } from "../channel/SettingsTab";
 import { TodayTab } from "../channel/TodayTab";
 import { ShowsTab } from "../channel/ShowsTab";
 import { effectiveFolder, iconPath } from "../channels";
@@ -109,9 +110,11 @@ export function ChannelPage({ number, tab, onNavigate }: Props) {
       )}
       {tab === "shows" && <ShowsTab folder={effectiveFolder(channel)} onAdd={() => onNavigate({ page: "add", to: "episodes", channel: channel.number })} />}
       {tab === "settings" && (
-        <Panel>
-          <EmptyState>Channel settings arrive here next.</EmptyState>
-        </Panel>
+        <SettingsTab
+          number={number}
+          onDeleted={() => onNavigate({ page: "channels" })}
+          onSaved={(saved) => (saved === number ? load() : onNavigate({ page: "channel", number: saved, tab: "settings" }))}
+        />
       )}
     </section>
   );

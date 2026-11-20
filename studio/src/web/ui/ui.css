@@ -1008,3 +1008,14 @@ strong {
 .ui-empty > p {
   margin: 0 0 10px;
 }
+
+.ui-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.ui-settings .ui-field.full {
+  grid-column: 1 / -1;
+}
