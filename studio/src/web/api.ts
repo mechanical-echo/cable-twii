@@ -43,6 +43,7 @@ export interface ImportEpisode {
   title: string;
   description: string;
   aspect: "16:9" | "4:3";
+  replaces?: string;
 }
 
 export interface ImportShowRequest {

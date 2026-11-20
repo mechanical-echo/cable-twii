@@ -81,6 +81,7 @@ const RESERVED = new Set(["ads"]);
 const ALREADY_CONVERTED = "already on the drive";
 const ALREADY_UPLOADED = "already on the server";
 const OUTSIDE_SOURCES = "Videos must come from the imports folder or an upload.";
+const BAD_REPLACES = "replaces must be an episode of this show.";
 const UPLOAD_FILES = 50;
 const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
@@ -254,6 +255,17 @@ async function openPreviewFile(dirs: ReadonlySet<string>, file: string): Promise
   } catch {
     await handle?.close().catch(() => undefined);
     return null;
+  }
+}
+
+async function isShowEpisode(root: string, showRel: string, rel: string): Promise<boolean> {
+  if (!rel.startsWith(`${showRel}/`) || !rel.toLowerCase().endsWith(".mpg") || path.posix.normalize(rel) !== rel || rel.split("/").includes("..")) return false;
+  const file = path.join(root, ...rel.split("/"));
+  try {
+    assertContained(root, file);
+    return (await lstat(file)).isFile();
+  } catch {
+    return false;
   }
 }
 
@@ -842,10 +854,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         title: stringField(e, "title"),
         description: e.description === undefined ? "" : stringField(e, "description"),
         aspect: aspectField(e),
+        replaces: e.replaces === undefined ? null : stringField(e, "replaces"),
       };
     });
     await requireImportable(episodes.map((e) => e.source));
     const root = await requireRoot();
+    for (const ep of episodes) {
+      if (ep.replaces !== null && !(await isShowEpisode(root, `${channelFolder}/${showFolder}`, ep.replaces))) throw bad(BAD_REPLACES);
+    }
     const queue = queueFor(root);
     const taken = takenNames(root, queue);
     const jobs: Job[] = [];
@@ -856,7 +872,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const records = await sourceRecords(root);
     for (const ep of episodes) {
       const seasoned = ep.season !== null && ep.season >= 1;
-      const dirRel = seasoned ? `${showRel}/Season ${ep.season}` : showRel;
+      const dirRel = ep.replaces !== null ? path.posix.dirname(ep.replaces) : seasoned ? `${showRel}/Season ${ep.season}` : showRel;
       const earlier = await earlierConversion(root, records, ep.source, dirRel);
       if (earlier?.current) {
         rejected.push({ source: ep.source, reason: ALREADY_CONVERTED });
@@ -868,7 +884,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         continue;
       }
       const names = await taken(dirRel);
-      const name = earlier ? path.posix.basename(earlier.target) : uniqueName(episodeFileName({ season: seasoned ? ep.season : null, episode: ep.episode, title: ep.title }), names);
+      const name = ep.replaces !== null ? path.posix.basename(ep.replaces) : earlier ? path.posix.basename(earlier.target) : uniqueName(episodeFileName({ season: seasoned ? ep.season : null, episode: ep.episode, title: ep.title }), names);
       names.add(name);
       jobs.push(queue.enqueue(ep.source, `${dirRel}/${name}`, ep.aspect));
       if (ep.description === "") continue;

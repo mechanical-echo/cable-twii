@@ -420,6 +420,85 @@ test("serves a file from a picked folder", async () => {
   expect(res.body).toBe("video");
 });
 
+const OLD_EPISODE = "Cartoon Network/Adventure Time/Season 5/S05E02 - Time 2.mpg";
+
+function replaceBody(source: string, replaces: string) {
+  return { channelFolder: "Cartoon Network", showFolder: "Adventure Time", episodes: [{ source, season: 5, episode: 2, title: "Time 2", description: "", aspect: "4:3", replaces }] };
+}
+
+function withConvert(convertFn: typeof convert): FastifyInstance {
+  return make({ queueFactory: (r, profile) => new ConversionQueue(r, { convertFn, probeFn: fakeProbe, concurrency: 1, profile }) });
+}
+
+async function jobsOf(target: FastifyInstance): Promise<Job[]> {
+  return (await target.inject({ method: "GET", url: "/api/jobs" })).json() as Job[];
+}
+
+test("replace converts onto the existing file", async () => {
+  await useFixture();
+  const oldFile = path.join(root, ...OLD_EPISODE.split("/"));
+  const old = await readFile(oldFile);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const replacing = withConvert(async (_s, dst) => {
+    await gate;
+    await writeFile(dst, "new bytes");
+  });
+  try {
+    const src = path.join(dir, "new.mkv");
+    await writeFile(src, "video");
+    const res = await replacing.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, OLD_EPISODE) });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { jobs: Job[] }).jobs.map((j) => j.target)).toEqual([OLD_EPISODE]);
+    await waitFor(async () => (await jobsOf(replacing)).some((j) => j.state === "running"));
+    expect(await readFile(oldFile)).toEqual(old);
+    release();
+    await waitFor(async () => (await jobsOf(replacing)).every((j) => j.state === "done"));
+    expect(await readFile(oldFile, "utf8")).toBe("new bytes");
+    expect(await readdir(path.dirname(oldFile))).not.toContain("S05E02 - Time 2 (2).mpg");
+  } finally {
+    release();
+    await replacing.close();
+  }
+});
+
+test("replace outside the show is refused", async () => {
+  await useFixture();
+  const src = path.join(dir, "new.mkv");
+  await writeFile(src, "video");
+  for (const replaces of [
+    "mtv-00s/Music Videos/Artist 1 - Song 1.mpg",
+    "../x.mpg",
+    "Cartoon Network/Adventure Time/../../mtv-00s/Music Videos/Artist 1 - Song 1.mpg",
+    "Cartoon Network/Adventure Time/Season 5/S05E99 - Missing.mpg",
+    "Cartoon Network/Adventure Time/Season 5",
+  ]) {
+    const res = await app.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, replaces) });
+    expect(res.statusCode, replaces).toBe(400);
+    expect(res.json().error).toBe("replaces must be an episode of this show.");
+  }
+  expect(await jobsOf(app)).toEqual([]);
+});
+
+test("failed replace keeps the old file", async () => {
+  await useFixture();
+  const oldFile = path.join(root, ...OLD_EPISODE.split("/"));
+  const old = await readFile(oldFile);
+  const replacing = withConvert(async (_s, dst) => {
+    await writeFile(`${dst}.part`, "half");
+    throw new Error("boom");
+  });
+  try {
+    const src = path.join(dir, "new.mkv");
+    await writeFile(src, "video");
+    expect((await replacing.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, OLD_EPISODE) })).statusCode).toBe(200);
+    await waitFor(async () => (await jobsOf(replacing)).every((j) => j.state === "failed"));
+    expect(await readFile(oldFile)).toEqual(old);
+  } finally {
+    await replacing.close();
+  }
+});
+
 test("sched lineup through GET /api/preview", async () => {
   await useFixture();
   const res = await app.inject({ method: "GET", url: "/api/preview?channel=1&date=2026-10-20" });
