@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio redesign mockups</title>
+<style>
+body { margin: 0; padding: 24px 16px 64px; background: #fff; color: #333; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+section { max-width: 1200px; margin: 0 auto 56px; }
+h2 { margin: 0 0 4px; }
+.subtitle { color: #777; margin: 0 0 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.card { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; }
+.card-body { padding: 10px 14px; }
+.card-body h3 { margin: 0 0 4px; font-size: 15px; }
+.card-body p { margin: 0; color: #666; }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.note { color: #2A8FB3; font-weight: 600; }
+</style>
+</head>
+<body>
+<section>
+<p class="note">Owner chose A · Wii Menu on 2026-11-20.</p>
+<style>
+.lk { font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; border-radius: 10px; overflow: hidden; height: 400px; display: flex; flex-direction: column; text-align: left; }
+.lk .top { display: flex; align-items: center; gap: 14px; padding: 10px 14px; }
+.lk .brand { font-weight: 700; margin-right: auto; }
+.lk .nav span { margin-left: 12px; opacity: .65; }
+.lk .nav span.on { opacity: 1; font-weight: 600; }
+.lk .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.lk .drop { border-radius: 10px; padding: 14px; text-align: center; }
+.lk .drop b { display: block; font-size: 15px; margin-bottom: 2px; }
+.lk .sec { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin-top: 2px; }
+.lk .row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; }
+.lk .row .t { flex: 1; }
+.lk .row small { opacity: .6; }
+.lk .bar { width: 70px; height: 6px; border-radius: 3px; overflow: hidden; }
+.lk .bar i { display: block; height: 100%; width: 62%; }
+.lk .tag { font-size: 11px; padding: 1px 7px; border-radius: 9px; }
+
+/* A: Wii Menu */
+.lk.a { background: repeating-linear-gradient(0deg, #F4F5F7 0 6px, #ECEEF1 6px 12px); color: #444; }
+.lk.a .top { background: linear-gradient(#fff, #F1F4F7); border-bottom: 1px solid #D6DBE0; }
+.lk.a .brand { color: #2A8FB3; }
+.lk.a .nav span.on { color: #2A8FB3; }
+.lk.a .drop { background: #fff; border: 2px dashed #7FD0EF; box-shadow: 0 2px 6px #344A601A; }
+.lk.a .drop b { color: #2A8FB3; }
+.lk.a .row { background: linear-gradient(#fff, #F4F7FA); border: 1px solid #D6DBE0; box-shadow: 0 1px 3px #344A601A; }
+.lk.a .bar { background: #E1E5E9; box-shadow: inset 0 1px 1px #C7CED4; }
+.lk.a .bar i { background: linear-gradient(#7FD0EF, #34BEED); }
+.lk.a .ok { background: #EEFAFF; color: #2A8FB3; border: 1px solid #7FD0EF; }
+.lk.a .bad { background: #FFF1EC; color: #B4532A; border: 1px solid #F3B79B; }
+.lk.a .wait { background: #EEF1F4; color: #777788; border: 1px solid #C9CFD5; }
+
+/* B: Cable box at night */
+.lk.b { background: #12161C; color: #DCE3EA; }
+.lk.b .top { background: #1B2129; border-bottom: 1px solid #2A323C; }
+.lk.b .brand { color: #F3CF8A; letter-spacing: .04em; }
+.lk.b .nav span.on { color: #F3CF8A; }
+.lk.b .drop { background: #1B2129; border: 1px dashed #4A5563; }
+.lk.b .drop b { color: #F3CF8A; }
+.lk.b .row { background: #1B2129; border-left: 3px solid #2A323C; border-radius: 4px; }
+.lk.b .bar { background: #2A323C; }
+.lk.b .bar i { background: #F3CF8A; }
+.lk.b .ok { background: #1F3A2E; color: #8FE0B0; }
+.lk.b .bad { background: #3A2020; color: #F09A9A; }
+.lk.b .wait { background: #262D36; color: #9AA6B2; }
+
+/* C: Clean tool */
+.lk.c { background: #fff; color: #1F2328; }
+.lk.c .top { border-bottom: 1px solid #E6E8EB; }
+.lk.c .brand { color: #1F2328; }
+.lk.c .nav span.on { color: #1F2328; text-decoration: underline; text-underline-offset: 6px; }
+.lk.c .drop { background: #F6F7F9; border: 1px solid #E6E8EB; }
+.lk.c .row { border-bottom: 1px solid #EEF0F2; border-radius: 0; padding: 7px 2px; }
+.lk.c .bar { background: #EEF0F2; }
+.lk.c .bar i { background: #1F2328; }
+.lk.c .ok { background: #EEF8F1; color: #1A7F37; }
+.lk.c .bad { background: #FDF0F0; color: #C4302B; }
+.lk.c .wait { background: #F3F4F6; color: #59636E; }
+</style>
+
+<h2>Which look should Studio have?</h2>
+<p class="subtitle">Same screen three ways: the new home, built around adding episodes and checking they converted. The Gumball rows are from your Pi; the failed one is made up to show how errors look.</p>
+
+<div class="cards">
+  <div class="card" data-choice="wii">
+    <div class="card-image">
+      <div class="lk a">
+        <div class="top"><span class="brand">cable-twii Studio</span><span class="nav"><span class="on">Episodes</span><span>Channels</span><span>Ads</span></span></div>
+        <div class="body">
+          <div class="drop"><b>Add episodes</b><small>Drop video files here, or pick them</small></div>
+          <div class="sec">Converting</div>
+          <div class="row"><span class="t">Gumball S03E19 <small>· Cartoon Network</small></span><span class="bar"><i></i></span><span class="tag wait">62%</span></div>
+          <div class="row"><span class="t">Gumball S03E20–E40 <small>· 21 waiting</small></span><span class="tag wait">Queued</span></div>
+          <div class="sec">Done today</div>
+          <div class="row"><span class="t">Gumball S03E01–E18</span><span class="tag ok">18 on air</span></div>
+          <div class="row"><span class="t">Adventure Time S02E07</span><span class="tag bad">Failed · Retry</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>A · Wii Menu</h3><p>Same look as the Wii app: striped background, glossy white panels, Wii blue. Studio and the TV feel like one product.</p></div>
+  </div>
+
+  <div class="card" data-choice="night">
+    <div class="card-image">
+      <div class="lk b">
+        <div class="top"><span class="brand">CABLE-TWII STUDIO</span><span class="nav"><span class="on">Episodes</span><span>Channels</span><span>Ads</span></span></div>
+        <div class="body">
+          <div class="drop"><b>Add episodes</b><small>Drop video files here, or pick them</small></div>
+          <div class="sec">Converting</div>
+          <div class="row"><span class="t">Gumball S03E19 <small>· Cartoon Network</small></span><span class="bar"><i></i></span><span class="tag wait">62%</span></div>
+          <div class="row"><span class="t">Gumball S03E20–E40 <small>· 21 waiting</small></span><span class="tag wait">Queued</span></div>
+          <div class="sec">Done today</div>
+          <div class="row"><span class="t">Gumball S03E01–E18</span><span class="tag ok">18 on air</span></div>
+          <div class="row"><span class="t">Adventure Time S02E07</span><span class="tag bad">Failed · Retry</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>B · Cable box at night</h3><p>Dark, warm amber accents, like an old on-screen TV guide. Moody and retro, but further from the Wii app's look.</p></div>
+  </div>
+
+  <div class="card" data-choice="clean">
+    <div class="card-image">
+      <div class="lk c">
+        <div class="top"><span class="brand">cable-twii Studio</span><span class="nav"><span class="on">Episodes</span><span>Channels</span><span>Ads</span></span></div>
+        <div class="body">
+          <div class="drop"><b>Add episodes</b><small>Drop video files here, or pick them</small></div>
+          <div class="sec">Converting</div>
+          <div class="row"><span class="t">Gumball S03E19 <small>· Cartoon Network</small></span><span class="bar"><i></i></span><span class="tag wait">62%</span></div>
+          <div class="row"><span class="t">Gumball S03E20–E40 <small>· 21 waiting</small></span><span class="tag wait">Queued</span></div>
+          <div class="sec">Done today</div>
+          <div class="row"><span class="t">Gumball S03E01–E18</span><span class="tag ok">18 on air</span></div>
+          <div class="row"><span class="t">Adventure Time S02E07</span><span class="tag bad">Failed · Retry</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>C · Clean tool</h3><p>Neutral, modern, mostly black and white. Easy to read, but it could be any app.</p></div>
+  </div>
+</div>
+
+</section>
+<section>
+<p class="note">Owner: "Looks right" on 2026-11-20.</p>
+<style>
+.wm { font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #444; background: repeating-linear-gradient(0deg, #F4F5F7 0 6px, #ECEEF1 6px 12px); border-radius: 12px; overflow: hidden; text-align: left; }
+.wm .top { display: flex; align-items: center; gap: 14px; padding: 12px 18px; background: linear-gradient(#fff, #F1F4F7); border-bottom: 1px solid #D6DBE0; }
+.wm .brand { font-weight: 700; color: #2A8FB3; margin-right: auto; }
+.wm .nav span { margin-left: 14px; color: #777788; }
+.wm .nav span.on { color: #2A8FB3; font-weight: 600; }
+.wm .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.wm h4 { margin: 0; font-size: 17px; color: #444; }
+.wm .muted { color: #999; }
+.wm .panel { background: #fff; border: 1px solid #D6DBE0; border-radius: 14px; box-shadow: 0 2px 6px #344A601A; padding: 12px 14px; }
+.wm .dest { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.wm .sel { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid #C9CFD5; background: linear-gradient(#fff, #EEF1F4 55%, #E6EAEE); box-shadow: 0 1px 2px #344A601F; font-weight: 600; }
+.wm .sel:after { content: "▾"; color: #999; font-size: 11px; }
+.wm .ico { width: 22px; height: 22px; border-radius: 6px; display: inline-block; }
+.wm table { width: 100%; border-collapse: separate; border-spacing: 0 5px; }
+.wm th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #999; text-align: left; font-weight: 600; padding: 0 8px; }
+.wm td { background: linear-gradient(#fff, #F8FAFC); border-top: 1px solid #E1E5E9; border-bottom: 1px solid #E1E5E9; padding: 6px 8px; vertical-align: middle; }
+.wm td:first-child { border-left: 1px solid #E1E5E9; border-radius: 9px 0 0 9px; }
+.wm td:last-child { border-right: 1px solid #E1E5E9; border-radius: 0 9px 9px 0; }
+.wm tr.off td { opacity: .5; }
+.wm tr.dup td { background: #FFF8EC; }
+.wm .box { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #C9CFD5; display: inline-block; vertical-align: middle; background: #fff; }
+.wm .box.on { background: #34BEED; border-color: #2A8FB3; box-shadow: inset 0 0 0 3px #fff; }
+.wm .thumb { width: 64px; height: 36px; border-radius: 6px; background: #222; position: relative; display: inline-block; vertical-align: middle; }
+.wm .thumb:after { content: "▶"; color: #fff; font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: .85; }
+.wm .file { color: #999; font-size: 11px; }
+.wm .se { font-weight: 700; color: #2A8FB3; }
+.wm .field { border: 1px solid #D6DBE0; border-radius: 7px; padding: 3px 7px; background: #fff; display: inline-block; min-width: 150px; }
+.wm .tag { font-size: 11px; padding: 1px 8px; border-radius: 9px; white-space: nowrap; }
+.wm .warn { background: #FFF1DC; color: #9A6A1A; border: 1px solid #F3CF8A; }
+.wm .foot { display: flex; align-items: center; gap: 12px; }
+.wm .pill { padding: 8px 18px; border-radius: 999px; border: 1px solid #C9CFD5; background: linear-gradient(#fff, #E6EAEE); font-weight: 600; }
+.wm .pill.go { background: linear-gradient(#7FD0EF, #34BEED); border-color: #2A8FB3; color: #fff; text-shadow: 0 1px 0 #2A8FB3; }
+.wm .note { font-size: 12px; color: #777788; }
+</style>
+
+<h2>Adding episodes</h2>
+<p class="subtitle">A full page instead of a pop-up. Nothing uploads until you press the blue button, so unticked files are never sent.</p>
+
+<div class="wm">
+  <div class="top"><span class="brand">cable-twii Studio</span><span class="nav"><span class="on">Episodes</span><span>Channels</span><span>Ads</span><span>Server</span></span></div>
+  <div class="body">
+    <div style="display:flex;align-items:baseline;gap:10px"><h4>Add episodes</h4><span class="muted">23 files picked from your PC</span></div>
+
+    <div class="panel dest">
+      <span class="muted">They go to</span>
+      <span class="sel"><span class="ico" style="background:#F7A21B"></span>Cartoon Network</span>
+      <span class="sel"><span class="ico" style="background:#2E6BE6"></span>Gumball</span>
+      <span class="note">Worked out from the file names. Pick “New show…” or “New channel…” from the same lists.</span>
+    </div>
+
+    <div class="panel">
+      <table>
+        <tr><th></th><th>Preview</th><th>Episode</th><th>Title</th><th>Length</th><th></th></tr>
+        <tr><td><span class="box on"></span></td><td><span class="thumb"></span></td><td><span class="se">S03E19</span><div class="file">Gumball.S03E19.The.Pest.mkv</div></td><td><span class="field">The Pest</span></td><td>11:02</td><td></td></tr>
+        <tr><td><span class="box on"></span></td><td><span class="thumb"></span></td><td><span class="se">S03E20</span><div class="file">Gumball.S03E20.The.Sale.mkv</div></td><td><span class="field">The Sale</span></td><td>11:01</td><td></td></tr>
+        <tr class="dup"><td><span class="box"></span></td><td><span class="thumb"></span></td><td><span class="se">S03E05</span><div class="file">Gumball.S03E05.The.Job.mkv</div></td><td><span class="field">The Job</span></td><td>11:00</td><td><span class="tag warn">Already on air · Replace?</span></td></tr>
+        <tr class="off"><td><span class="box"></span></td><td><span class="thumb"></span></td><td><span class="se">—</span><div class="file">Gumball - Pilot (2008).mp4</div></td><td><span class="field">Pilot</span></td><td>2:31</td><td></td></tr>
+        <tr><td colspan="6" style="text-align:center;color:#999">… 19 more</td></tr>
+      </table>
+    </div>
+
+    <div class="foot">
+      <span class="pill">Cancel</span>
+      <span class="note" style="margin-right:auto">21 of 23 ticked · 3.9 GB to upload · about 2 h to convert on the Pi</span>
+      <span class="pill go">Add 21 episodes</span>
+    </div>
+  </div>
+</div>
+
+</section>
+<section>
+<p class="note">Owner: "looks good" on 2026-11-20.</p>
+<style>
+.wm { font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #444; background: repeating-linear-gradient(0deg, #F4F5F7 0 6px, #ECEEF1 6px 12px); border-radius: 12px; overflow: hidden; text-align: left; }
+.wm .top { display: flex; align-items: center; gap: 14px; padding: 12px 18px; background: linear-gradient(#fff, #F1F4F7); border-bottom: 1px solid #D6DBE0; }
+.wm .brand { font-weight: 700; color: #2A8FB3; margin-right: auto; }
+.wm .nav span { margin-left: 14px; color: #777788; }
+.wm .nav span.on { color: #2A8FB3; font-weight: 600; }
+.wm .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; }
+.wm h4 { margin: 0; font-size: 17px; }
+.wm .muted { color: #999; }
+.wm .row { display: flex; align-items: center; gap: 12px; background: linear-gradient(#fff, #F8FAFC); border: 1px solid #D6DBE0; border-radius: 14px; box-shadow: 0 2px 6px #344A601A; padding: 10px 14px; }
+.wm .num { width: 30px; height: 30px; border-radius: 999px; background: linear-gradient(#fff, #E6EAEE); border: 1px solid #C9CFD5; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #777788; }
+.wm .logo { width: 44px; height: 32px; border-radius: 8px; }
+.wm .name { font-weight: 700; font-size: 14px; }
+.wm .now { color: #777; font-size: 12px; }
+.wm .now b { color: #2A8FB3; font-weight: 600; }
+.wm .grow { flex: 1; }
+.wm .chip { font-size: 11px; padding: 2px 9px; border-radius: 999px; background: #EEF1F4; border: 1px solid #C9CFD5; color: #777788; white-space: nowrap; }
+.wm .warn { background: #FFF1DC; color: #9A6A1A; border-color: #F3CF8A; }
+.wm .pill { padding: 6px 14px; border-radius: 999px; border: 1px solid #C9CFD5; background: linear-gradient(#fff, #E6EAEE); font-weight: 600; white-space: nowrap; }
+.wm .pill.go { background: linear-gradient(#7FD0EF, #34BEED); border-color: #2A8FB3; color: #fff; }
+.wm .tabs { display: flex; gap: 6px; }
+.wm .tabs span { padding: 6px 14px; border-radius: 999px; color: #777788; }
+.wm .tabs span.on { background: #fff; border: 1px solid #7FD0EF; color: #2A8FB3; font-weight: 600; box-shadow: 0 0 0 3px #34BEED40; }
+.wm .panel { background: #fff; border: 1px solid #D6DBE0; border-radius: 14px; box-shadow: 0 2px 6px #344A601A; padding: 6px 12px; }
+.wm .air { display: flex; gap: 10px; padding: 7px 2px; border-bottom: 1px solid #EEF1F4; align-items: center; }
+.wm .air:last-child { border-bottom: 0; }
+.wm .air .t { width: 92px; color: #777788; font-variant-numeric: tabular-nums; }
+.wm .air.on { background: #EEFAFF; margin: 0 -12px; padding: 7px 14px; border-left: 3px solid #34BEED; }
+.wm .air .ad { color: #B08A3C; }
+.wm .bar { height: 5px; width: 90px; border-radius: 3px; background: #E1E5E9; overflow: hidden; }
+.wm .bar i { display: block; height: 100%; width: 40%; background: linear-gradient(#7FD0EF, #34BEED); }
+</style>
+
+<h2>Channels, and one page per channel</h2>
+<p class="subtitle">Everything about a channel in one place, instead of spread over Channels, Schedule, Preview and Library.</p>
+
+<div class="split">
+  <div class="wm">
+    <div class="top"><span class="brand">cable-twii Studio</span><span class="nav"><span>Episodes</span><span class="on">Channels</span><span>Ads</span><span>Server</span></span></div>
+    <div class="body">
+      <div style="display:flex;align-items:center"><h4 class="grow">Channels</h4><span class="pill">Add channel</span></div>
+      <div class="row"><span class="num">1</span><span class="logo" style="background:#F7A21B"></span><div class="grow"><div class="name">Cartoon Network</div><div class="now">Now <b>Gumball S03E04 · The Hero</b> · until 14:23</div></div><span class="chip">Looping</span><span class="chip">2 shows · 44 episodes</span></div>
+      <div class="row"><span class="num">2</span><span class="logo" style="background:#7A2CC4"></span><div class="grow"><div class="name">MTV</div><div class="now">Now <b>Music Videos</b> · Artist 3 – Song 3</div></div><span class="chip">Looping</span><span class="chip">1 show · 6 videos</span></div>
+      <div class="row"><span class="num">3</span><span class="logo" style="background:#F26A1F"></span><div class="grow"><div class="name">Nickelodeon</div><div class="now">Only ads are on air</div></div><span class="chip">Timed</span><span class="chip warn">No shows yet</span></div>
+    </div>
+  </div>
+
+  <div class="wm">
+    <div class="top"><span class="brand">cable-twii Studio</span><span class="nav"><span>Episodes</span><span class="on">Channels</span><span>Ads</span><span>Server</span></span></div>
+    <div class="body">
+      <div style="display:flex;align-items:center;gap:12px"><span class="num">1</span><span class="logo" style="background:#F7A21B"></span><div class="grow"><h4>Cartoon Network</h4><div class="now">Kids · Looping · ads on</div></div><span class="pill go">Add episodes</span></div>
+      <div class="tabs"><span class="on">Today</span><span>Schedule</span><span>Shows</span><span>Settings</span></div>
+      <div class="panel">
+        <div class="air"><span class="t">13:49–14:00</span><span class="grow">Adventure Time S01E12 · Evicted!</span></div>
+        <div class="air"><span class="t">14:00–14:01</span><span class="grow ad">Ad break · 2 ads</span></div>
+        <div class="air on"><span class="t">14:01–14:23</span><span class="grow"><b>Gumball S03E04</b> · The Hero</span><span class="bar"><i></i></span></div>
+        <div class="air"><span class="t">14:23–14:34</span><span class="grow">Gumball S03E11 · The Mothers</span></div>
+        <div class="air"><span class="t">14:34–14:35</span><span class="grow ad">Ad break · 1 ad</span></div>
+        <div class="air"><span class="t">14:35–14:46</span><span class="grow">Adventure Time S01E03 · Prisoners of Love</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</section>
+</body>
+</html>

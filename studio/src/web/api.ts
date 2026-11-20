@@ -2,6 +2,7 @@ import type { DriveInfo, ScanResult } from "../server/drive.js";
 import type { ImportEntry } from "../server/imports.js";
 import type { BuildResult } from "../server/library.js";
 import type { ValidateResult } from "../server/sched.js";
+import type { EditAction } from "../server/libraryEdit.js";
 import type { ShowMeta } from "../server/showMeta.js";
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
 import { streamLost } from "./jobs.js";
@@ -43,6 +44,7 @@ export interface ImportEpisode {
   title: string;
   description: string;
   aspect: "16:9" | "4:3";
+  replaces?: string;
 }
 
 export interface ImportShowRequest {
@@ -129,12 +131,23 @@ export const getImports = (dir: string) => send<{ dir: string; entries: ImportEn
 export const scanImports = (dir: string) => send<{ dir: string; files: ScanResult[] }>("POST", "/api/import/scan", { dir });
 export const importShow = (req: ImportShowRequest) => send<ImportResult>("POST", "/api/import/show", req);
 export const importAds = (req: ImportAdsRequest) => send<ImportResult>("POST", "/api/import/ads", req);
+export const checkUploads = (files: { name: string; size: number }[]) =>
+  send<{ added: string[] }>("POST", "/api/upload/check", { files }).then((r) => r.added);
+export interface EditResult {
+  mtimeMs: number;
+  removed: { channel: number; label: string }[];
+  issues: Issue[];
+  moves: { from: string; to: string }[];
+}
+export const editLibrary = (req: { mtimeMs: number; dryRun?: boolean; action: EditAction }) => send<EditResult>("POST", "/api/library/edit", req);
 export const getJobs = () => send<Job[]>("GET", "/api/jobs");
 export const retryJobs = () => send<{ jobs: Job[] }>("POST", "/api/jobs/retry");
 export const getShrinkCount = () => send<{ candidates: number }>("GET", "/api/library/shrink");
 export const startShrink = () => send<{ queued: number }>("POST", "/api/library/shrink");
 export const getLibrary = () => send<WebLibrary>("GET", "/api/library");
 export const rebuildLibrary = () => send<WebBuildResult>("POST", "/api/library/rebuild");
+export const getFileFacts = (path: string) => send<{ size: number; mtimeMs: number; source: string | null }>("GET", `/api/library/file?path=${encodeURIComponent(path)}`);
+export const getNotes = () => send<{ at: number | null; skipped: { path: string; reason: string }[]; warnings: string[] }>("GET", "/api/library/notes");
 export const getConfig = () => send<{ config: Config; mtimeMs: number }>("GET", "/api/config");
 export const putConfig = (config: Config, mtimeMs: number) =>
   send<{ mtimeMs: number; issues: Issue[] }>("PUT", "/api/config", { config, mtimeMs });
@@ -228,6 +241,14 @@ export function subscribeJobs(cb: (job: Job) => void, handlers: JobStreamHandler
     }
   };
   return () => source.close();
+}
+
+export function sourceUrl(path: string): string {
+  return `/api/import/file?path=${encodeURIComponent(path)}`;
+}
+
+export function playUrl(path: string, start: number): string {
+  return `/api/media/play?path=${encodeURIComponent(path)}&start=${Math.max(0, Math.floor(start))}`;
 }
 
 export function mediaUrl(rel: string): string {

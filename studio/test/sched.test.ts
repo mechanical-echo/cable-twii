@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { parseConfig } from "../src/server/config.js";
-import { SchedUsageError, lineup, schedBinPath, validateCandidate, validateRoot } from "../src/server/sched.js";
+import { SchedUsageError, lineup, newErrors, schedBinPath, validateCandidate, validateRoot } from "../src/server/sched.js";
+import { buildLibrary } from "../src/server/library.js";
+import type { Issue } from "../src/server/types.js";
 import type { LineupResult } from "../src/server/types.js";
 
 const FIXTURE = path.resolve(import.meta.dirname, "../../engine/tests/fixtures/root_basic");
@@ -98,4 +100,27 @@ test("validateCandidate checks a config without touching the root", async () => 
 test("validateCandidate without a library uses an empty one", async () => {
   await rm(path.join(root, "library.toml"));
   expect(await validateCandidate(root, { version: 1, seed: 1, channel: [] })).toMatchObject({ ok: true });
+});
+
+test("only new errors count", () => {
+  const issue = (code: string, channel: number, message: string, level: Issue["level"] = "error"): Issue => ({ level, code, channel, slot: 0, item: 0, line: 0, file: "config", message });
+  const before = [issue("unknown_show", 1, "show X is not in the library"), issue("cut", 1, "cut", "warning")];
+  const after = [{ ...issue("unknown_show", 1, "show X is not in the library"), item: 3 }, issue("empty_pool", 2, "nothing to pick"), issue("cut", 2, "cut", "warning")];
+  expect(newErrors(before, after).map((i) => i.code)).toEqual(["empty_pool"]);
+});
+
+test("errors already there still match after items shift", () => {
+  const issue = (message: string): Issue => ({ level: "error", code: "unknown_show", channel: 2, slot: 0, item: 0, line: 0, file: "config", message });
+  const before = [issue("channel 2 loop item 5: no show Gone Show in mtv-00s")];
+  expect(newErrors(before, [issue("channel 2 loop item 4: no show Gone Show in mtv-00s")])).toEqual([]);
+  expect(newErrors(before, [issue("channel 2 loop item 4: no show Gone Show in mtv-00s"), issue("channel 2 loop item 6: no show Gone Show in mtv-00s")])).toHaveLength(1);
+});
+
+test("validates against a given library", async () => {
+  const cfg = parseConfig(await readFile(path.join(root, "config.toml"), "utf8"));
+  const { library } = await buildLibrary(root, [], async () => ({ durationMs: 60000, width: 640, height: 480, displayAspect: 4 / 3, videoStreamIndex: 0, bitRateKbps: null }));
+  expect((await validateCandidate(root, cfg, schedBinPath(), library)).ok).toBe(true);
+  const empty = { ...library, show: [] };
+  const result = await validateCandidate(root, cfg, schedBinPath(), empty);
+  expect(result.issues.some((i) => i.level === "error")).toBe(true);
 });

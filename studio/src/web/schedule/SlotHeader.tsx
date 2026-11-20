@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Dialog } from "../library/Dialog";
+import { PillButton } from "../ui/controls";
+import { Banner } from "../ui/layout";
 
 interface Props {
   at: string;
@@ -68,18 +69,23 @@ export function AddSlotDialog({ onAdd, onClose }: { onAdd: (at: string) => strin
   }
 
   return (
-    <Dialog title="Add slot" onClose={onClose}>
-      <label className="desc">
-        Start time (HH:MM, 00:00–23:59)
-        <input autoFocus placeholder="07:30" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-      </label>
-      {error !== null && <div className="banner error">{error}</div>}
-      <div className="row end">
-        <button onClick={onClose}>Cancel</button>
-        <button className="primary" onClick={add}>
-          Add
-        </button>
+    <div className="overlay">
+      <div className="ui-dialog" role="dialog" aria-modal="true" aria-label="Add slot">
+        <h2>Add slot</h2>
+        <div className="ui-stack">
+          <label className="ui-field full">
+            <span className="ui-label">Start time (HH:MM, 00:00–23:59)</span>
+            <input className="ui-input full" autoFocus placeholder="07:30" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          </label>
+          {error !== null && <Banner kind="error">{error}</Banner>}
+        </div>
+        <div className="ui-dialog-actions">
+          <PillButton onClick={onClose}>Cancel</PillButton>
+          <PillButton kind="primary" onClick={add}>
+            Add
+          </PillButton>
+        </div>
       </div>
-    </Dialog>
+    </div>
   );
 }

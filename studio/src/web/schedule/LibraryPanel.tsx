@@ -58,7 +58,7 @@ function Show({ channel, node, mode }: { channel: string; node: ShowNode; mode: 
               <span>
                 {descriptionKey(ep)} {ep.title}
               </span>
-              <span className="muted">{formatDuration(ep.duration_ms)}</span>
+              <span className="ui-muted">{formatDuration(ep.duration_ms)}</span>
             </Chip>
           ))}
         </details>
@@ -68,7 +68,7 @@ function Show({ channel, node, mode }: { channel: string; node: ShowNode; mode: 
 }
 
 function Shows({ node, mode }: { node: ChannelNode | undefined; mode: Mode }) {
-  if (!node || node.shows.length === 0) return <p className="muted">No shows yet.</p>;
+  if (!node || node.shows.length === 0) return <p className="ui-muted">No shows yet.</p>;
   return (
     <>
       {node.shows.map((show) => (
@@ -108,7 +108,7 @@ export function LibraryPanel({ library, folder, mode, disabled }: Props) {
             {ads.map((ad) => (
               <Chip key={ad.path} className="ep ad" entry={{ kind: "ad", path: ad.path }}>
                 <span>{baseName(ad.path).replace(/\.mpg$/, "")}</span>
-                <span className="muted">{formatDuration(ad.duration_ms)}</span>
+                <span className="ui-muted">{formatDuration(ad.duration_ms)}</span>
               </Chip>
             ))}
           </details>

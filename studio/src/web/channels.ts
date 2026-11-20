@@ -1,3 +1,4 @@
+import { channelFolder } from "../server/scheduleRefs.js";
 import type { Channel, Config, Mode } from "../server/types.js";
 import type { WebLibrary } from "./tree.js";
 
@@ -28,10 +29,7 @@ export function sortChannels(channels: Channel[]): Channel[] {
   return [...channels].sort((a, b) => a.number - b.number);
 }
 
-export function effectiveFolder(channel: Pick<Channel, "name" | "folder">): string {
-  const folder = channel.folder?.trim() ?? "";
-  return folder !== "" ? folder : channel.name.trim();
-}
+export const effectiveFolder = channelFolder;
 
 export function iconPath(channel: Pick<Channel, "name" | "folder" | "icon">): string {
   return channel.icon ?? `${effectiveFolder(channel)}/channel.png`;
@@ -113,8 +111,14 @@ export function toChannel(draft: ChannelDraft): Channel {
   return channel;
 }
 
+export function editedDraft(config: Config, editing: number | null, draft: ChannelDraft): ChannelDraft {
+  const old = editing === null ? undefined : config.channel.find((c) => c.number === editing);
+  const implicit = old !== undefined && (old.folder?.trim() ?? "") === "" && draft.folder.trim() === "";
+  return implicit && draft.name.trim() !== old.name.trim() ? { ...draft, folder: old.name.trim() } : draft;
+}
+
 export function applyEdit(config: Config, editing: number | null, draft: ChannelDraft): Config {
-  const channel = toChannel(draft);
+  const channel = toChannel(editedDraft(config, editing, draft));
   const rest = config.channel.filter((c) => c.number !== editing);
   return { ...config, channel: sortChannels([...rest, channel]) };
 }

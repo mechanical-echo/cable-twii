@@ -1,5 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { login } from "./api";
+import { PillButton } from "./ui/controls";
+import { Banner, Panel } from "./ui/layout";
 
 interface Props {
   name: string | null;
@@ -26,28 +28,30 @@ export function LoginForm({ name, note, onSignedIn }: Props) {
   }
 
   return (
-    <form className="card" onSubmit={submit}>
-      <h2>{name === null ? "Sign in" : `Sign in to ${name}`}</h2>
-      {note !== undefined && <p className="muted">{note}</p>}
-      <div className="form-grid column">
-        <label>
-          Password
-          <input type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-      </div>
-      {error !== null && <div className="banner error">{error}</div>}
-      <div className="row end">
-        <button type="submit" className="primary" disabled={busy || password === ""}>
-          Sign in
-        </button>
-      </div>
+    <form className="ui-login-form" onSubmit={submit}>
+      <Panel title={name === null ? "Sign in" : `Sign in to ${name}`}>
+        <div className="ui-stack">
+          {note !== undefined && <p className="ui-muted">{note}</p>}
+          <label className="ui-field full">
+            <span className="ui-label">Password</span>
+            <input className="ui-input full" type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          {error !== null && <Banner kind="error">{error}</Banner>}
+          <div className="ui-line end">
+            <PillButton kind="primary" type="submit" disabled={busy || password === ""}>
+              Sign in
+            </PillButton>
+          </div>
+        </div>
+      </Panel>
     </form>
   );
 }
 
 export function LoginPage({ name, onSignedIn }: Props) {
   return (
-    <div className="login">
+    <div className="ui-login">
+      <h1 className="ui-login-brand">cable-twii Studio</h1>
       <LoginForm name={name} onSignedIn={onSignedIn} />
     </div>
   );

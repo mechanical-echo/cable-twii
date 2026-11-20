@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createReadStream, existsSync, realpathSync } from "node:fs";
-import { lstat, readFile, readdir, realpath, rm, rmdir, stat, statfs } from "node:fs/promises";
+import { type FileHandle, lstat, open, readFile, readdir, realpath, rm, rmdir, stat, statfs } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -10,24 +10,26 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ConfigConflictError, ConfigShapeError, configMtime, randomSeed, readConfig, toConfig, writeConfig } from "./config.js";
 import { type DriveDeps, type DriveInfo, type ScanResult, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
-import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
+import { isTooShort, MIN_DURATION_MS, probe, remux } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { isAllowedSource, listImports, resolveImportsDir } from "./imports.js";
-import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
+import { type BuildResult, OFF_LIBRARY_FILE, type SkippedFile, buildLibrary, readLibrary, writeLibrary, writeOffLibrary } from "./library.js";
+import { readOff } from "./off.js";
 import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { DRIVE_PROFILE, SERVER_PROFILE, type VideoProfile } from "./videoSettings.js";
-import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
+import { SchedUsageError, STUDIO_DIR, lineup, newErrors, validateCandidate, validateRoot } from "./sched.js";
+import { type EditAction, EditRefused, applyPlan, planEdit } from "./libraryEdit.js";
 import { uploadsDir } from "./serverSettings.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
-import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
-import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { atomicWriteFile, needsConversion, readSources, upsertSource, writeSources } from "./sources.js";
+import type { Config, Issue, Job, Library, SourceRecord } from "./types.js";
 import { shrinkCandidates } from "./shrink.js";
 import { UPLOAD_LIMIT, convertedUpload, discardUploads, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
-import { registerWiiApi } from "./wiiApi.js";
+import { parseRange, registerWiiApi } from "./wiiApi.js";
 
 export interface ServerModeOptions {
   library: string;
@@ -42,6 +44,7 @@ export interface AppOptions {
   settingsPath?: string;
   inspectDeps?: DriveDeps;
   probeFn?: typeof probe;
+  remuxFn?: typeof remux;
   pickFolderFn?: (prompt: string) => Promise<string | null>;
   rebuildDelayMs?: number;
   webDir?: string;
@@ -81,6 +84,7 @@ const RESERVED = new Set(["ads"]);
 const ALREADY_CONVERTED = "already on the drive";
 const ALREADY_UPLOADED = "already on the server";
 const OUTSIDE_SOURCES = "Videos must come from the imports folder or an upload.";
+const BAD_REPLACES = "replaces must be an episode of this show.";
 const UPLOAD_FILES = 50;
 const DEFAULT_PORT = 4747;
 const DEV_HOST = "localhost:5173";
@@ -88,6 +92,13 @@ const API_HEADER = "x-cable-twii";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const SESSION_GUARDED = /^\/(?:api|media)\//;
 const SESSION_OPEN = new Set(["/api/mode", "/api/login", "/api/logout"]);
+const SOURCE_TYPES: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".mkv": "video/x-matroska",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+};
 
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string, readonly issues?: Issue[]) {
@@ -210,6 +221,89 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+async function alreadyConverted(root: string, records: SourceRecord[], source: string): Promise<boolean> {
+  for (const rec of records) {
+    if (rec.source !== source) continue;
+    try {
+      if (!(await lstat(path.join(root, ...rec.target.split("/")))).isFile()) continue;
+      if (!needsConversion(rec, await stat(source), true)) return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+}
+
+async function markAdded(root: string, records: SourceRecord[], files: ScanResult[]): Promise<ScanResult[]> {
+  for (const file of files) {
+    if (await alreadyConverted(root, records, file.source)) file.added = true;
+  }
+  return files;
+}
+
+async function openPreviewFile(dirs: ReadonlySet<string>, file: string): Promise<{ handle: FileHandle; size: number; type: string } | null> {
+  if (!path.isAbsolute(file) || !isVideoFile(path.basename(file))) return null;
+  let handle: FileHandle | undefined;
+  try {
+    const real = await realpath(file);
+    if (!isVideoFile(path.basename(real)) || ![...dirs].some((dir) => contained(dir, real))) return null;
+    if (!(await stat(real)).isFile()) return null;
+    handle = await open(real, "r");
+    const info = await handle.stat();
+    if (!info.isFile()) {
+      await handle.close();
+      return null;
+    }
+    return { handle, size: info.size, type: SOURCE_TYPES[path.extname(real).toLowerCase()] ?? "application/octet-stream" };
+  } catch {
+    await handle?.close().catch(() => undefined);
+    return null;
+  }
+}
+
+async function isShowEpisode(root: string, showRel: string, rel: string): Promise<boolean> {
+  if (!rel.startsWith(`${showRel}/`) || !rel.toLowerCase().endsWith(".mpg") || path.posix.normalize(rel) !== rel || rel.split("/").includes("..")) return false;
+  const file = path.join(root, ...rel.split("/"));
+  try {
+    assertContained(root, file);
+    return (await lstat(file)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function libraryFile(root: string, rel: unknown, extension: string): Promise<string | null> {
+  if (typeof rel !== "string" || rel === "" || !rel.toLowerCase().endsWith(extension)) return null;
+  try {
+    const realRoot = await realpath(root);
+    const real = await realpath(path.resolve(realRoot, rel));
+    if (!contained(realRoot, real) || !real.toLowerCase().endsWith(extension)) return null;
+    return (await stat(real)).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
+function mergeLibraries(library: Library, off: Library | null): Library {
+  if (off === null) return library;
+  const shows = new Map(library.show.map((s) => [`${s.channel}\0${s.folder}`, { ...s, episode: [...s.episode] }]));
+  for (const s of off.show) {
+    const key = `${s.channel}\0${s.folder}`;
+    const found = shows.get(key);
+    if (found) found.episode.push(...s.episode);
+    else shows.set(key, { ...s, episode: [...s.episode] });
+  }
+  return { ...library, ad: [...library.ad, ...off.ad], show: [...shows.values()] };
+}
+
+async function topFiles(dir: string): Promise<string[]> {
+  try {
+    return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isFile()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
 async function isDirectory(p: string): Promise<boolean> {
   try {
     return (await stat(p)).isDirectory();
@@ -266,6 +360,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const settingsPath = opts.settingsPath ?? DEFAULT_SETTINGS;
   const deps = opts.inspectDeps ?? {};
   const probeFn = opts.probeFn ?? probe;
+  const remuxFn = opts.remuxFn ?? remux;
   const pick = opts.pickFolderFn ?? ((prompt: string) => pickFolderNative(prompt));
   const rebuildDelay = opts.rebuildDelayMs ?? REBUILD_DELAY_MS;
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
@@ -278,6 +373,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const jobEvents = new EventEmitter();
   jobEvents.setMaxListeners(0);
   const queues = new Map<string, ConversionQueue>();
+  const previewDirs = new Set<string>();
+  const lastBuild = new Map<string, { at: number; skipped: SkippedFile[]; warnings: string[] }>();
   const rebuildTimers = new Map<string, NodeJS.Timeout>();
   const rebuildChains = new Map<string, Promise<unknown>>();
   const streams = new Set<{ raw: ServerResponse; cleanup: () => void }>();
@@ -332,8 +429,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   function rebuildNow(root: string): Promise<BuildResult> {
     const previous = rebuildChains.get(root) ?? Promise.resolve();
     const run = async (): Promise<BuildResult> => {
-      const result = await buildLibrary(root, await readSources(root), probeFn);
+      const result = await buildLibrary(root, await readSources(root), probeFn, await readOff(root));
       await writeLibrary(root, result.library);
+      await writeOffLibrary(root, result.off);
+      lastBuild.set(root, { at: Date.now(), skipped: result.skipped, warnings: result.warnings });
       return result;
     };
     const next = previous.then(run, run);
@@ -552,12 +651,12 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   app.addHook("onClose", async () => {
+    await Promise.allSettled([...queues.values()].map((q) => q.stop()));
+    await Promise.allSettled([...retiring]);
     if (!server) {
       for (const timer of rebuildTimers.values()) clearTimeout(timer);
       rebuildTimers.clear();
     }
-    await Promise.allSettled([...queues.values()].map((q) => q.stop()));
-    await Promise.allSettled([...retiring]);
     if (server) await Promise.all([...rebuildTimers.keys()].map((root) => flushRebuild(root).catch((err: unknown) => app.log.warn(err))));
     await Promise.allSettled([...rebuildChains.values()]);
   });
@@ -627,7 +726,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     app.post("/api/import/pick-source", async (_request, reply) => {
       const dir = await pick("Choose a folder with videos");
       if (dir === null) return sendNull(reply);
-      return { dir, files: await scanSource(dir, probeFn) };
+      const files = await scanSource(dir, probeFn);
+      previewDirs.add(await realpath(dir));
+      const root = await requireRoot().catch(() => null);
+      return { dir, files: root === null ? files : await markAdded(root, await sourceRecords(root), files) };
     });
   }
 
@@ -689,6 +791,24 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   if (uploads) {
+    app.post("/api/upload/check", async (request) => {
+      const files = objectBody(request.body).files;
+      if (!Array.isArray(files)) throw bad("files must be a list.");
+      const wanted = files.map((raw) => {
+        const f = objectBody(raw);
+        if (typeof f.name !== "string" || typeof f.size !== "number") throw bad("Each file needs a name and a size.");
+        return { name: f.name, size: f.size };
+      });
+      const root = await requireRoot();
+      const records = await sourceRecords(root);
+      const added: string[] = [];
+      for (const { name, size } of wanted) {
+        const stored = uploadName(name);
+        if (stored !== null && (await convertedUpload(root, records, stored, size))) added.push(name);
+      }
+      return { added };
+    });
+
     app.post("/api/upload/discard", async (request) => {
       const body = objectBody(request.body);
       const names = body.names;
@@ -728,12 +848,35 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
     app.post("/api/import/scan", async (request) => {
       const rel = stringField(objectBody(request.body), "dir");
+      const root = await requireRoot();
       return inImports(async () => {
         const dir = await resolveImportsDir(server.imports, rel);
-        return { dir, files: await scanSource(dir, probeFn) };
+        const files = await scanSource(dir, probeFn);
+        previewDirs.add(await realpath(dir));
+        return { dir, files: await markAdded(root, await sourceRecords(root), files) };
       });
     });
   }
+
+  app.get("/api/import/file", async (request, reply) => {
+    const raw = (request.query as Record<string, unknown>).path;
+    const file = typeof raw === "string" ? await openPreviewFile(previewDirs, raw) : null;
+    if (file === null) return reply.code(404).send({ error: "Not found" });
+    const { handle, size, type } = file;
+    reply.header("accept-ranges", "bytes");
+    const range = parseRange(request.headers.range, size);
+    if (range === "unsatisfiable") {
+      await handle.close();
+      return reply.code(416).header("content-range", `bytes */${size}`).send({ error: "Range not satisfiable" });
+    }
+    reply.type(type);
+    if (range === null) return reply.header("content-length", size).send(handle.createReadStream());
+    return reply
+      .code(206)
+      .header("content-range", `bytes ${range.start}-${range.end}/${size}`)
+      .header("content-length", range.end - range.start + 1)
+      .send(handle.createReadStream(range));
+  });
 
   app.post("/api/import/show", async (request) => {
     const body = objectBody(request.body);
@@ -750,10 +893,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         title: stringField(e, "title"),
         description: e.description === undefined ? "" : stringField(e, "description"),
         aspect: aspectField(e),
+        replaces: e.replaces === undefined ? null : stringField(e, "replaces"),
       };
     });
     await requireImportable(episodes.map((e) => e.source));
     const root = await requireRoot();
+    for (const ep of episodes) {
+      if (ep.replaces !== null && !(await isShowEpisode(root, `${channelFolder}/${showFolder}`, ep.replaces))) throw bad(BAD_REPLACES);
+    }
     const queue = queueFor(root);
     const taken = takenNames(root, queue);
     const jobs: Job[] = [];
@@ -764,7 +911,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const records = await sourceRecords(root);
     for (const ep of episodes) {
       const seasoned = ep.season !== null && ep.season >= 1;
-      const dirRel = seasoned ? `${showRel}/Season ${ep.season}` : showRel;
+      const dirRel = ep.replaces !== null ? path.posix.dirname(ep.replaces) : seasoned ? `${showRel}/Season ${ep.season}` : showRel;
       const earlier = await earlierConversion(root, records, ep.source, dirRel);
       if (earlier?.current) {
         rejected.push({ source: ep.source, reason: ALREADY_CONVERTED });
@@ -776,7 +923,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         continue;
       }
       const names = await taken(dirRel);
-      const name = earlier ? path.posix.basename(earlier.target) : uniqueName(episodeFileName({ season: seasoned ? ep.season : null, episode: ep.episode, title: ep.title }), names);
+      const name = ep.replaces !== null ? path.posix.basename(ep.replaces) : earlier ? path.posix.basename(earlier.target) : uniqueName(episodeFileName({ season: seasoned ? ep.season : null, episode: ep.episode, title: ep.title }), names);
       names.add(name);
       jobs.push(queue.enqueue(ep.source, `${dirRel}/${name}`, ep.aspect));
       if (ep.description === "") continue;
@@ -862,14 +1009,71 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const root = await requireRoot();
     try {
       const library = await readLibrary(root);
-      if (library) return library;
+      const off = await readLibrary(root, OFF_LIBRARY_FILE);
+      if (library) return { ...library, off: { ad: off?.ad ?? [], show: off?.show ?? [] } };
     } catch (err) {
       app.log.warn(err);
     }
-    return (await rebuildNow(root)).library;
+    const built = await rebuildNow(root);
+    return { ...built.library, off: built.off };
   });
 
   app.post("/api/library/rebuild", async () => rebuildNow(await requireRoot()));
+
+  app.post("/api/library/edit", async (request) => {
+    const body = objectBody(request.body);
+    const mtimeMs = mtimeField(body);
+    const dryRun = body.dryRun === true;
+    const action = objectBody(body.action) as unknown as EditAction;
+    if (typeof action.kind !== "string") throw bad("action must say what to change.");
+    const root = await requireRoot();
+    return withConfigLock(async () => {
+      if ((await configMtime(root)) !== Math.trunc(mtimeMs)) throw new ConfigConflictError();
+      await flushRebuild(root);
+      const busy = new Set(queueFor(root).list().filter((j) => j.state === "queued" || j.state === "running").map((j) => j.target));
+      const { config } = await readConfig(root);
+      const off = await readOff(root);
+      const library = mergeLibraries((await readLibrary(root)) ?? (await rebuildNow(root)).library, await readLibrary(root, OFF_LIBRARY_FILE));
+      const files = new Map<string, string[]>();
+      for (const s of library.show) files.set(`${s.channel}\0${s.folder}`, await topFiles(path.join(root, s.channel, s.folder)));
+      let plan;
+      try {
+        plan = planEdit(action, { config, library, off, busy, showFiles: (ref) => files.get(`${ref.channel}\0${ref.show}`) ?? [] });
+      } catch (err) {
+        if (err instanceof EditRefused) throw new HttpError(err.status, err.message);
+        throw err;
+      }
+      const before = (await validateRoot(root, false, bin)).issues;
+      const check = async () => {
+        const candidate = await buildLibrary(root, await readSources(root), probeFn, plan.exclude);
+        return newErrors(before, (await validateCandidate(root, plan.config, bin, candidate.library)).issues);
+      };
+      if (dryRun) {
+        if (plan.moves.length > 0) throw bad("This change can't be previewed.");
+        return { mtimeMs, removed: plan.removed, issues: await check(), moves: plan.moves };
+      }
+      const applied = await applyPlan(root, plan);
+      let saved = mtimeMs;
+      try {
+        const added = await check();
+        if (added.length > 0) throw new HttpError(422, "This change would break a schedule.", added);
+        if (JSON.stringify(plan.config) !== JSON.stringify(config)) saved = await writeConfig(root, plan.config, mtimeMs);
+      } catch (err) {
+        await applied.undo();
+        throw err;
+      }
+      if (plan.deletes.length > 0 || plan.deleteDirs.length > 0) {
+        const gone = new Set(plan.deletes);
+        await applied.finish().catch((err: unknown) => app.log.warn(err));
+        const records = await readSources(root);
+        if (records.some((r) => gone.has(r.target))) await writeSources(root, records.filter((r) => !gone.has(r.target)));
+      }
+      await rebuildNow(root);
+      return { mtimeMs: saved, removed: plan.removed, issues: [], moves: plan.moves };
+    });
+  });
+
+  app.get("/api/library/notes", async () => lastBuild.get(await requireRoot()) ?? { at: null, skipped: [], warnings: [] });
 
   app.get("/api/show-meta", async (request) => {
     const query = request.query as Record<string, unknown>;
@@ -968,6 +1172,28 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await makeIcon(root, file, dst);
     scheduleRebuild(root);
     return { path: parts.join("/") };
+  });
+
+  app.get("/api/library/file", async (request, reply) => {
+    const root = await requireRoot();
+    const rel = (request.query as Record<string, unknown>).path;
+    const file = await libraryFile(root, rel, ".mpg");
+    if (file === null || typeof rel !== "string") return reply.code(404).send({ error: "Not found" });
+    const info = await stat(file);
+    const record = (await sourceRecords(root)).find((r) => r.target === rel);
+    return { size: info.size, mtimeMs: Math.trunc(info.mtimeMs), source: record?.source ?? null };
+  });
+
+  app.get("/api/media/play", async (request, reply) => {
+    const root = await requireRoot();
+    const query = request.query as Record<string, unknown>;
+    const start = query.start ?? "0";
+    if (typeof start !== "string" || !/^\d+$/.test(start)) throw bad("start must be a whole number of seconds.");
+    const file = await libraryFile(root, query.path, ".mpg");
+    if (file === null) return reply.code(404).send({ error: "Not found" });
+    const { stream, stop } = remuxFn(file, Number(start));
+    reply.raw.on("close", stop);
+    return reply.type("video/mp2t").header("cache-control", "no-cache").send(stream);
   });
 
   app.get("/media/*", async (request, reply) => {

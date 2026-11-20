@@ -1,9 +1,10 @@
 import open from "open";
 import { buildApp } from "./app.js";
+import { drivePort } from "./port.js";
 import { ensureSchedBin } from "./sched.js";
 
 const HOST = "127.0.0.1";
-const PORT = 4747;
+const PORT = drivePort(process.env);
 
 async function main(): Promise<void> {
   const schedBin = await ensureSchedBin();

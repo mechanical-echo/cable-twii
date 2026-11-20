@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { type DriveInfo, driveDone, getShrinkCount, initDrive, logout, pickDrive, setDrive, startShrink } from "../api";
+import { type DriveInfo, driveDone, getNotes, getShrinkCount, initDrive, logout, pickDrive, rebuildLibrary, setDrive, startShrink } from "../api";
 import { formatBytes } from "../format";
+import { PillButton, TextField } from "../ui/controls";
+import { Banner, EmptyState, PageHead, Panel } from "../ui/layout";
 
 export interface ServerInfo {
   name: string | null;
@@ -11,6 +13,70 @@ interface Props {
   drive: DriveInfo | null;
   onDrive: (info: DriveInfo | null) => void;
   server: ServerInfo | null;
+}
+
+interface Notes {
+  at: number | null;
+  skipped: { path: string; reason: string }[];
+  warnings: string[];
+}
+
+function LibraryCheck() {
+  const [notes, setNotes] = useState<Notes | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getNotes()
+      .then(setNotes)
+      .catch(() => setNotes(null));
+  }, []);
+
+  async function reread() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await rebuildLibrary();
+      setNotes({ at: Date.now(), skipped: result.skipped, warnings: result.warnings });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const problems = notes === null ? 0 : notes.skipped.length + notes.warnings.length;
+  return (
+    <Panel
+      title="Library"
+      actions={
+        <PillButton disabled={busy} onClick={() => void reread()}>
+          {busy ? "Reading…" : "Re-read library"}
+        </PillButton>
+      }
+    >
+      <p className="ui-muted">
+        Studio re-reads the library by itself after every change. Re-read it after adding or removing files outside Studio.
+        {notes?.at != null && ` Last read ${new Date(notes.at).toLocaleString()}.`}
+      </p>
+      {error !== null && <Banner kind="error">{error}</Banner>}
+      {notes !== null && problems === 0 && notes.at !== null && <Banner kind="ok">Every file was read.</Banner>}
+      {notes !== null && problems > 0 && (
+        <Banner kind="warn">
+          <ul>
+            {notes.skipped.map((s) => (
+              <li key={s.path}>
+                Skipped {s.path}: {s.reason}
+              </li>
+            ))}
+            {notes.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
+    </Panel>
+  );
 }
 
 export function DrivePage({ drive, onDrive, server }: Props) {
@@ -57,35 +123,34 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
 
   return (
     <section>
-      <h2>Server</h2>
-      {error !== null && <div className="banner error">{error}</div>}
-      <div className="card">
-        <h3>{server.name ?? "cable-twii server"}</h3>
-        <dl className="facts">
+      <PageHead title="Server" />
+      {error !== null && <Banner kind="error">{error}</Banner>}
+      <Panel title={server.name ?? "cable-twii server"}>
+        <dl className="ui-facts">
           <dt>Library folder</dt>
           <dd>{drive?.path ?? "…"}</dd>
           <dt>Free space</dt>
           <dd>{drive === null ? "…" : formatBytes(drive.freeBytes)}</dd>
         </dl>
-        <button disabled={busy} onClick={signOut}>
+        <PillButton disabled={busy} onClick={signOut}>
           Sign out
-        </button>
-      </div>
+        </PillButton>
+      </Panel>
+      <LibraryCheck />
       {queued !== null && shrinkable === 0 && (
-        <div className="banner">
-          {queued} {queued === 1 ? "video" : "videos"} queued. See Conversions on the Library page.
-        </div>
+        <Banner kind="ok">
+          {queued} {queued === 1 ? "video" : "videos"} queued. Their progress is on the Episodes page.
+        </Banner>
       )}
       {shrinkable > 0 && (
-        <div className="card">
-          <h3>Make older videos smaller for Wi-Fi</h3>
+        <Panel title="Make older videos smaller for Wi-Fi">
           <p>
-            {shrinkable} {shrinkable === 1 ? "video is" : "videos are"} too big to stream reliably over Wi-Fi. They are converted again in place; the Conversions list on the Library page shows the progress.
+            {shrinkable} {shrinkable === 1 ? "video is" : "videos are"} too big to stream reliably over Wi-Fi. They are converted again in place; the Episodes page shows the progress.
           </p>
-          <button disabled={busy} onClick={shrink}>
+          <PillButton disabled={busy} onClick={shrink}>
             Make smaller
-          </button>
-        </div>
+          </PillButton>
+        </Panel>
       )}
     </section>
   );
@@ -134,35 +199,34 @@ function DriveSetup({ drive, onDrive }: Pick<Props, "drive" | "onDrive">) {
 
   return (
     <section>
-      <h2>Drive</h2>
-      <div className="card">
-        <div className="row">
-          <button className="primary" disabled={busy} onClick={choose}>
+      <PageHead title="Drive" />
+      <Panel>
+        <form
+          className="ui-line"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (typed.trim() !== "") void useTyped();
+          }}
+        >
+          <PillButton kind="primary" disabled={busy} onClick={choose}>
             Choose drive…
-          </button>
-          <span className="muted">or</span>
-          <input
-            className="grow"
-            placeholder="/Volumes/MyDrive"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && typed.trim() !== "") void useTyped();
-            }}
-          />
-          <button disabled={busy || typed.trim() === ""} onClick={useTyped}>
+          </PillButton>
+          <span className="ui-muted">or</span>
+          <span className="grow">
+            <TextField value={typed} onChange={setTyped} placeholder="/Volumes/MyDrive" width="full" />
+          </span>
+          <PillButton type="submit" disabled={busy || typed.trim() === ""}>
             Use this folder
-          </button>
-        </div>
-      </div>
-      {error !== null && <div className="banner error">{error}</div>}
-      {notice !== null && <div className="banner ok">{notice}</div>}
-      {drive === null && <p className="muted">No drive chosen yet.</p>}
+          </PillButton>
+        </form>
+      </Panel>
+      {error !== null && <Banner kind="error">{error}</Banner>}
+      {notice !== null && <Banner kind="ok">{notice}</Banner>}
+      {drive === null && <EmptyState>No drive chosen yet.</EmptyState>}
       {drive !== null && (
-        <div className="card">
-          <h3>{drive.path}</h3>
-          {!drive.usable && <div className="banner error">{drive.reason ?? "This drive cannot be used."}</div>}
-          <dl className="facts">
+        <Panel title={drive.path}>
+          {!drive.usable && <Banner kind="error">{drive.reason ?? "This drive cannot be used."}</Banner>}
+          <dl className="ui-facts">
             <dt>Type</dt>
             <dd>{drive.isVolumeRoot ? "Drive" : "Folder"}{drive.fsType !== null ? ` · ${drive.fsType}` : ""}</dd>
             <dt>Free space</dt>
@@ -171,17 +235,18 @@ function DriveSetup({ drive, onDrive }: Pick<Props, "drive" | "onDrive">) {
             <dd>{drive.hasRoot ? "Set up" : "Not set up yet"}</dd>
           </dl>
           {drive.usable && !drive.hasRoot && (
-            <button className="primary" disabled={busy} onClick={setup}>
+            <PillButton kind="primary" disabled={busy} onClick={setup}>
               Set up cable-twii on this drive
-            </button>
+            </PillButton>
           )}
           {drive.usable && drive.hasRoot && (
-            <button className="primary" disabled={busy} onClick={done}>
+            <PillButton kind="primary" disabled={busy} onClick={done}>
               Done — safe to eject
-            </button>
+            </PillButton>
           )}
-        </div>
+        </Panel>
       )}
+      {drive !== null && drive.usable && drive.hasRoot && <LibraryCheck key={drive.path} />}
     </section>
   );
 }

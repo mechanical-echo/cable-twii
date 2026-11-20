@@ -415,6 +415,25 @@ test("a converted upload is recorded and recognised under its stored name", asyn
   expect(await uploadsEmpty()).toBe(true);
 });
 
+test("upload check finds earlier uploads", async () => {
+  const first = await upload({ name: "a.mp4", data: Buffer.from("video") });
+  expect((await importShow(first.json().files[0].source)).statusCode).toBe(200);
+  await waitFor(async () => (await readSources(root)).some((r) => r.source === "upload:a.mp4"));
+  const res = await send({ method: "POST", url: "/api/upload/check", payload: { files: [{ name: "a.mp4", size: 5 }, { name: "b.mp4", size: 1 }, { name: "a.mp4", size: 6 }] } });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ added: ["a.mp4"] });
+});
+
+test("upload check needs a session", async () => {
+  const res = await anonymous({ method: "POST", url: "/api/upload/check", payload: { files: [] } });
+  expect(res.statusCode).toBe(401);
+});
+
+test("upload check refuses a bad body", async () => {
+  const res = await send({ method: "POST", url: "/api/upload/check", payload: { files: [{ name: 3, size: 1 }] } });
+  expect(res.statusCode).toBe(400);
+});
+
 test("same upload again is rejected", async () => {
   const first = await upload({ name: "ep.mp4", data: Buffer.from("video") });
   expect((await importShow(first.json().files[0].source)).statusCode).toBe(200);

@@ -16,6 +16,7 @@ export interface BuildResult {
   library: Library;
   skipped: SkippedFile[];
   warnings: string[];
+  off: { ad: LibAd[]; show: LibShow[] };
 }
 
 const LIBRARY_FILE = "library.toml";
@@ -30,6 +31,7 @@ interface Named {
 }
 
 interface Scan {
+  exclude: Set<string>;
   sources: Map<string, SourceRecord>;
   probeFn: typeof probe;
   skipped: SkippedFile[];
@@ -76,6 +78,10 @@ async function listEntries(dir: string): Promise<{ dirs: string[]; files: string
 
 function mpgFiles(files: string[]): string[] {
   return files.filter((name) => name.toLowerCase().endsWith(".mpg"));
+}
+
+export function seasonlessOrder(files: string[]): string[] {
+  return mpgFiles(files.filter(isVisible)).sort(natural);
 }
 
 async function durationOf(scan: Scan, root: string, rel: string): Promise<number | null> {
@@ -195,7 +201,7 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-async function scanShow(scan: Scan, root: string, channel: string, folder: string): Promise<LibShow | null> {
+async function scanShow(scan: Scan, root: string, channel: string, folder: string): Promise<{ show: LibShow | null; off: LibShow | null }> {
   const showRel = posix(channel, folder);
   const showDir = path.join(root, channel, folder);
   const { dirs, files } = await listEntries(showDir);
@@ -233,22 +239,27 @@ async function scanShow(scan: Scan, root: string, channel: string, folder: strin
     kept.set(id, ep);
     episodes.push(ep);
   }
-  if (seasons.length === 0 && mpgFiles(files).length === 0) return null;
+  if (seasons.length === 0 && mpgFiles(files).length === 0) return { show: null, off: null };
   if (episodes.length === 0) {
     scan.skipped.push({ path: showRel, reason: "no usable episodes yet" });
-    return null;
+    return { show: null, off: null };
   }
   episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
   const icon = (await exists(path.join(showDir, ICON_FILE))) ? posix(channel, folder, ICON_FILE) : "";
-  return { channel, folder, name: meta.name ?? folder, icon, episode: episodes };
+  const on = episodes.filter((e) => !scan.exclude.has(e.path));
+  const off = episodes.filter((e) => scan.exclude.has(e.path));
+  const base = { channel, folder, name: meta.name ?? folder, icon };
+  return { show: on.length > 0 ? { ...base, episode: on } : null, off: off.length > 0 ? { ...base, episode: off } : null };
 }
 
 export async function buildLibrary(
   root: string,
   sources: SourceRecord[],
   probeFn: typeof probe = probe,
+  exclude: Set<string> = new Set(),
 ): Promise<BuildResult> {
   const scan: Scan = {
+    exclude,
     sources: new Map(sources.map((s) => [key(s.target), s])),
     probeFn,
     skipped: [],
@@ -256,6 +267,7 @@ export async function buildLibrary(
   };
   const ads: LibAd[] = [];
   const shows: LibShow[] = [];
+  const offShows: LibShow[] = [];
   ads.push(...(await scanAds(scan, root, "")));
   const top = await listEntries(root);
   for (const channel of top.dirs) {
@@ -264,16 +276,19 @@ export async function buildLibrary(
     const inner = await listEntries(path.join(root, channel));
     for (const folder of inner.dirs) {
       if (folder === ADS_DIR) continue;
-      const show = await scanShow(scan, root, channel, folder);
-      if (show) shows.push(show);
+      const found = await scanShow(scan, root, channel, folder);
+      if (found.show) shows.push(found.show);
+      if (found.off) offShows.push(found.off);
     }
   }
   ads.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   shows.sort((a, b) => natural(a.channel, b.channel) || natural(a.folder, b.folder));
+  offShows.sort((a, b) => natural(a.channel, b.channel) || natural(a.folder, b.folder));
   return {
-    library: { version: 1, generated: new Date(), ad: ads, show: shows },
+    library: { version: 1, generated: new Date(), ad: ads.filter((a) => !exclude.has(a.path)), show: shows },
     skipped: scan.skipped,
     warnings: scan.warnings,
+    off: { ad: ads.filter((a) => exclude.has(a.path)), show: offShows },
   };
 }
 
@@ -316,6 +331,10 @@ export function serializeLibrary(lib: Library): string {
   return `${out.join("\n")}\n`;
 }
 
+export async function writeOffLibrary(root: string, off: BuildResult["off"]): Promise<void> {
+  await atomicWriteContained(root, path.join(root, OFF_LIBRARY_FILE), serializeLibrary({ version: 1, generated: new Date(), ad: off.ad, show: off.show }));
+}
+
 export async function writeLibrary(root: string, lib: Library): Promise<void> {
   await atomicWriteContained(root, path.join(root, LIBRARY_FILE), serializeLibrary(lib));
 }
@@ -343,10 +362,12 @@ function whole(value: unknown): number {
   return value;
 }
 
-export async function readLibrary(root: string): Promise<Library | null> {
+export const OFF_LIBRARY_FILE = path.join(".studio", "off-library.toml");
+
+export async function readLibrary(root: string, file: string = LIBRARY_FILE): Promise<Library | null> {
   let raw: string;
   try {
-    raw = await readFile(path.join(root, LIBRARY_FILE), "utf8");
+    raw = await readFile(path.join(root, file), "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;

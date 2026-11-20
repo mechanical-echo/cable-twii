@@ -1,6 +1,6 @@
 import type { LibAd, LibEpisode, LibShow, Library } from "../server/types.js";
 
-export type WebLibrary = Omit<Library, "generated"> & { generated: string };
+export type WebLibrary = Omit<Library, "generated"> & { generated: string; off?: { ad: LibAd[]; show: LibShow[] } };
 
 export interface SeasonNode {
   season: number;

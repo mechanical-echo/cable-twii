@@ -413,6 +413,24 @@ target = "Cartoon Network/Gumball/Season 1/S01E02 - The Responsible.mpg"
 aspect = "16:9"
 ```
 
+## `.studio/off.toml` and `.studio/off-library.toml`
+
+**Purpose:** episodes and ads switched off in Studio. They stay on the drive but are left out of `library.toml`, so the Wii never plays them.
+**Location:** `.studio/off.toml` and `.studio/off-library.toml`. **Writer and reader:** Studio only. The Wii never reads them.
+
+`off.toml` has `version` (integer, required, `1`) and `paths` (array of strings): library paths relative to `/cable-twii/`, sorted.
+
+`off-library.toml` has the same shape as `library.toml` and lists only the switched-off episodes and ads, so Studio can still show them. Studio rewrites it with every library rebuild. In shows without seasons, episode numbers are counted over all files, on and off, so switching one off doesn't renumber the others.
+
+While an edit deletes files, Studio first moves them to `.studio/trash/<id>/` and removes that folder once `config.toml` is saved. If the edit is refused, the files go back. A `trash` folder left after a crash can be deleted.
+
+### Complete example
+
+```toml
+version = 1
+paths = ["Cartoon Network/Gumball/Season 1/S01E02 - The Responsible.mpg", "ads/old-cola.mpg"]
+```
+
 ---
 
 ## CLI `cable-twii-sched`

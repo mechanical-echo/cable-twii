@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { serializeConfig } from "./config.js";
 import { serializeLibrary } from "./library.js";
-import type { Config, Issue, LineupResult } from "./types.js";
+import type { Config, Issue, Library, LineupResult } from "./types.js";
 
 export const STUDIO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const ENGINE_DIR = path.resolve(STUDIO_DIR, "../engine");
@@ -119,11 +119,33 @@ export async function lineup(root: string, channel: number, date: string, bin: s
   return result.ok ? result.value : result;
 }
 
-export async function validateCandidate(root: string, cfg: Config, bin: string = schedBinPath()): Promise<ValidateResult> {
+const ITEM_POSITION = /^(channel \d+ (?:slot \d+ item|loop item)) \d+: /;
+
+// The engine names an item by its position, which shifts when an edit removes an earlier item.
+function errorKey(i: Issue): string {
+  return `${i.code}|${i.channel}|${i.message.replace(ITEM_POSITION, "$1 #: ")}`;
+}
+
+export function newErrors(before: Issue[], after: Issue[]): Issue[] {
+  const known = new Map<string, number>();
+  for (const i of before) if (i.level === "error") known.set(errorKey(i), (known.get(errorKey(i)) ?? 0) + 1);
+  return after.filter((i) => {
+    if (i.level !== "error") return false;
+    const left = known.get(errorKey(i)) ?? 0;
+    if (left > 0) known.set(errorKey(i), left - 1);
+    return left === 0;
+  });
+}
+
+export async function validateCandidate(root: string, cfg: Config, bin: string = schedBinPath(), library?: Library): Promise<ValidateResult> {
   const text = serializeConfig(cfg);
   const dir = await mkdtemp(path.join(os.tmpdir(), "ctw-candidate-"));
   try {
     await writeFile(path.join(dir, "config.toml"), text);
+    if (library !== undefined) {
+      await writeFile(path.join(dir, "library.toml"), serializeLibrary(library));
+      return await validateRoot(dir, false, bin);
+    }
     try {
       await copyFile(path.join(root, "library.toml"), path.join(dir, "library.toml"));
     } catch (err) {

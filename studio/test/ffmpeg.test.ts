@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { DRIVE_PROFILE, SERVER_PROFILE } from "../src/server/videoSettings.js";
-import { aspectFor, conversionArgs, convert, bitRateKbpsOf, displayAspectOf, isTooShort, probe } from "../src/server/ffmpeg.js";
+import { aspectFor, conversionArgs, convert, bitRateKbpsOf, displayAspectOf, isTooShort, probe, remux } from "../src/server/ffmpeg.js";
 import { MIN_DURATION_MS } from "../src/server/videoSettings.js";
 
 let dir: string;
@@ -210,4 +210,33 @@ test("bitRateKbpsOf rounds the format bit_rate and gives null when it is missing
 test("probe reports the bit rate of a real file", async () => {
   const p = await probe(makeVideo("a.mkv", "320x240", 1.5));
   expect(typeof p.bitRateKbps).toBe("number");
+});
+
+test("remux without ffmpeg ends the stream with an error", async () => {
+  const saved = process.env.PATH;
+  process.env.PATH = "";
+  let remuxed: ReturnType<typeof remux>;
+  try {
+    remuxed = remux("/nowhere/clip.mpg", 0);
+  } finally {
+    process.env.PATH = saved;
+  }
+  const ended = new Promise((resolve, reject) => {
+    remuxed.stream.on("error", reject);
+    remuxed.stream.on("end", resolve);
+    remuxed.stream.resume();
+  });
+  await expect(ended).rejects.toThrow(/ffmpeg/);
+});
+
+test("remux produces mpegts", async () => {
+  const file = makeVideo("clip.mpg", "320x240", 2, ["-c:v", "mpeg1video", "-c:a", "mp2"]);
+  const { stream, stop } = remux(file, 0);
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  stop();
+  const out = Buffer.concat(chunks);
+  expect(out.length).toBeGreaterThan(188);
+  expect(out[0]).toBe(0x47);
+  expect(out[188]).toBe(0x47);
 });

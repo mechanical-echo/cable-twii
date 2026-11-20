@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { baseName, formatBytes, formatDuration } from "../src/web/format.js";
-import { describeRejected, isUsable } from "../src/web/importing.js";
 import { buildTree, descriptionKey, seasonLabel, type WebLibrary } from "../src/web/tree.js";
 import { channelChoices } from "../src/web/channels.js";
-import { batches, crumbs, joinRel, rejectedLine, tickedFiles, uploadGroups, uploadRatio } from "../src/web/uploading.js";
+import { batches, crumbs, joinRel, spreadLoaded, storedUploadName, uploadGroups, uploadRatio } from "../src/web/uploading.js";
 import type { Config } from "../src/server/types.js";
 
 const ep = (season: number, episode: number, title: string) => ({ season, episode, title, description: "", path: `C/S/${title}.mpg`, duration_ms: 30000 });
@@ -80,26 +79,6 @@ describe("descriptionKey", () => {
   });
 });
 
-describe("isUsable", () => {
-  it("rejects too short files and files with errors", () => {
-    expect(isUsable({ tooShort: false })).toBe(true);
-    expect(isUsable({ tooShort: true })).toBe(false);
-    expect(isUsable({ tooShort: false, error: "bad" })).toBe(false);
-  });
-});
-
-describe("describeRejected", () => {
-  it("returns null when nothing was rejected", () => {
-    expect(describeRejected(3, [])).toBeNull();
-  });
-
-  it("lists skipped files with reasons", () => {
-    expect(describeRejected(2, [{ source: "/a/b.mp4", reason: "too short" }, { source: "/c.mp4", reason: "bad" }])).toBe(
-      "Imported 2. Skipped: b.mp4 (too short); c.mp4 (bad)",
-    );
-  });
-});
-
 describe("uploadRatio", () => {
   it("is the sent share of the total", () => {
     expect(uploadRatio(50, 200)).toBe(0.25);
@@ -149,21 +128,6 @@ describe("batches", () => {
   });
 });
 
-describe("rejectedLine", () => {
-  it("shows the file name and the first line of the reason", () => {
-    expect(rejectedLine({ name: "a.mp4", reason: "not a video" })).toBe("a.mp4: not a video");
-    expect(rejectedLine({ name: "b.mp4", reason: "could not read the video: moov atom not found\nfile:/srv/library/.uploads/x/b.mp4: Invalid data" })).toBe(
-      "b.mp4: could not read the video: moov atom not found",
-    );
-  });
-});
-
-describe("tickedFiles", () => {
-  it("keeps the ticked files in order", () => {
-    expect(tickedFiles(["a", "b", "c"], [true, false, true])).toEqual(["a", "c"]);
-  });
-});
-
 describe("channelChoices", () => {
   const config = { channel: [{ name: "Cartoon Network" }, { name: "MTV", folder: "mtv-00s" }] } as Config;
 
@@ -182,5 +146,20 @@ describe("uploadGroups", () => {
       { dir: "/lib/.uploads/a", names: ["x.mp4", "z.mp4"] },
       { dir: "/lib/.uploads/b", names: ["y.mp4"] },
     ]);
+  });
+});
+
+describe("storedUploadName", () => {
+  it("matches the name the server stores an upload under", () => {
+    expect(storedUploadName("Ep 1: Pilot?.mp4")).toBe("Ep 1- Pilot.mp4");
+    expect(storedUploadName("Gumball.S03E19.The.Pest.mkv")).toBe("Gumball.S03E19.The.Pest.mkv");
+  });
+});
+
+describe("spreadLoaded", () => {
+  it("fills files in the order they are sent", () => {
+    expect(spreadLoaded([100, 50, 10], 0)).toEqual([0, 0, 0]);
+    expect(spreadLoaded([100, 50, 10], 120)).toEqual([100, 20, 0]);
+    expect(spreadLoaded([100, 50, 10], 500)).toEqual([100, 50, 10]);
   });
 });

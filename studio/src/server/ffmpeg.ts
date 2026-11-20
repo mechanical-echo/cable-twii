@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { rename, rm } from "node:fs/promises";
+import type { Readable } from "node:stream";
 import {
   AUDIO_CHANNELS,
   AUDIO_CODEC,
@@ -259,4 +260,17 @@ export async function convert(
       }
     });
   });
+}
+
+export function remux(file: string, startSec: number): { stream: Readable; stop: () => void } {
+  const child = spawn("ffmpeg", ["-v", "error", "-ss", String(startSec), "-i", `file:${file}`, "-c", "copy", "-f", "mpegts", "pipe:1"], {
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  child.on("error", (err) => child.stdout.destroy(new Error(`ffmpeg failed to start: ${err.message}`)));
+  return {
+    stream: child.stdout,
+    stop: () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    },
+  };
 }

@@ -14,13 +14,13 @@ function extensionOf(name: string): string {
   return dot > 0 ? name.slice(dot).toLowerCase() : "";
 }
 
-function stripExtension(name: string): string {
+export function stripExtension(name: string): string {
   const dot = name.lastIndexOf(".");
   if (dot > 0 && /^\.[A-Za-z0-9]{1,5}$/.test(name.slice(dot))) return name.slice(0, dot);
   return name;
 }
 
-function cleanTitle(raw: string): string {
+export function cleanTitle(raw: string): string {
   let title = raw.replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
   title = title.replace(/^(?:-\s*)+/, "").trim();
   if (/\p{L}/u.test(title) && title === title.toLowerCase()) {
@@ -29,10 +29,14 @@ function cleanTitle(raw: string): string {
   return title;
 }
 
+export function episodeMatch(base: string): RegExpExecArray | null {
+  return SEASON_EPISODE.exec(base) ?? CROSS.exec(base);
+}
+
 export function guessEpisode(fileName: string): EpisodeGuess {
   const base = stripExtension(fileName);
 
-  const full = SEASON_EPISODE.exec(base) ?? CROSS.exec(base);
+  const full = episodeMatch(base);
   if (full) {
     return {
       season: Number(full[1]),

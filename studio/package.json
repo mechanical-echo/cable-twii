@@ -11,7 +11,7 @@
     "start": "node scripts/build-web.mjs && tsx src/server/main.ts",
     "preserve": "node scripts/check-node.mjs",
     "serve": "node scripts/build-web.mjs && tsx src/server/serve.ts",
-    "predev": "node scripts/check-node.mjs",
+    "predev": "node scripts/check-node.mjs && node scripts/copy-fonts.mjs",
     "dev": "vite",
     "pretest": "node scripts/check-node.mjs",
     "test": "vitest run",

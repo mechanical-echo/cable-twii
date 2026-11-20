@@ -292,6 +292,74 @@ test("import scan returns files", async () => {
   expect(body.files[0]).toMatchObject({ durationMs: 60000, aspect: "4:3", tooShort: false, guess: { season: 1, episode: 1, title: "First" } });
 });
 
+test("scan marks files converted before", async () => {
+  const first = await put(imports, "a/S01E01 First.mp4");
+  expect((await importShow(first)).statusCode).toBe(200);
+  await converted();
+  await put(imports, "a/S01E02 Second.mp4");
+  const files = (await scan("a")).json().files as { source: string; added?: boolean }[];
+  expect(files.map((f) => [path.basename(f.source), f.added])).toEqual([
+    ["S01E01 First.mp4", true],
+    ["S01E02 Second.mp4", undefined],
+  ]);
+});
+
+function preview(file: string, headers: Record<string, string> = {}) {
+  return send({ method: "GET", url: "/api/import/file", query: { path: file }, headers });
+}
+
+test("serves a scanned file with ranges", async () => {
+  const file = await put(imports, "a/S01E01 First.mp4", "0123456789abcdef");
+  await put(imports, "a/S01E02 Second.mkv", "matroska");
+  expect((await scan("a")).statusCode).toBe(200);
+  const part = await preview(file, { range: "bytes=0-9" });
+  expect(part.statusCode).toBe(206);
+  expect(part.body).toBe("0123456789");
+  expect(part.headers["content-range"]).toBe("bytes 0-9/16");
+  expect(part.headers["accept-ranges"]).toBe("bytes");
+  expect(part.headers["content-type"]).toBe("video/mp4");
+  const whole = await preview(file);
+  expect(whole.statusCode).toBe(200);
+  expect(whole.body).toBe("0123456789abcdef");
+  expect((await preview(path.join(imports, "a", "S01E02 Second.mkv"))).headers["content-type"]).toBe("video/x-matroska");
+  expect((await preview(file, { range: "bytes=99-" })).statusCode).toBe(416);
+});
+
+test("refuses a file outside the scanned folders", async () => {
+  await put(imports, "a/x.mp4");
+  const other = await put(imports, "b/y.mp4");
+  expect((await scan("a")).statusCode).toBe(200);
+  expect((await preview(other)).statusCode).toBe(404);
+  expect((await preview("/etc/hosts")).statusCode).toBe(404);
+  expect((await preview(path.join(imports, "a", "..", "b", "y.mp4"))).statusCode).toBe(404);
+  expect((await preview("a/x.mp4")).statusCode).toBe(404);
+});
+
+test("refuses a symlink out of the folder", async () => {
+  await put(imports, "a/x.mp4");
+  const outside = await put(dir, "outside/secret.mp4");
+  await symlink(outside, path.join(imports, "a", "link.mp4"));
+  expect((await scan("a")).statusCode).toBe(200);
+  expect((await preview(path.join(imports, "a", "link.mp4"))).statusCode).toBe(404);
+});
+
+test("refuses a non-video file", async () => {
+  await put(imports, "a/x.mp4");
+  const notes = await put(imports, "a/notes.txt");
+  expect((await scan("a")).statusCode).toBe(200);
+  expect((await preview(notes)).statusCode).toBe(404);
+});
+
+test("source preview needs a session", async () => {
+  const file = await put(imports, "a/x.mp4");
+  expect((await scan("a")).statusCode).toBe(200);
+  expect((await anonymous({ method: "GET", url: "/api/import/file", query: { path: file } })).statusCode).toBe(401);
+});
+
+test("play needs a session", async () => {
+  expect((await anonymous({ method: "GET", url: "/api/media/play", query: { path: "ads/a.mpg" } })).statusCode).toBe(401);
+});
+
 test("import scan takes one folder", async () => {
   await put(imports, "b.mp4");
   await put(imports, "a/x.mp4");

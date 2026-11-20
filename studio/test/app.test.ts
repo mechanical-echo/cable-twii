@@ -1,6 +1,8 @@
+import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import sharp from "sharp";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
@@ -9,8 +11,10 @@ import { parseConfig } from "../src/server/config.js";
 import type { convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
+import { writeOff } from "../src/server/off.js";
 import { readShowMeta } from "../src/server/showMeta.js";
-import { writeSources } from "../src/server/sources.js";
+import type { WebLibrary } from "../src/web/tree.js";
+import { readSources, writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
 import { DRIVE_PROFILE, type VideoProfile } from "../src/server/videoSettings.js";
 import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
@@ -383,6 +387,387 @@ test("pick-source scans the picked folder", async () => {
   const res = await picked.inject({ method: "POST", url: "/api/import/pick-source" });
   await picked.close();
   expect(res.json()).toEqual({ dir: src, files: [] });
+});
+
+test("picked folder marks files converted before", async () => {
+  await useFixture();
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  await writeFile(path.join(src, "S01E01 Old.mp4"), "video");
+  const picked = make({ pickFolderFn: async () => src });
+  const episodes = [{ source: path.join(src, "S01E01 Old.mp4"), season: 1, episode: 1, title: "Old", description: "", aspect: "4:3" }];
+  const imported = await picked.inject({ method: "POST", url: "/api/import/show", payload: { channelFolder: "Cartoon Network", showFolder: "Picked", episodes } });
+  expect(imported.statusCode).toBe(200);
+  await waitFor(async () => ((await picked.inject({ method: "GET", url: "/api/jobs" })).json() as Job[]).every((j) => j.state === "done"));
+  await waitFor(async () => (await readSources(root)).some((r) => r.source === path.join(src, "S01E01 Old.mp4")));
+  await writeFile(path.join(src, "S01E02 New.mp4"), "video");
+  const res = await picked.inject({ method: "POST", url: "/api/import/pick-source" });
+  await picked.close();
+  const files = res.json().files as { source: string; added?: boolean }[];
+  expect(files.map((f) => [path.basename(f.source), f.added])).toEqual([
+    ["S01E01 Old.mp4", true],
+    ["S01E02 New.mp4", undefined],
+  ]);
+});
+
+test("serves a file from a picked folder", async () => {
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  await writeFile(path.join(src, "x.mp4"), "video");
+  const picked = make({ pickFolderFn: async () => src });
+  const before = await picked.inject({ method: "GET", url: "/api/import/file", query: { path: path.join(src, "x.mp4") } });
+  expect(before.statusCode).toBe(404);
+  await picked.inject({ method: "POST", url: "/api/import/pick-source" });
+  const res = await picked.inject({ method: "GET", url: "/api/import/file", query: { path: path.join(src, "x.mp4") } });
+  await picked.close();
+  expect(res.statusCode).toBe(200);
+  expect(res.body).toBe("video");
+});
+
+const OLD_EPISODE = "Cartoon Network/Adventure Time/Season 5/S05E02 - Time 2.mpg";
+
+function replaceBody(source: string, replaces: string) {
+  return { channelFolder: "Cartoon Network", showFolder: "Adventure Time", episodes: [{ source, season: 5, episode: 2, title: "Time 2", description: "", aspect: "4:3", replaces }] };
+}
+
+function withConvert(convertFn: typeof convert): FastifyInstance {
+  return make({ queueFactory: (r, profile) => new ConversionQueue(r, { convertFn, probeFn: fakeProbe, concurrency: 1, profile }) });
+}
+
+async function jobsOf(target: FastifyInstance): Promise<Job[]> {
+  return (await target.inject({ method: "GET", url: "/api/jobs" })).json() as Job[];
+}
+
+test("replace converts onto the existing file", async () => {
+  await useFixture();
+  const oldFile = path.join(root, ...OLD_EPISODE.split("/"));
+  const old = await readFile(oldFile);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const replacing = withConvert(async (_s, dst) => {
+    await gate;
+    await writeFile(dst, "new bytes");
+  });
+  try {
+    const src = path.join(dir, "new.mkv");
+    await writeFile(src, "video");
+    const res = await replacing.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, OLD_EPISODE) });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { jobs: Job[] }).jobs.map((j) => j.target)).toEqual([OLD_EPISODE]);
+    await waitFor(async () => (await jobsOf(replacing)).some((j) => j.state === "running"));
+    expect(await readFile(oldFile)).toEqual(old);
+    release();
+    await waitFor(async () => (await jobsOf(replacing)).every((j) => j.state === "done"));
+    expect(await readFile(oldFile, "utf8")).toBe("new bytes");
+    expect(await readdir(path.dirname(oldFile))).not.toContain("S05E02 - Time 2 (2).mpg");
+  } finally {
+    release();
+    await replacing.close();
+  }
+});
+
+test("replace outside the show is refused", async () => {
+  await useFixture();
+  const src = path.join(dir, "new.mkv");
+  await writeFile(src, "video");
+  for (const replaces of [
+    "mtv-00s/Music Videos/Artist 1 - Song 1.mpg",
+    "../x.mpg",
+    "Cartoon Network/Adventure Time/../../mtv-00s/Music Videos/Artist 1 - Song 1.mpg",
+    "Cartoon Network/Adventure Time/Season 5/S05E99 - Missing.mpg",
+    "Cartoon Network/Adventure Time/Season 5",
+  ]) {
+    const res = await app.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, replaces) });
+    expect(res.statusCode, replaces).toBe(400);
+    expect(res.json().error).toBe("replaces must be an episode of this show.");
+  }
+  expect(await jobsOf(app)).toEqual([]);
+});
+
+test("failed replace keeps the old file", async () => {
+  await useFixture();
+  const oldFile = path.join(root, ...OLD_EPISODE.split("/"));
+  const old = await readFile(oldFile);
+  const replacing = withConvert(async (_s, dst) => {
+    await writeFile(`${dst}.part`, "half");
+    throw new Error("boom");
+  });
+  try {
+    const src = path.join(dir, "new.mkv");
+    await writeFile(src, "video");
+    expect((await replacing.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, OLD_EPISODE) })).statusCode).toBe(200);
+    await waitFor(async () => (await jobsOf(replacing)).every((j) => j.state === "failed"));
+    expect(await readFile(oldFile)).toEqual(old);
+  } finally {
+    await replacing.close();
+  }
+});
+
+test("no rebuild runs after close", async () => {
+  await useFixture();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const closing = withConvert(async (_s, dst) => {
+    await gate;
+    await writeFile(dst, "converted");
+  });
+  const src = path.join(dir, "late.mkv");
+  await writeFile(src, "video");
+  const episodes = [{ source: src, season: 1, episode: 9, title: "Late", description: "", aspect: "4:3" }];
+  expect((await closing.inject({ method: "POST", url: "/api/import/show", payload: { channelFolder: "Cartoon Network", showFolder: "Late Show", episodes } })).statusCode).toBe(200);
+  await waitFor(async () => (await jobsOf(closing)).some((j) => j.state === "running"));
+  const closed = closing.close();
+  release();
+  await closed;
+  await rm(path.join(root, "library.toml"), { force: true });
+  await sleep(150);
+  expect(existsSync(path.join(root, "library.toml"))).toBe(false);
+});
+
+test("notes start empty", async () => {
+  await useFixture();
+  const res = await app.inject({ method: "GET", url: "/api/library/notes" });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ at: null, skipped: [], warnings: [] });
+});
+
+test("notes keep the last automatic rebuild", async () => {
+  await useFixture();
+  await writeFile(path.join(root, "ads", "short-x.mpg"), "tiny");
+  const src = path.join(dir, "new.mkv");
+  await writeFile(src, "video");
+  const episodes = [{ source: src, season: 1, episode: 1, title: "New", description: "", aspect: "4:3" }];
+  expect((await app.inject({ method: "POST", url: "/api/import/show", payload: { channelFolder: "Cartoon Network", showFolder: "Noted", episodes } })).statusCode).toBe(200);
+  let notes: { at: number | null; skipped: { path: string; reason: string }[] } = { at: null, skipped: [] };
+  await waitFor(async () => {
+    notes = (await app.inject({ method: "GET", url: "/api/library/notes" })).json();
+    return notes.at !== null;
+  });
+  expect(typeof notes.at).toBe("number");
+  expect(notes.skipped).toContainEqual({ path: "ads/short-x.mpg", reason: "duration 500 ms is under 1000 ms" });
+});
+
+const EPISODE = "Cartoon Network/Adventure Time/Season 5/S05E02 - Time 2.mpg";
+
+function fakeRemux() {
+  const calls: { file: string; start: number; stopped: boolean }[] = [];
+  const remuxFn = (file: string, start: number) => {
+    const call = { file, start, stopped: false };
+    calls.push(call);
+    return { stream: Readable.from([Buffer.from("ts")]), stop: () => (call.stopped = true) };
+  };
+  return { calls, remuxFn };
+}
+
+test("play streams the remux of a library file", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  try {
+    const res = await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe("ts");
+    expect(res.headers["content-type"]).toBe("video/mp2t");
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0]).toMatchObject({ file: await realpath(path.join(root, ...EPISODE.split("/"))), start: 0 });
+  } finally {
+    await playing.close();
+  }
+});
+
+test("play passes the start time", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  try {
+    expect((await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE, start: "95" } })).statusCode).toBe(200);
+    expect(fake.calls[0]!.start).toBe(95);
+    for (const start of ["-1", "x", "1.5"]) {
+      expect((await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE, start } })).statusCode, start).toBe(400);
+    }
+  } finally {
+    await playing.close();
+  }
+});
+
+test("play refuses paths outside the library", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  const outside = path.join(dir, "outside.mpg");
+  await writeFile(outside, "video");
+  await symlink(outside, path.join(root, "ads", "link.mpg"));
+  try {
+    for (const rel of ["../outside.mpg", "ads/link.mpg", "config.toml", "Cartoon Network/missing.mpg", ""]) {
+      expect((await playing.inject({ method: "GET", url: "/api/media/play", query: { path: rel } })).statusCode, rel).toBe(404);
+    }
+    expect(fake.calls).toEqual([]);
+  } finally {
+    await playing.close();
+  }
+});
+
+test("play stops ffmpeg when the response closes", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  try {
+    await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE } });
+    expect(fake.calls[0]!.stopped).toBe(true);
+  } finally {
+    await playing.close();
+  }
+});
+
+test("library lists off items after a rebuild", async () => {
+  await useFixture();
+  await writeOff(root, new Set([EPISODE]));
+  expect((await app.inject({ method: "POST", url: "/api/library/rebuild" })).statusCode).toBe(200);
+  const library = (await app.inject({ method: "GET", url: "/api/library" })).json() as WebLibrary;
+  expect(library.show.flatMap((s) => s.episode).map((e) => e.path)).not.toContain(EPISODE);
+  expect(library.off!.show.flatMap((s) => s.episode).map((e) => e.path)).toEqual([EPISODE]);
+});
+
+async function edit(target: FastifyInstance, action: unknown, extra: Record<string, unknown> = {}) {
+  const { mtimeMs } = (await target.inject({ method: "GET", url: "/api/config" })).json() as { mtimeMs: number };
+  return target.inject({ method: "POST", url: "/api/library/edit", payload: { mtimeMs, action, ...extra } });
+}
+
+const BEN = "Cartoon Network/Ben 10/Season 1/S01E05 - Ben Ten.mpg";
+const SEASON5 = [1, 2, 3, 4, 5].map((n) => `Cartoon Network/Adventure Time/Season 5/S05E0${n} - Time ${n}.mpg`);
+
+test("renames an episode and its picks follow", async () => {
+  await useFixture();
+  const res = await edit(app, { kind: "episode", path: "mtv-00s/Music Videos/Artist 1 - Song 1.mpg", title: "Zed", season: null, episode: null });
+  expect(res.statusCode).toBe(200);
+  expect(existsSync(path.join(root, "mtv-00s", "Music Videos", "Zed.mpg"))).toBe(true);
+  expect(res.json().moves).toEqual([{ from: "mtv-00s/Music Videos/Artist 1 - Song 1.mpg", to: "mtv-00s/Music Videos/Zed.mpg" }]);
+  const config = (await getConfig()).config;
+  expect(config.channel[1]!.loop![3]).toEqual({ type: "episode", show: "Music Videos", season: 0, episode: 2 });
+});
+
+test("an edit that adds an error is refused and changes nothing", async () => {
+  await useFixture();
+  const before = await readFile(path.join(root, "config.toml"), "utf8");
+  const off = await edit(app, { kind: "off", paths: SEASON5, off: true });
+  expect(off.statusCode).toBe(422);
+  const issues = (off.json() as { issues: Issue[] }).issues;
+  expect(issues.length).toBeGreaterThan(0);
+  expect(issues.every((i) => i.level === "error" && i.channel === 1)).toBe(true);
+  expect(existsSync(path.join(root, ".studio", "off.toml"))).toBe(false);
+  const moved = await edit(app, { kind: "move-season", paths: SEASON5, season: 6 });
+  expect(moved.statusCode).toBe(422);
+  for (const file of SEASON5) expect(existsSync(path.join(root, ...file.split("/")))).toBe(true);
+  expect(existsSync(path.join(root, "Cartoon Network", "Adventure Time", "Season 6"))).toBe(false);
+  expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
+});
+
+test("a converting file can't be edited", async () => {
+  await useFixture();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const busy = withConvert(async (_s, dst) => {
+    await gate;
+    await writeFile(dst, "new");
+  });
+  try {
+    const src = path.join(dir, "new.mkv");
+    await writeFile(src, "video");
+    await busy.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, OLD_EPISODE) });
+    await waitFor(async () => (await jobsOf(busy)).some((j) => j.state === "running"));
+    const res = await edit(busy, { kind: "episode", path: OLD_EPISODE, title: "Renamed", season: 5, episode: 2 });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("Still converting. Try again when it's done.");
+  } finally {
+    release();
+    await busy.close();
+  }
+});
+
+test("dry run changes nothing and lists removed items", async () => {
+  await useFixture();
+  const before = await readFile(path.join(root, "config.toml"), "utf8");
+  const res = await edit(app, { kind: "off", paths: [BEN], off: true }, { dryRun: true });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().removed).toEqual([{ channel: 1, label: "S01E05 · Ben 10" }]);
+  expect(existsSync(path.join(root, ".studio", "off.toml"))).toBe(false);
+  expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
+});
+
+test("delete removes the file and its direct items", async () => {
+  await useFixture();
+  const res = await edit(app, { kind: "delete", paths: [BEN] });
+  expect(res.statusCode).toBe(200);
+  expect(existsSync(path.join(root, ...BEN.split("/")))).toBe(false);
+  const items = (await getConfig()).config.channel[0]!.slot![0]!.items;
+  expect(items.some((i) => i.type === "episode")).toBe(false);
+});
+
+test("deleting a video in a show without seasons keeps picks on the same videos", async () => {
+  await useFixture();
+  const res = await edit(app, { kind: "delete", paths: ["mtv-00s/Music Videos/Artist 1 - Song 1.mpg"] });
+  expect(res.statusCode).toBe(200);
+  expect((await getConfig()).config.channel[1]!.loop![3]).toEqual({ type: "episode", show: "Music Videos", season: 0, episode: 2 });
+  const library = (await app.inject({ method: "GET", url: "/api/library" })).json() as WebLibrary;
+  const videos = library.show.find((s) => s.folder === "Music Videos")!;
+  expect(videos.episode.find((e) => e.episode === 2)!.path).toBe("mtv-00s/Music Videos/Artist 3 - Song 3.mpg");
+  expect(existsSync(path.join(root, ".studio", "trash"))).toBe(false);
+});
+
+test("a refused delete puts the files back", async () => {
+  await useFixture();
+  const before = await readFile(path.join(root, "config.toml"), "utf8");
+  const res = await edit(app, { kind: "delete", paths: SEASON5 });
+  expect(res.statusCode).toBe(422);
+  for (const file of SEASON5) expect(existsSync(path.join(root, ...file.split("/")))).toBe(true);
+  expect(existsSync(path.join(root, ".studio", "trash"))).toBe(false);
+  expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
+});
+
+test("an error already in the config doesn't block an edit that shifts it", async () => {
+  await useFixture();
+  const file = path.join(root, "config.toml");
+  const text = await readFile(file, "utf8");
+  const broken = text.replace('  { type = "episode", show = "Music Videos", season = 0, episode = 3 },\n]', '  { type = "episode", show = "Music Videos", season = 0, episode = 3 },\n  { type = "random", show = "Gone Show", count = 1 },\n]');
+  expect(broken).not.toBe(text);
+  await writeFile(file, broken);
+  const res = await edit(app, { kind: "off", paths: ["mtv-00s/Music Videos/Artist 3 - Song 3.mpg"], off: true });
+  expect(res.statusCode).toBe(200);
+});
+
+test("switching off keeps the file and hides it from the library", async () => {
+  await useFixture();
+  expect((await edit(app, { kind: "off", paths: [BEN], off: true })).statusCode).toBe(200);
+  expect(existsSync(path.join(root, ...BEN.split("/")))).toBe(true);
+  const library = (await app.inject({ method: "GET", url: "/api/library" })).json() as WebLibrary;
+  expect(library.show.some((s) => s.folder === "Ben 10")).toBe(false);
+  expect(library.off!.show.map((s) => s.folder)).toEqual(["Ben 10"]);
+});
+
+test("conflict on stale mtime", async () => {
+  await useFixture();
+  const res = await app.inject({ method: "POST", url: "/api/library/edit", payload: { mtimeMs: 1, action: { kind: "off", paths: [BEN], off: true } } });
+  expect(res.statusCode).toBe(409);
+});
+
+test("file facts give size and source", async () => {
+  await useFixture();
+  await writeSources(root, [{ target: EPISODE, source: "/videos/time2.mkv", size: 5, mtimeMs: 1, durationMs: 60000 }]);
+  const res = await app.inject({ method: "GET", url: "/api/library/file", query: { path: EPISODE } });
+  expect(res.statusCode).toBe(200);
+  const facts = res.json() as { size: number; mtimeMs: number; source: string | null };
+  expect(facts.size).toBe((await stat(path.join(root, ...EPISODE.split("/")))).size);
+  expect(typeof facts.mtimeMs).toBe("number");
+  expect(facts.source).toBe("/videos/time2.mkv");
+  const plain = await app.inject({ method: "GET", url: "/api/library/file", query: { path: "ads/ad-a.mpg" } });
+  expect(plain.json().source).toBeNull();
+});
+
+test("file facts refuse paths outside the library", async () => {
+  await useFixture();
+  for (const rel of ["../x.mpg", "config.toml", "missing.mpg"]) {
+    expect((await app.inject({ method: "GET", url: "/api/library/file", query: { path: rel } })).statusCode, rel).toBe(404);
+  }
 });
 
 test("sched lineup through GET /api/preview", async () => {
