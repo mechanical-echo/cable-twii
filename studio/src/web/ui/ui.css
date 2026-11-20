@@ -910,3 +910,60 @@ strong {
   margin: 0;
   padding-left: 18px;
 }
+
+.ui-today-bar {
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.ui-airings.busy {
+  opacity: 0.6;
+}
+
+.ui-air {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--band);
+}
+
+.ui-air:last-child {
+  border-bottom: 0;
+}
+
+.ui-air.on {
+  margin: 0 -16px;
+  padding: 6px 16px 6px 17px;
+  border-left: 3px solid var(--accent);
+  background: var(--row-active);
+}
+
+.ui-air-time {
+  width: 104px;
+  flex: none;
+  color: var(--text-clock);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-air-icon {
+  display: inline-flex;
+  width: 28px;
+  flex: none;
+}
+
+.ui-air-ad {
+  color: #b08a3c;
+}
+
+.ui-air-now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px;
+  border-top: 2px solid var(--accent);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+}

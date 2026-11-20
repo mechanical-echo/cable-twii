@@ -3,6 +3,7 @@ import { type DriveInfo, type ModeInfo, getDrive, getMode, onUnauthorized } from
 import { LoginForm, LoginPage } from "./LoginPage";
 import { AddPage } from "./pages/AddPage";
 import { ChannelListPage } from "./pages/ChannelListPage";
+import { ChannelPage } from "./pages/ChannelPage";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { EpisodesPage } from "./pages/EpisodesPage";
@@ -87,7 +88,7 @@ export function App() {
     );
   else if (route.page === "channels") page = <ChannelListPage onNavigate={navigate} />;
   else if (route.page === "folder") page = <FolderPage key={route.folder} folder={route.folder} />;
-  else if (route.page === "channel") page = <ChannelsPage />;
+  else if (route.page === "channel") page = <ChannelPage key={route.number} number={route.number} tab={route.tab} onNavigate={navigate} onDirty={setDirty} />;
   else if (route.page === "schedule") page = <SchedulePage onDirty={setDirty} />;
   else if (route.page === "preview") page = <PreviewPage />;
   else if (route.page === "library") page = <LibraryPage key={session} onNavigate={navigate} />;
