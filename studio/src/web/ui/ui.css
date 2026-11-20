@@ -46,7 +46,6 @@ body {
   font: 500 14px/1.45 "Rounded Mplus 1c", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   color: var(--text);
   background: repeating-linear-gradient(0deg, var(--stripe-a) 0 6px, var(--stripe-b) 6px 12px);
-  background-attachment: fixed;
 }
 
 b,
@@ -119,6 +118,7 @@ strong {
 
 .ui-field.full {
   display: flex;
+  width: 100%;
 }
 
 .ui-field > .ui-label {
@@ -437,4 +437,127 @@ strong {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+.ui-shell {
+  min-height: 100vh;
+}
+
+.ui-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 28px;
+  background: linear-gradient(#fff, #f1f4f7);
+  border-bottom: 1px solid var(--panel-border);
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.ui-brand {
+  margin-right: auto;
+  color: var(--accent-dark);
+  font-size: 17px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ui-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.ui-navtab {
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-clock);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ui-navtab:hover {
+  color: var(--accent-dark);
+}
+
+.ui-navtab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.ui-navtab.on {
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.ui-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 28px 48px;
+}
+
+.ui-main.wide {
+  max-width: 1400px;
+}
+
+.ui-login {
+  max-width: 380px;
+  margin: 14vh auto 0;
+  padding: 0 16px;
+}
+
+.ui-login-brand {
+  margin: 0 0 16px;
+  text-align: center;
+  color: var(--accent-dark);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.ui-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ui-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ui-line.end {
+  justify-content: flex-end;
+}
+
+.ui-facts {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 6px 12px;
+  margin: 0 0 14px;
+}
+
+.ui-facts dt {
+  color: var(--text-clock);
+}
+
+.ui-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-login-form {
+  width: min(380px, 100%);
+}
+
+.ui-stack > p {
+  margin: 0;
+}
+
+.ui-stack > .ui-banner {
+  margin: 0;
 }
