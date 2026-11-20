@@ -83,12 +83,13 @@ interface CheckboxProps {
   onChange: (v: boolean) => void;
   disabled?: boolean;
   label?: string;
+  ariaLabel?: string;
 }
 
-export function Checkbox({ checked, onChange, disabled = false, label }: CheckboxProps) {
+export function Checkbox({ checked, onChange, disabled = false, label, ariaLabel }: CheckboxProps) {
   return (
     <label className={disabled ? "ui-check disabled" : "ui-check"}>
-      <input type="checkbox" checked={checked} disabled={disabled} aria-label={label} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} disabled={disabled} aria-label={ariaLabel ?? label} onChange={(e) => onChange(e.target.checked)} />
       <span className="ui-box" />
       {label !== undefined && <span>{label}</span>}
     </label>

@@ -16,10 +16,12 @@ export function handOff(start: AddStart): void {
   handedOff = start;
 }
 
-export function takeHandOff(): AddStart | null {
-  const start = handedOff;
+export function readHandOff(): AddStart | null {
+  return handedOff;
+}
+
+export function clearHandOff(): void {
   handedOff = null;
-  return start;
 }
 
 export interface Uploads {

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { type DriveInfo, type ModeInfo, getDrive, getMode, onUnauthorized } from "./api";
 import { LoginForm, LoginPage } from "./LoginPage";
+import { AddPage } from "./pages/AddPage";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { EpisodesPage } from "./pages/EpisodesPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { PreviewPage } from "./pages/PreviewPage";
 import { SchedulePage } from "./pages/SchedulePage";
+import { routeHash } from "./router";
 import { Shell } from "./Shell";
 import { signInView } from "./signin";
 import { PillButton } from "./ui/controls";
@@ -85,7 +87,7 @@ export function App() {
   else if (route.page === "schedule") page = <SchedulePage onDirty={setDirty} />;
   else if (route.page === "preview") page = <PreviewPage />;
   else if (route.page === "library") page = <LibraryPage server={server} session={session} />;
-  else if (route.page === "add") page = <EmptyState>Adding episodes arrives in the next step.</EmptyState>;
+  else if (route.page === "add") page = <AddPage key={routeHash(route)} route={route} server={server} uploads={uploads} onDone={() => navigate({ page: "episodes" })} />;
   else page = <EpisodesPage key={session} server={server} uploads={uploads} onNavigate={navigate} />;
 
   return (

@@ -17,6 +17,7 @@ export interface JobRow {
   key: string;
   state: RowState;
   title: string;
+  channel: string;
   detail: string;
   progress: number | null;
   count: number;
@@ -89,7 +90,9 @@ function collapse(jobs: Job[], state: "queued" | "done"): JobRow[] {
     const info = describeTarget(job.target);
     const key = groupKey(job, info);
     const last = runs[runs.length - 1];
-    if (last !== undefined && last.key === key) {
+    const previous = last?.infos[last.infos.length - 1];
+    const follows = previous === undefined || previous.episode === null || info.episode === null || info.episode === previous.episode + 1;
+    if (last !== undefined && last.key === key && follows) {
       last.jobs.push(job);
       last.infos.push(info);
     } else {
@@ -106,6 +109,7 @@ function collapse(jobs: Job[], state: "queued" | "done"): JobRow[] {
       key: count === 1 ? run.jobs[0]!.id : `group:${run.jobs[0]!.id}`,
       state,
       title: groupTitle(run.infos),
+      channel: run.infos[0]!.channel,
       detail,
       progress: null,
       count,
@@ -119,7 +123,7 @@ function collapse(jobs: Job[], state: "queued" | "done"): JobRow[] {
 function uploadRow(task: UploadTask): JobRow {
   const progress = task.size > 0 ? task.loaded / task.size : 0;
   const detail = task.state === "waiting" ? "Waiting to upload" : task.state === "importing" ? "Adding" : percent(progress);
-  return { key: `upload:${task.id}`, state: "uploading", title: task.name, detail, progress, count: 1, shrink: false, error: null, finishedAt: null };
+  return { key: `upload:${task.id}`, state: "uploading", title: task.name, channel: "", detail, progress, count: 1, shrink: false, error: null, finishedAt: null };
 }
 
 function supersedes(other: Job, failed: Job): boolean {
@@ -135,10 +139,12 @@ export function homeRows(jobs: Job[], uploads: UploadTask[], now: number): { act
     ...uploads.filter((u) => u.state === "waiting" || u.state === "uploading" || u.state === "importing").map(uploadRow),
     ...running.map((job) => {
       const shrink = job.kind === "shrink";
+      const info = describeTarget(job.target);
       return {
         key: job.id,
         state: "running" as const,
-        title: singleTitle(describeTarget(job.target)),
+        title: singleTitle(info),
+        channel: info.channel,
         detail: shrink ? "Making smaller" : percent(job.progress),
         progress: job.progress,
         count: 1,
@@ -163,6 +169,7 @@ export function homeRows(jobs: Job[], uploads: UploadTask[], now: number): { act
       key: job.id,
       state: job.missing ? "missing" : "failed",
       title: singleTitle(describeTarget(job.target)),
+      channel: describeTarget(job.target).channel,
       detail: job.missing ? "Add the file again" : "Failed",
       progress: null,
       count: 1,
@@ -172,7 +179,7 @@ export function homeRows(jobs: Job[], uploads: UploadTask[], now: number): { act
     }));
   const rejected: JobRow[] = uploads
     .filter((u) => u.state === "rejected")
-    .map((u) => ({ key: `upload:${u.id}`, state: "rejected", title: u.name, detail: "Not added", progress: null, count: 1, shrink: false, error: u.reason, finishedAt: null }));
+    .map((u) => ({ key: `upload:${u.id}`, state: "rejected", title: u.name, channel: "", detail: "Not added", progress: null, count: 1, shrink: false, error: u.reason, finishedAt: null }));
   const recent = [...collapse([...newestDone.values()], "done"), ...failedRows].sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
   return { active, recent: [...rejected, ...recent] };
 }

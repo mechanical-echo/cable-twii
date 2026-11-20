@@ -603,6 +603,12 @@ strong {
   font-weight: 800;
 }
 
+.ui-job-title small {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .ui-job-error {
   margin-top: 2px;
   color: var(--error-text);
@@ -612,4 +618,243 @@ strong {
 
 .ui-panel .ui-empty {
   padding: 16px;
+}
+
+.ui-dest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ui-dest > .ui-muted {
+  align-self: center;
+}
+
+.ui-rows {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 5px;
+}
+
+.ui-rows th {
+  padding: 0 8px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.ui-rows td {
+  padding: 6px 8px;
+  vertical-align: middle;
+  background: linear-gradient(#fff, var(--gloss));
+  border-top: 1px solid var(--track);
+  border-bottom: 1px solid var(--track);
+}
+
+.ui-rows td:first-child {
+  border-left: 1px solid var(--track);
+  border-radius: 9px 0 0 9px;
+}
+
+.ui-rows td:last-child {
+  border-right: 1px solid var(--track);
+  border-radius: 0 9px 9px 0;
+}
+
+.ui-rows td.grow {
+  width: 100%;
+}
+
+.ui-rows tr.off td {
+  opacity: 0.55;
+}
+
+.ui-rows tr.ui-desc td {
+  padding-top: 0;
+  border-radius: 9px;
+  border: 1px solid var(--track);
+}
+
+.ui-thumb {
+  position: relative;
+  width: 64px;
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: #222;
+  cursor: pointer;
+}
+
+.ui-thumb::after {
+  content: "▶";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+}
+
+.ui-thumb:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.ui-code {
+  white-space: nowrap;
+}
+
+.ui-se {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.ui-input.tiny {
+  width: 42px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.ui-file {
+  max-width: 220px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-file-main {
+  overflow-wrap: anywhere;
+}
+
+.ui-link {
+  padding: 0;
+  margin-top: 3px;
+  border: 0;
+  background: none;
+  color: var(--accent-dark);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ui-length {
+  color: var(--text-clock);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ui-note {
+  white-space: nowrap;
+}
+
+.ui-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 -2px 8px var(--shadow);
+}
+
+.ui-preview {
+  width: min(720px, 100%);
+}
+
+.ui-preview video {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  border-radius: 9px;
+  background: #222;
+}
+
+.ui-preview-failed {
+  padding: 40px 16px;
+  border-radius: 9px;
+  background: #222;
+  color: #aaa;
+  text-align: center;
+}
+
+.ui-crumbs {
+  margin-bottom: 10px;
+}
+
+.ui-crumb {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--accent-dark);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ui-crumb:disabled {
+  color: var(--text);
+  font-weight: 800;
+  cursor: default;
+}
+
+.ui-entries {
+  max-height: 45vh;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--track);
+  border-radius: 9px;
+}
+
+.ui-entry {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--band);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+}
+
+.ui-entries li:last-child .ui-entry,
+.ui-entries li.ui-entry:last-child {
+  border-bottom: 0;
+}
+
+.ui-entry.folder {
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ui-entry.folder:hover {
+  background: var(--row-active);
+}
+
+.ui-file-input {
+  font: inherit;
+  font-size: 12px;
+}
+
+.ui-gap {
+  margin-top: 12px;
 }

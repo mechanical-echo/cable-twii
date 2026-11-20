@@ -38,6 +38,7 @@ describe("homeRows", () => {
       ["running", "Gumball S03E19", "62%", 0.62],
       ["queued", "Gumball S03E20", "1 waiting", null],
     ]);
+    expect(active.map((r) => r.channel)).toEqual(["Cartoon Network", "Cartoon Network"]);
   });
 
   it("recent keeps seven days", () => {
@@ -55,6 +56,15 @@ describe("homeRows", () => {
     expect(recent.map((r) => [r.state, r.title, r.count, r.detail, r.finishedAt])).toEqual([
       ["done", "Adventure Time S02E07", 1, "1 on air", NOW - 1000],
       ["done", "Gumball S03E01–E18", 18, "18 on air", NOW - 5000 + 17],
+    ]);
+  });
+
+  it("a gap in the episodes starts a new row", () => {
+    const jobs = [job(gumball(19), "done", { finishedAt: NOW - 2 }), job(gumball(21), "done", { finishedAt: NOW - 1 })];
+    const { recent } = homeRows(jobs, [], NOW);
+    expect(recent.map((r) => [r.title, r.count])).toEqual([
+      ["Gumball S03E21", 1],
+      ["Gumball S03E19", 1],
     ]);
   });
 

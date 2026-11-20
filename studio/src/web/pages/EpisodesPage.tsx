@@ -28,7 +28,10 @@ function Row({ row, onDismiss }: { row: JobRow; onDismiss?: () => void }) {
   return (
     <ListRow>
       <div className="grow">
-        <div className="ui-job-title">{row.title}</div>
+        <div className="ui-job-title">
+          {row.title}
+          {row.channel !== "" && <small> · {row.channel}</small>}
+        </div>
         {row.error !== null && <div className="ui-job-error">{row.error}</div>}
       </div>
       {row.progress !== null && <ProgressBar value={row.progress} />}
