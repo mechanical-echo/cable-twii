@@ -6,7 +6,7 @@ import { IconImage } from "../IconImage";
 import { formatEpisodeCode } from "../preview";
 import { type ShowNode, type WebLibrary, buildTree, seasonLabel } from "../tree";
 import { PillButton } from "../ui/controls";
-import { Banner, EmptyState, Panel } from "../ui/layout";
+import { Banner, EmptyState, Panel, rowLink } from "../ui/layout";
 import { Chip } from "../ui/status";
 import { useJobs } from "../useJobs";
 import { ShowInfoDialog } from "./ShowInfoDialog";
@@ -14,6 +14,7 @@ import { ShowInfoDialog } from "./ShowInfoDialog";
 interface Props {
   folder: string;
   onAdd?: () => void;
+  onOpen?: (path: string) => void;
 }
 
 const REFRESH_DELAY_MS = 2600;
@@ -42,7 +43,7 @@ function PendingRows({ rows, jobs }: { rows: PendingEpisode[]; jobs: Parameters<
   );
 }
 
-export function ShowsTab({ folder, onAdd }: Props) {
+export function ShowsTab({ folder, onAdd, onOpen }: Props) {
   const [library, setLibrary] = useState<WebLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ShowNode | null>(null);
@@ -107,7 +108,7 @@ export function ShowsTab({ folder, onAdd }: Props) {
             <div key={s.season} className="ui-season">
               <h3 className="ui-subhead">{seasonLabel(s.season)}</h3>
               {s.episodes.map((ep) => (
-                <div key={ep.path} className="ui-ep">
+                <div key={ep.path} {...rowLink("ui-ep", onOpen && (() => onOpen(ep.path)))}>
                   <span className="ui-ep-code">{ep.season >= 1 ? formatEpisodeCode(ep.season, ep.episode) : ""}</span>
                   <span className="grow">{ep.title}</span>
                   <span className="ui-length">{formatDuration(ep.duration_ms)}</span>

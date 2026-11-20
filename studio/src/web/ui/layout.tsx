@@ -87,3 +87,19 @@ export function Crumbs({ items, onNavigate }: { items: Crumb[]; onNavigate: (rou
     </nav>
   );
 }
+
+export function rowLink(base: string, open: (() => void) | undefined) {
+  if (open === undefined) return { className: base };
+  return {
+    className: `${base} link`,
+    role: "button",
+    tabIndex: 0,
+    onClick: open,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    },
+  };
+}

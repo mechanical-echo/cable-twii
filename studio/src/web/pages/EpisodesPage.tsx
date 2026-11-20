@@ -24,9 +24,9 @@ const CHIPS: Record<JobRow["state"], "neutral" | "ok" | "warn" | "error"> = {
   rejected: "warn",
 };
 
-function Row({ row, onDismiss }: { row: JobRow; onDismiss?: () => void }) {
+function Row({ row, onDismiss, onOpen }: { row: JobRow; onDismiss?: () => void; onOpen?: () => void }) {
   return (
-    <ListRow>
+    <ListRow onClick={onOpen}>
       <div className="grow">
         <div className="ui-job-title">
           {row.title}
@@ -124,6 +124,12 @@ function DropZone({ server, onNavigate }: Pick<Props, "server" | "onNavigate">) 
   );
 }
 
+function targetRoute(target: string): Route {
+  const parts = target.split("/");
+  const ad = (parts.length === 2 && parts[0] === "ads") || (parts.length === 3 && parts[1] === "ads");
+  return ad ? { page: "ad", path: target } : { page: "episode", path: target };
+}
+
 export function EpisodesPage({ server, uploads, onNavigate }: Props) {
   const { jobs, problem } = useJobs();
   const [retrying, setRetrying] = useState(false);
@@ -174,7 +180,12 @@ export function EpisodesPage({ server, uploads, onNavigate }: Props) {
           }
         >
           {recent.map((row) => (
-            <Row key={row.key} row={row} onDismiss={row.state === "rejected" ? () => uploads.dismiss(row.key.slice("upload:".length)) : undefined} />
+            <Row
+              key={row.key}
+              row={row}
+              onDismiss={row.state === "rejected" ? () => uploads.dismiss(row.key.slice("upload:".length)) : undefined}
+              onOpen={row.state === "done" && row.target !== null ? () => onNavigate(targetRoute(row.target!)) : undefined}
+            />
           ))}
         </Panel>
       )}

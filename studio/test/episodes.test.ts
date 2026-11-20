@@ -39,6 +39,7 @@ describe("homeRows", () => {
       ["queued", "Gumball S03E20", "1 waiting", null],
     ]);
     expect(active.map((r) => r.channel)).toEqual(["Cartoon Network", "Cartoon Network"]);
+    expect(active.map((r) => r.target)).toEqual([gumball(19), gumball(20)]);
   });
 
   it("recent keeps seven days", () => {
@@ -57,6 +58,7 @@ describe("homeRows", () => {
       ["done", "Adventure Time S02E07", 1, "1 on air", NOW - 1000],
       ["done", "Gumball S03E01–E18", 18, "18 on air", NOW - 5000 + 17],
     ]);
+    expect(recent.map((r) => r.target)).toEqual(["Cartoon Network/Adventure Time/Season 2/S02E07 - Seven.mpg", null]);
   });
 
   it("a gap in the episodes starts a new row", () => {

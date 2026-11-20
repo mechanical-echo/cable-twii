@@ -717,6 +717,26 @@ test("conflict on stale mtime", async () => {
   expect(res.statusCode).toBe(409);
 });
 
+test("file facts give size and source", async () => {
+  await useFixture();
+  await writeSources(root, [{ target: EPISODE, source: "/videos/time2.mkv", size: 5, mtimeMs: 1, durationMs: 60000 }]);
+  const res = await app.inject({ method: "GET", url: "/api/library/file", query: { path: EPISODE } });
+  expect(res.statusCode).toBe(200);
+  const facts = res.json() as { size: number; mtimeMs: number; source: string | null };
+  expect(facts.size).toBe((await stat(path.join(root, ...EPISODE.split("/")))).size);
+  expect(typeof facts.mtimeMs).toBe("number");
+  expect(facts.source).toBe("/videos/time2.mkv");
+  const plain = await app.inject({ method: "GET", url: "/api/library/file", query: { path: "ads/ad-a.mpg" } });
+  expect(plain.json().source).toBeNull();
+});
+
+test("file facts refuse paths outside the library", async () => {
+  await useFixture();
+  for (const rel of ["../x.mpg", "config.toml", "missing.mpg"]) {
+    expect((await app.inject({ method: "GET", url: "/api/library/file", query: { path: rel } })).statusCode, rel).toBe(404);
+  }
+});
+
 test("sched lineup through GET /api/preview", async () => {
   await useFixture();
   const res = await app.inject({ method: "GET", url: "/api/preview?channel=1&date=2026-10-20" });

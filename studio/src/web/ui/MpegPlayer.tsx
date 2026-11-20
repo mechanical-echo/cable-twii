@@ -172,7 +172,7 @@ export function MpegPlayer({ path, durationMs, aspect }: Props) {
       if (!picture && player.current === created) setFailed(true);
     }, NO_PICTURE_MS);
     const tick = window.setInterval(() => {
-      if (player.current === created) setTime(at + (created.currentTime || 0));
+      if (player.current === created) setTime(at + Math.max(0, created.currentTime || 0));
     }, TICK_MS);
     timers.current.push(watch, tick);
   }

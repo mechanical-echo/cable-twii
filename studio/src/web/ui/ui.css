@@ -1493,3 +1493,40 @@ button.mini {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+.ui-ep.link,
+.ui-air.link {
+  cursor: pointer;
+}
+
+.ui-ep.link:hover,
+.ui-air.link:hover {
+  background: var(--row-active);
+}
+
+.ui-ep.link:focus-visible,
+.ui-air.link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.ui-airs-on {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ui-chip.link {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ui-logo.small {
+  width: 32px;
+  height: 24px;
+}
+
+.ui-player-screen canvas {
+  object-fit: contain;
+}

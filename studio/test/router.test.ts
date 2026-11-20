@@ -109,3 +109,45 @@ describe("parentsOf", () => {
     expect(parentsOf({ page: "add", to: "episodes", channel: 7 }, names)[1]).toEqual({ label: "Channel 7", route: { page: "channel", number: 7, tab: "today" } });
   });
 });
+
+describe("library routes", () => {
+  const EP = "Cartoon Network/Tom & Jerry/Season 1/S01E01 - Cat #1.mpg";
+
+  it("parses the new routes", () => {
+    expect(parseRoute("#/shows")).toEqual({ page: "shows" });
+    expect(parseRoute("#/shows/Cartoon%20Network/Gumball")).toEqual({ page: "show", channel: "Cartoon Network", show: "Gumball" });
+    expect(parseRoute("#/episode/Cartoon%20Network/Gumball/Season%201/S01E01%20-%20One.mpg")).toEqual({ page: "episode", path: "Cartoon Network/Gumball/Season 1/S01E01 - One.mpg" });
+    expect(parseRoute("#/ad/ads/cola.mpg")).toEqual({ page: "ad", path: "ads/cola.mpg" });
+    expect(parseRoute("#/shows/OnlyOne")).toEqual({ page: "episodes" });
+    expect(parseRoute("#/episode")).toEqual({ page: "episodes" });
+  });
+
+  it("round trips paths with spaces and &", () => {
+    const routes: Route[] = [
+      { page: "shows" },
+      { page: "show", channel: "Tom & Jerry TV", show: "Tom & Jerry" },
+      { page: "episode", path: EP },
+      { page: "ad", path: "Cartoon Network/ads/50% off?.mpg" },
+    ];
+    for (const route of routes) expect(parseRoute(routeHash(route))).toEqual(route);
+  });
+
+  it("new parents", () => {
+    const names = () => null;
+    const showName = (ref: { channel: string; show: string }) => (ref.show === "Gumball" ? "The Amazing World of Gumball" : null);
+    expect(parentsOf({ page: "show", channel: "Cartoon Network", show: "Gumball" }, names, showName)).toEqual([{ label: "Shows", route: { page: "shows" } }]);
+    expect(parentsOf({ page: "episode", path: "Cartoon Network/Gumball/Season 1/S01E01 - One.mpg" }, names, showName)).toEqual([
+      { label: "Shows", route: { page: "shows" } },
+      { label: "The Amazing World of Gumball", route: { page: "show", channel: "Cartoon Network", show: "Gumball" } },
+    ]);
+    expect(parentsOf({ page: "episode", path: "Nick/Rugrats/E01 - Pilot.mpg" }, names)[1]!.label).toBe("Rugrats");
+    expect(parentsOf({ page: "ad", path: "ads/cola.mpg" }, names)).toEqual([{ label: "Ads", route: { page: "ads" } }]);
+  });
+
+  it("new top tabs", () => {
+    expect(topTab({ page: "shows" })).toBe("shows");
+    expect(topTab({ page: "show", channel: "a", show: "b" })).toBe("shows");
+    expect(topTab({ page: "episode", path: "a/b/c.mpg" })).toBe("shows");
+    expect(topTab({ page: "ad", path: "ads/a.mpg" })).toBe("ads");
+  });
+});

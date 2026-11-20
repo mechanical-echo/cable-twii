@@ -7,18 +7,34 @@ export type Route =
   | { page: "channel"; number: number; tab: ChannelTab }
   | { page: "folder"; folder: string }
   | { page: "ads" }
+  | { page: "shows" }
+  | { page: "show"; channel: string; show: string }
+  | { page: "episode"; path: string }
+  | { page: "ad"; path: string }
   | { page: "server" };
 
-export type TopTab = "episodes" | "channels" | "ads" | "server";
+export type TopTab = "episodes" | "channels" | "shows" | "ads" | "server";
 
 const CHANNEL_TABS: readonly ChannelTab[] = ["today", "schedule", "shows", "settings"];
-const PLAIN_PAGES = ["channels", "ads", "server"] as const;
+const PLAIN_PAGES = ["channels", "shows", "ads", "server"] as const;
 const EPISODES: Route = { page: "episodes" };
 
 function channelNumber(text: string | null | undefined): number | null {
   if (text === null || text === undefined || !/^\d+$/.test(text)) return null;
   const n = Number(text);
   return n >= 1 ? n : null;
+}
+
+function decodeAll(parts: string[]): string[] | null {
+  try {
+    return parts.map((p) => decodeURIComponent(p));
+  } catch {
+    return null;
+  }
+}
+
+function encodePath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
 }
 
 export function parseRoute(hash: string): Route {
@@ -36,6 +52,14 @@ export function parseRoute(hash: string): Route {
     const tab = (rest[1] ?? "today") as ChannelTab;
     if (number === null || !CHANNEL_TABS.includes(tab)) return EPISODES;
     return { page: "channel", number, tab };
+  }
+  if (head === "shows" && rest.length === 2) {
+    const decoded = decodeAll(rest);
+    return decoded === null ? EPISODES : { page: "show", channel: decoded[0]!, show: decoded[1]! };
+  }
+  if ((head === "episode" || head === "ad") && rest.length >= 2) {
+    const decoded = decodeAll(rest);
+    return decoded === null ? EPISODES : { page: head, path: decoded.join("/") };
   }
   if (head === "folders" && rest.length === 1) {
     try {
@@ -66,6 +90,11 @@ export function routeHash(route: Route): string {
       return `#/channels/${route.number}/${route.tab}`;
     case "folder":
       return `#/folders/${encodeURIComponent(route.folder)}`;
+    case "show":
+      return `#/shows/${encodeURIComponent(route.channel)}/${encodeURIComponent(route.show)}`;
+    case "episode":
+    case "ad":
+      return `#/${route.page}/${encodePath(route.path)}`;
     default:
       return `#/${route.page}`;
   }
@@ -83,7 +112,12 @@ export function topTab(route: Route): TopTab | null {
     case "folder":
       return "channels";
     case "ads":
+    case "ad":
       return "ads";
+    case "shows":
+    case "show":
+    case "episode":
+      return "shows";
     case "server":
       return "server";
     default:
@@ -98,8 +132,18 @@ export interface Crumb {
 
 const CHANNELS: Crumb = { label: "Channels", route: { page: "channels" } };
 
-export function parentsOf(route: Route, channelName: (number: number) => string | null): Crumb[] {
+const SHOWS: Crumb = { label: "Shows", route: { page: "shows" } };
+
+export function parentsOf(route: Route, channelName: (number: number) => string | null, showName: (ref: { channel: string; show: string }) => string | null = () => null): Crumb[] {
   switch (route.page) {
+    case "show":
+      return [SHOWS];
+    case "episode": {
+      const [channel = "", show = ""] = route.path.split("/");
+      return [SHOWS, { label: showName({ channel, show }) ?? show, route: { page: "show", channel, show } }];
+    }
+    case "ad":
+      return [{ label: "Ads", route: { page: "ads" } }];
     case "channel":
     case "folder":
       return [CHANNELS];

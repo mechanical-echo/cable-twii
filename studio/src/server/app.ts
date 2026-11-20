@@ -1179,6 +1179,16 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     return { path: parts.join("/") };
   });
 
+  app.get("/api/library/file", async (request, reply) => {
+    const root = await requireRoot();
+    const rel = (request.query as Record<string, unknown>).path;
+    const file = await libraryFile(root, rel, ".mpg");
+    if (file === null || typeof rel !== "string") return reply.code(404).send({ error: "Not found" });
+    const info = await stat(file);
+    const record = (await sourceRecords(root)).find((r) => r.target === rel);
+    return { size: info.size, mtimeMs: Math.trunc(info.mtimeMs), source: record?.source ?? null };
+  });
+
   app.get("/api/media/play", async (request, reply) => {
     const root = await requireRoot();
     const query = request.query as Record<string, unknown>;

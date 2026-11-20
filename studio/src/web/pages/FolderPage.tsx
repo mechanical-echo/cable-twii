@@ -7,7 +7,7 @@ export function FolderPage({ folder, onNavigate }: { folder: string; onNavigate:
     <section>
       <Crumbs items={parentsOf({ page: "folder", folder }, () => null)} onNavigate={onNavigate} />
       <PageHead title={folder} sub="Not on a channel" />
-      <ShowsTab folder={folder} />
+      <ShowsTab folder={folder} onOpen={(path) => onNavigate({ page: "episode", path })} />
     </section>
   );
 }

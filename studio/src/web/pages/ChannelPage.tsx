@@ -92,9 +92,9 @@ export function ChannelPage({ number, tab, onNavigate, onDirty }: Props) {
         </div>
       </header>
       <Tabs tabs={TABS} active={tab} onChange={(next) => onNavigate({ page: "channel", number, tab: next })} />
-      {tab === "today" && <TodayTab key={number} channel={channel} library={library} />}
+      {tab === "today" && <TodayTab key={number} channel={channel} library={library} onOpen={(path) => onNavigate({ page: "episode", path })} />}
       {tab === "schedule" && <ScheduleTab number={number} onDirty={onDirty} />}
-      {tab === "shows" && <ShowsTab folder={effectiveFolder(channel)} onAdd={() => onNavigate({ page: "add", to: "episodes", channel: channel.number })} />}
+      {tab === "shows" && <ShowsTab folder={effectiveFolder(channel)} onAdd={() => onNavigate({ page: "add", to: "episodes", channel: channel.number })} onOpen={(path) => onNavigate({ page: "episode", path })} />}
       {tab === "settings" && (
         <SettingsTab
           number={number}

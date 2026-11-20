@@ -10,7 +10,7 @@ import { createLatest } from "../latest";
 import { type GuideRow, adBreakLabel, findShow, formatClock, formatEpisodeCode, groupAirings, localDate, localMs, nowPosition } from "../preview";
 import type { WebLibrary } from "../tree";
 import { PillButton, TextField } from "../ui/controls";
-import { Banner, EmptyState, Panel } from "../ui/layout";
+import { Banner, EmptyState, Panel, rowLink } from "../ui/layout";
 import { ProgressBar } from "../ui/status";
 
 const MINUTE_MS = 60_000;
@@ -18,6 +18,7 @@ const MINUTE_MS = 60_000;
 interface Props {
   channel: Channel;
   library: WebLibrary | null;
+  onOpen?: (path: string) => void;
 }
 
 function issuePlace(slot: number, item: number): string {
@@ -25,7 +26,7 @@ function issuePlace(slot: number, item: number): string {
   return item >= 0 ? `Loop item ${item + 1}: ` : "";
 }
 
-export function TodayTab({ channel, library }: Props) {
+export function TodayTab({ channel, library, onOpen }: Props) {
   const [date, setDate] = useState(() => localDate(new Date()));
   const [lineup, setLineup] = useState<LineupResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -109,7 +110,7 @@ export function TodayTab({ channel, library }: Props) {
     }
     const current = here && position.current;
     items.push(
-      <div key={row.key} className={current ? "ui-air on" : "ui-air"}>
+      <div key={row.key} {...rowLink(current ? "ui-air on" : "ui-air", row.kind === "episode" && row.airing.path !== null && onOpen ? () => onOpen(row.airing.path!) : undefined)}>
         <span className="ui-air-time">
           {formatClock(row.startMs)}–{formatClock(row.endMs)}
         </span>

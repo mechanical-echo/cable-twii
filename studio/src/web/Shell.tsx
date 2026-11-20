@@ -19,6 +19,7 @@ export function Shell({ server, route, onNavigate, children }: Props) {
   const tabs: TabLink[] = [
     { label: "Episodes", route: { page: "episodes" }, active: top === "episodes" },
     { label: "Channels", route: { page: "channels" }, active: top === "channels" },
+    { label: "Shows", route: { page: "shows" }, active: top === "shows" },
     { label: "Ads", route: { page: "ads" }, active: top === "ads" },
     { label: server ? "Server" : "Drive", route: { page: "server" }, active: top === "server" },
   ];

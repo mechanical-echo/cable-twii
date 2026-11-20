@@ -4,7 +4,7 @@ import { type AdGroup, adGroups, skippedAds } from "../ads";
 import { formatDuration } from "../format";
 import type { Route } from "../router";
 import { PillButton } from "../ui/controls";
-import { Banner, EmptyState, PageHead, Panel } from "../ui/layout";
+import { Banner, EmptyState, PageHead, Panel, rowLink } from "../ui/layout";
 
 interface Props {
   onNavigate: (route: Route) => void;
@@ -41,7 +41,7 @@ export function AdsPage({ onNavigate }: Props) {
       {groups?.map((group) => (
         <Panel key={group.channel} title={group.label}>
           {group.ads.map((ad) => (
-            <div key={ad.path} className="ui-ep">
+            <div key={ad.path} {...rowLink("ui-ep", () => onNavigate({ page: "ad", path: ad.path }))}>
               <span className="grow">{ad.name}</span>
               <span className="ui-length">{formatDuration(ad.durationMs)}</span>
             </div>
