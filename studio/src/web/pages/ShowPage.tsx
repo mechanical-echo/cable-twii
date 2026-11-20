@@ -5,7 +5,7 @@ import { ShowInfoDialog } from "../channel/ShowInfoDialog";
 import { FailureBanner } from "../FailureBanner";
 import { formatDuration } from "../format";
 import { IconImage } from "../IconImage";
-import { AirsOnChips } from "../library/AirsOn";
+import { SlotPicker } from "../library/SlotPicker";
 import { formatEpisodeCode } from "../preview";
 import { type Route, parentsOf } from "../router";
 import { allShows, offPaths, seasonTargets } from "../shows";
@@ -31,6 +31,7 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [target, setTarget] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [picking, setPicking] = useState<{ kind: "airs-on"; channel: number } | { kind: "append" } | null>(null);
   const crumbs = parentsOf({ page: "show", channel, show: folder }, () => null);
   if (error !== null) return <Banner kind="error">{error}</Banner>;
   if (library === null || config === null) return <EmptyState>Loading…</EmptyState>;
@@ -84,6 +85,29 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
           danger,
         });
 
+  const airing = channelsAiring(config, { channel, show: folder });
+
+  async function airsOn(number: number, on: boolean, slot: number | null) {
+    const name = channelName(number);
+    const result = on
+      ? await edit.run({ kind: "airs-on", channel, show: folder, number, on: true, slot }, { done: `Added to ${name}.` })
+      : await edit.run({ kind: "airs-on", channel, show: folder, number, on: false, slot: null }, { done: `Taken off ${name}.`, confirm: confirmRemoved(`Take ${show!.name} off ${name}?`, "Take off") });
+    if (result !== null) reload();
+  }
+
+  function tickChannel(number: number, on: boolean) {
+    const ch = config!.channel.find((c) => c.number === number);
+    if (on && ch?.mode === "timed") setPicking({ kind: "airs-on", channel: number });
+    else void airsOn(number, on, null);
+  }
+
+  async function appendPicks(number: number, slot: number | null) {
+    const target = config!.channel.find((c) => c.number === number);
+    const from = target !== undefined && channelFolder(target) === channel ? {} : { from: channel };
+    const items = show!.episode.filter((e) => ticked.has(e.path)).map((e) => ({ type: "episode" as const, show: folder, season: e.season, episode: e.episode, ...from }));
+    await after(await edit.run({ kind: "append", number, slot, items }, { done: `Added ${items.length} to ${channelName(number)}.` }));
+  }
+
   async function deleteShow() {
     const result = await edit.run(
       { kind: "delete-show", channel, show: folder },
@@ -114,7 +138,14 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
       {edit.notice !== null && <Banner kind="ok">{edit.notice}</Banner>}
       <FailureBanner failure={edit.failure} onReload={reload} />
       <Panel title="Airs on">
-        <AirsOnChips numbers={channelsAiring(config, { channel, show: folder })} config={config} onNavigate={onNavigate} />
+        <div className="ui-line">
+          {[...config.channel]
+            .sort((a, b) => a.number - b.number)
+            .map((c) => (
+              <Checkbox key={c.number} checked={airing.includes(c.number)} disabled={edit.busy} label={c.name} onChange={(on) => tickChannel(c.number, on)} />
+            ))}
+          {config.channel.length === 0 && <span className="ui-muted">No channels yet.</span>}
+        </div>
       </Panel>
       {picked.length > 0 && (
         <div className="ui-bulk">
@@ -127,6 +158,9 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
           />
           <PillButton small disabled={edit.busy} onClick={() => void edit.run({ kind: "move-season", paths: picked, season: Number(targetNow) }, { done: "Moved." }).then(after)}>
             Move
+          </PillButton>
+          <PillButton small disabled={edit.busy || config.channel.length === 0} onClick={() => setPicking({ kind: "append" })}>
+            Add to a channel…
           </PillButton>
           <span className="grow" />
           <PillButton small disabled={edit.busy} onClick={() => void edit.run({ kind: "off", paths: picked, off: true }, { done: "Switched off.", confirm: confirmRemoved("Switch these off?", "Switch off") }).then(after)}>
@@ -172,6 +206,21 @@ export function ShowPage({ channel, show: folder, server, onNavigate }: Props) {
           channelFolder={channel}
           onClose={() => setEditing(false)}
           onSaved={() => reload()}
+        />
+      )}
+      {picking !== null && (
+        <SlotPicker
+          config={config}
+          channel={picking.kind === "airs-on" ? picking.channel : undefined}
+          title={picking.kind === "airs-on" ? `Add ${show.name} to ${channelName(picking.channel)}` : `Add ${picked.length} episodes to a channel`}
+          confirm="Add"
+          onCancel={() => setPicking(null)}
+          onPick={(number, slot) => {
+            const kind = picking.kind;
+            setPicking(null);
+            if (kind === "airs-on") void airsOn(number, true, slot);
+            else void appendPicks(number, slot);
+          }}
         />
       )}
       {dialog}
