@@ -292,6 +292,18 @@ test("import scan returns files", async () => {
   expect(body.files[0]).toMatchObject({ durationMs: 60000, aspect: "4:3", tooShort: false, guess: { season: 1, episode: 1, title: "First" } });
 });
 
+test("scan marks files converted before", async () => {
+  const first = await put(imports, "a/S01E01 First.mp4");
+  expect((await importShow(first)).statusCode).toBe(200);
+  await converted();
+  await put(imports, "a/S01E02 Second.mp4");
+  const files = (await scan("a")).json().files as { source: string; added?: boolean }[];
+  expect(files.map((f) => [path.basename(f.source), f.added])).toEqual([
+    ["S01E01 First.mp4", true],
+    ["S01E02 Second.mp4", undefined],
+  ]);
+});
+
 test("import scan takes one folder", async () => {
   await put(imports, "b.mp4");
   await put(imports, "a/x.mp4");

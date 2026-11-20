@@ -210,6 +210,26 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+async function alreadyConverted(root: string, records: SourceRecord[], source: string): Promise<boolean> {
+  for (const rec of records) {
+    if (rec.source !== source) continue;
+    try {
+      if (!(await lstat(path.join(root, ...rec.target.split("/")))).isFile()) continue;
+      if (!needsConversion(rec, await stat(source), true)) return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+}
+
+async function markAdded(root: string, records: SourceRecord[], files: ScanResult[]): Promise<ScanResult[]> {
+  for (const file of files) {
+    if (await alreadyConverted(root, records, file.source)) file.added = true;
+  }
+  return files;
+}
+
 async function isDirectory(p: string): Promise<boolean> {
   try {
     return (await stat(p)).isDirectory();
@@ -627,7 +647,9 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     app.post("/api/import/pick-source", async (_request, reply) => {
       const dir = await pick("Choose a folder with videos");
       if (dir === null) return sendNull(reply);
-      return { dir, files: await scanSource(dir, probeFn) };
+      const files = await scanSource(dir, probeFn);
+      const root = await requireRoot().catch(() => null);
+      return { dir, files: root === null ? files : await markAdded(root, await sourceRecords(root), files) };
     });
   }
 
@@ -689,6 +711,24 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   if (uploads) {
+    app.post("/api/upload/check", async (request) => {
+      const files = objectBody(request.body).files;
+      if (!Array.isArray(files)) throw bad("files must be a list.");
+      const wanted = files.map((raw) => {
+        const f = objectBody(raw);
+        if (typeof f.name !== "string" || typeof f.size !== "number") throw bad("Each file needs a name and a size.");
+        return { name: f.name, size: f.size };
+      });
+      const root = await requireRoot();
+      const records = await sourceRecords(root);
+      const added: string[] = [];
+      for (const { name, size } of wanted) {
+        const stored = uploadName(name);
+        if (stored !== null && (await convertedUpload(root, records, stored, size))) added.push(name);
+      }
+      return { added };
+    });
+
     app.post("/api/upload/discard", async (request) => {
       const body = objectBody(request.body);
       const names = body.names;
@@ -728,9 +768,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
     app.post("/api/import/scan", async (request) => {
       const rel = stringField(objectBody(request.body), "dir");
+      const root = await requireRoot();
       return inImports(async () => {
         const dir = await resolveImportsDir(server.imports, rel);
-        return { dir, files: await scanSource(dir, probeFn) };
+        return { dir, files: await markAdded(root, await sourceRecords(root), await scanSource(dir, probeFn)) };
       });
     });
   }

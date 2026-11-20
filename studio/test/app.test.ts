@@ -10,7 +10,7 @@ import type { convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
 import { readShowMeta } from "../src/server/showMeta.js";
-import { writeSources } from "../src/server/sources.js";
+import { readSources, writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
 import { DRIVE_PROFILE, type VideoProfile } from "../src/server/videoSettings.js";
 import { fakeConvert, fakeProbe, multipart, waitFor } from "./helpers.js";
@@ -383,6 +383,27 @@ test("pick-source scans the picked folder", async () => {
   const res = await picked.inject({ method: "POST", url: "/api/import/pick-source" });
   await picked.close();
   expect(res.json()).toEqual({ dir: src, files: [] });
+});
+
+test("picked folder marks files converted before", async () => {
+  await useFixture();
+  const src = path.join(dir, "src");
+  await mkdir(src);
+  await writeFile(path.join(src, "S01E01 Old.mp4"), "video");
+  const picked = make({ pickFolderFn: async () => src });
+  const episodes = [{ source: path.join(src, "S01E01 Old.mp4"), season: 1, episode: 1, title: "Old", description: "", aspect: "4:3" }];
+  const imported = await picked.inject({ method: "POST", url: "/api/import/show", payload: { channelFolder: "Cartoon Network", showFolder: "Picked", episodes } });
+  expect(imported.statusCode).toBe(200);
+  await waitFor(async () => ((await picked.inject({ method: "GET", url: "/api/jobs" })).json() as Job[]).every((j) => j.state === "done"));
+  await waitFor(async () => (await readSources(root)).some((r) => r.source === path.join(src, "S01E01 Old.mp4")));
+  await writeFile(path.join(src, "S01E02 New.mp4"), "video");
+  const res = await picked.inject({ method: "POST", url: "/api/import/pick-source" });
+  await picked.close();
+  const files = res.json().files as { source: string; added?: boolean }[];
+  expect(files.map((f) => [path.basename(f.source), f.added])).toEqual([
+    ["S01E01 Old.mp4", true],
+    ["S01E02 New.mp4", undefined],
+  ]);
 });
 
 test("sched lineup through GET /api/preview", async () => {

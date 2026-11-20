@@ -50,6 +50,7 @@ export interface ScanResult {
   aspect: "16:9" | "4:3";
   tooShort: boolean;
   error?: string;
+  added?: boolean;
 }
 
 const MISSING_REASON = "That folder doesn't exist.";

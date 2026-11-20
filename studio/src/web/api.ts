@@ -129,6 +129,8 @@ export const getImports = (dir: string) => send<{ dir: string; entries: ImportEn
 export const scanImports = (dir: string) => send<{ dir: string; files: ScanResult[] }>("POST", "/api/import/scan", { dir });
 export const importShow = (req: ImportShowRequest) => send<ImportResult>("POST", "/api/import/show", req);
 export const importAds = (req: ImportAdsRequest) => send<ImportResult>("POST", "/api/import/ads", req);
+export const checkUploads = (files: { name: string; size: number }[]) =>
+  send<{ added: string[] }>("POST", "/api/upload/check", { files }).then((r) => r.added);
 export const getJobs = () => send<Job[]>("GET", "/api/jobs");
 export const retryJobs = () => send<{ jobs: Job[] }>("POST", "/api/jobs/retry");
 export const getShrinkCount = () => send<{ candidates: number }>("GET", "/api/library/shrink");
