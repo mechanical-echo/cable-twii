@@ -7,6 +7,7 @@ import { AddGroupPanel, type GroupEdit } from "../library/AddGroupPanel";
 import { ImportsBrowser } from "../library/ImportsBrowser";
 import { SourcePreview } from "../library/SourcePreview";
 import { type Route, parentsOf } from "../router";
+import { pickedFrom } from "../shows";
 import type { WebLibrary } from "../tree";
 import { PillButton } from "../ui/controls";
 import { Banner, Crumbs, EmptyState, PageHead, Panel } from "../ui/layout";
@@ -237,6 +238,16 @@ export function AddPage({ route, server, uploads, onDone, onNavigate }: Props) {
     if (!ads && dest.channel === "") found.push("Pick a channel.");
     return found;
   });
+  const shifts = base === null || ads
+    ? []
+    : live.flatMap((e) => {
+        const { dest } = e.group;
+        if (dest.isNewShow || dest.channel === NEW_CHANNEL) return [];
+        const show = base.library.show.find((s) => s.channel === dest.channel && s.folder === dest.show);
+        if (show === undefined || show.episode.some((ep) => ep.season >= 1)) return [];
+        const channels = pickedFrom(base.config, { channel: dest.channel, show: dest.show }).map((n) => base.config.channel.find((c) => c.number === n)?.name ?? `Channel ${n}`);
+        return channels.length === 0 ? [] : [`Adding to ${show.name} can shift the episodes picked on ${channels.join(", ")}.`];
+      });
   const ready = base !== null && !busy && totals.ticked > 0 && live.every((e) => problems[edits.indexOf(e)]!.length === 0);
 
   async function submit() {
@@ -399,6 +410,15 @@ export function AddPage({ route, server, uploads, onDone, onNavigate }: Props) {
               problems={problems[i]!}
             />
           ))}
+          {shifts.length > 0 && (
+            <Banner kind="warn">
+              <ul>
+                {shifts.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </Banner>
+          )}
           <div className="ui-foot">
             <PillButton onClick={cancel}>Cancel</PillButton>
             <span className="ui-muted grow">

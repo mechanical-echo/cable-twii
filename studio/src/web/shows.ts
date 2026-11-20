@@ -1,4 +1,4 @@
-import { type ShowRef, channelFolder, channelsAiring } from "../server/scheduleRefs.js";
+import { type ShowRef, channelFolder, channelsAiring, itemsNaming } from "../server/scheduleRefs.js";
 import type { Config, LibAd, LibEpisode, LibShow } from "../server/types.js";
 import type { WebLibrary } from "./tree.js";
 
@@ -76,4 +76,20 @@ export function findAd(library: WebLibrary, path: string): { ad: LibAd; off: boo
   if (on) return { ad: on, off: false };
   const off = library.off?.ad.find((a) => a.path === path);
   return off ? { ad: off, off: true } : null;
+}
+
+export function seasonTargets(show: LibShow): number[] {
+  const seasons = [...new Set(show.episode.map((e) => e.season).filter((s) => s >= 1))].sort((a, b) => a - b);
+  return seasons.length === 0 ? [1] : [...seasons, seasons[seasons.length - 1]! + 1];
+}
+
+export function pickedFrom(config: Config, ref: ShowRef): number[] {
+  const numbers = itemsNaming(config, { show: ref })
+    .filter((r) => {
+      const ch = config.channel.find((c) => c.number === r.channel);
+      const item = r.slot < 0 ? ch?.loop?.[r.item] : ch?.slot?.[r.slot]?.items[r.item];
+      return item?.type === "episode";
+    })
+    .map((r) => r.channel);
+  return [...new Set(numbers)].sort((a, b) => a - b);
 }

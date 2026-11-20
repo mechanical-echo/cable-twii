@@ -1534,3 +1534,35 @@ button.mini {
 .ui-ep.off {
   opacity: 0.6;
 }
+
+.ui-bulk {
+  position: sticky;
+  top: 70px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent-light);
+  border-radius: 14px;
+  background: var(--row-active);
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.ui-bulk > .ui-row-name {
+  align-self: center;
+}
+
+.ui-ep-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ui-ep-main.link {
+  cursor: pointer;
+}

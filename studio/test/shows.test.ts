@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Config, LibShow } from "../src/server/types.js";
-import { findAd, findEpisode, showGroups } from "../src/web/shows.js";
+import { findAd, findEpisode, pickedFrom, seasonTargets, showGroups } from "../src/web/shows.js";
 import type { WebLibrary } from "../src/web/tree.js";
 
 function show(channel: string, folder: string, name: string, seasons: number[], path = (s: number, e: number) => `${channel}/${folder}/Season ${s}/S0${s}E0${e} - E.mpg`): LibShow {
@@ -56,5 +56,25 @@ describe("finding", () => {
   it("finds an ad", () => {
     expect(findAd(library, "ads/cola.mpg")).toMatchObject({ off: false });
     expect(findAd(library, "ads/old.mpg")).toMatchObject({ off: true });
+  });
+});
+
+describe("management helpers", () => {
+  it("season targets", () => {
+    expect(seasonTargets(show("CN", "Gumball", "Gumball", [1, 2]))).toEqual([1, 2, 3]);
+    expect(seasonTargets(show("CN", "Videos", "Videos", [0], () => "CN/Videos/x.mpg"))).toEqual([1]);
+    expect(seasonTargets(show("CN", "Mixed", "Mixed", [0, 3]))).toEqual([3, 4]);
+  });
+
+  it("picked from lists channels with picks", () => {
+    const picks: Config = {
+      ...config,
+      channel: [
+        ...config.channel,
+        { number: 7, name: "Xmas", category: "Fun", ads: false, mode: "looping", loop: [{ type: "episode", show: "SpongeBob", season: 1, episode: 2, from: "Nick" }] },
+      ],
+    };
+    expect(pickedFrom(picks, { channel: "Nick", show: "SpongeBob" })).toEqual([7]);
+    expect(pickedFrom(picks, { channel: "Cartoon Network", show: "Gumball" })).toEqual([]);
   });
 });
