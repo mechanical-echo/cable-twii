@@ -403,3 +403,34 @@ test("writeLibrary refuses a library.toml that leads outside the root", async ()
     await rm(outside, { recursive: true, force: true });
   }
 });
+
+test("excluded episodes are left out and listed as off", async () => {
+  await sampleTree();
+  const { library, off } = await buildLibrary(root, [], fakeProbe(), new Set(["Cartoon Network/Gumball/Season 1/S01E02 - Ep 2.mpg"]));
+  const gumball = library.show.find((s) => s.folder === "Gumball")!;
+  expect(gumball.episode.map((e) => [e.season, e.episode])).toEqual([[1, 1], [1, 3], [2, 1], [2, 2], [2, 3]]);
+  expect(off.show).toHaveLength(1);
+  expect(off.show[0]!.episode.map((e) => e.path)).toEqual(["Cartoon Network/Gumball/Season 1/S01E02 - Ep 2.mpg"]);
+});
+
+test("seasonless numbers don't shift when one is off", async () => {
+  await sampleTree();
+  const { library, off } = await buildLibrary(root, [], fakeProbe(), new Set(["mtv-00s/Music Videos/Artist 2 - Song 2.mpg"]));
+  const videos = library.show.find((s) => s.folder === "Music Videos")!;
+  expect(videos.episode.map((e) => [e.episode, e.title])).toEqual([[1, "Artist 1 - Song 1"], [3, "Artist 3 - Song 3"]]);
+  expect(off.show[0]!.episode.map((e) => [e.episode, e.title])).toEqual([[2, "Artist 2 - Song 2"]]);
+});
+
+test("excluded ads are listed as off", async () => {
+  await sampleTree();
+  const { library, off } = await buildLibrary(root, [], fakeProbe(), new Set(["Cartoon Network/ads/own.mpg"]));
+  expect(library.ad.map((a) => a.path)).not.toContain("Cartoon Network/ads/own.mpg");
+  expect(off.ad.map((a) => a.path)).toEqual(["Cartoon Network/ads/own.mpg"]);
+});
+
+test("a show with every episode off is only in off", async () => {
+  await sampleTree();
+  const { library, off } = await buildLibrary(root, [], fakeProbe(), new Set(["mtv-00s/Other/E05 - Solo.mpg"]));
+  expect(library.show.some((s) => s.folder === "Other")).toBe(false);
+  expect(off.show.map((s) => s.folder)).toEqual(["Other"]);
+});

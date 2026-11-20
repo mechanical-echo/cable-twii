@@ -14,7 +14,8 @@ import { isTooShort, MIN_DURATION_MS, probe, remux } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { isAllowedSource, listImports, resolveImportsDir } from "./imports.js";
-import { type BuildResult, type SkippedFile, buildLibrary, readLibrary, writeLibrary } from "./library.js";
+import { type BuildResult, OFF_LIBRARY_FILE, type SkippedFile, buildLibrary, readLibrary, writeLibrary, writeOffLibrary } from "./library.js";
+import { readOff } from "./off.js";
 import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
@@ -407,8 +408,9 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   function rebuildNow(root: string): Promise<BuildResult> {
     const previous = rebuildChains.get(root) ?? Promise.resolve();
     const run = async (): Promise<BuildResult> => {
-      const result = await buildLibrary(root, await readSources(root), probeFn);
+      const result = await buildLibrary(root, await readSources(root), probeFn, await readOff(root));
       await writeLibrary(root, result.library);
+      await writeOffLibrary(root, result.off);
       lastBuild.set(root, { at: Date.now(), skipped: result.skipped, warnings: result.warnings });
       return result;
     };
@@ -986,11 +988,13 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const root = await requireRoot();
     try {
       const library = await readLibrary(root);
-      if (library) return library;
+      const off = await readLibrary(root, OFF_LIBRARY_FILE);
+      if (library) return { ...library, off: { ad: off?.ad ?? [], show: off?.show ?? [] } };
     } catch (err) {
       app.log.warn(err);
     }
-    return (await rebuildNow(root)).library;
+    const built = await rebuildNow(root);
+    return { ...built.library, off: built.off };
   });
 
   app.post("/api/library/rebuild", async () => rebuildNow(await requireRoot()));

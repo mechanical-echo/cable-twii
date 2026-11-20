@@ -11,7 +11,9 @@ import { parseConfig } from "../src/server/config.js";
 import type { convert } from "../src/server/ffmpeg.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { schedBinPath } from "../src/server/sched.js";
+import { writeOff } from "../src/server/off.js";
 import { readShowMeta } from "../src/server/showMeta.js";
+import type { WebLibrary } from "../src/web/tree.js";
 import { readSources, writeSources } from "../src/server/sources.js";
 import type { Issue, Job, LineupResult } from "../src/server/types.js";
 import { DRIVE_PROFILE, type VideoProfile } from "../src/server/videoSettings.js";
@@ -615,6 +617,15 @@ test("play stops ffmpeg when the response closes", async () => {
   } finally {
     await playing.close();
   }
+});
+
+test("library lists off items after a rebuild", async () => {
+  await useFixture();
+  await writeOff(root, new Set([EPISODE]));
+  expect((await app.inject({ method: "POST", url: "/api/library/rebuild" })).statusCode).toBe(200);
+  const library = (await app.inject({ method: "GET", url: "/api/library" })).json() as WebLibrary;
+  expect(library.show.flatMap((s) => s.episode).map((e) => e.path)).not.toContain(EPISODE);
+  expect(library.off!.show.flatMap((s) => s.episode).map((e) => e.path)).toEqual([EPISODE]);
 });
 
 test("sched lineup through GET /api/preview", async () => {

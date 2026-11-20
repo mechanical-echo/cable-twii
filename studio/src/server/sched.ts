@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { serializeConfig } from "./config.js";
 import { serializeLibrary } from "./library.js";
-import type { Config, Issue, LineupResult } from "./types.js";
+import type { Config, Issue, Library, LineupResult } from "./types.js";
 
 export const STUDIO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const ENGINE_DIR = path.resolve(STUDIO_DIR, "../engine");
@@ -119,11 +119,20 @@ export async function lineup(root: string, channel: number, date: string, bin: s
   return result.ok ? result.value : result;
 }
 
-export async function validateCandidate(root: string, cfg: Config, bin: string = schedBinPath()): Promise<ValidateResult> {
+export function newErrors(before: Issue[], after: Issue[]): Issue[] {
+  const known = new Set(before.filter((i) => i.level === "error").map((i) => `${i.code}|${i.channel}|${i.message}`));
+  return after.filter((i) => i.level === "error" && !known.has(`${i.code}|${i.channel}|${i.message}`));
+}
+
+export async function validateCandidate(root: string, cfg: Config, bin: string = schedBinPath(), library?: Library): Promise<ValidateResult> {
   const text = serializeConfig(cfg);
   const dir = await mkdtemp(path.join(os.tmpdir(), "ctw-candidate-"));
   try {
     await writeFile(path.join(dir, "config.toml"), text);
+    if (library !== undefined) {
+      await writeFile(path.join(dir, "library.toml"), serializeLibrary(library));
+      return await validateRoot(dir, false, bin);
+    }
     try {
       await copyFile(path.join(root, "library.toml"), path.join(dir, "library.toml"));
     } catch (err) {
