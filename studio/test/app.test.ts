@@ -628,6 +628,95 @@ test("library lists off items after a rebuild", async () => {
   expect(library.off!.show.flatMap((s) => s.episode).map((e) => e.path)).toEqual([EPISODE]);
 });
 
+async function edit(target: FastifyInstance, action: unknown, extra: Record<string, unknown> = {}) {
+  const { mtimeMs } = (await target.inject({ method: "GET", url: "/api/config" })).json() as { mtimeMs: number };
+  return target.inject({ method: "POST", url: "/api/library/edit", payload: { mtimeMs, action, ...extra } });
+}
+
+const BEN = "Cartoon Network/Ben 10/Season 1/S01E05 - Ben Ten.mpg";
+const SEASON5 = [1, 2, 3, 4, 5].map((n) => `Cartoon Network/Adventure Time/Season 5/S05E0${n} - Time ${n}.mpg`);
+
+test("renames an episode and its picks follow", async () => {
+  await useFixture();
+  const res = await edit(app, { kind: "episode", path: "mtv-00s/Music Videos/Artist 1 - Song 1.mpg", title: "Zed", season: null, episode: null });
+  expect(res.statusCode).toBe(200);
+  expect(existsSync(path.join(root, "mtv-00s", "Music Videos", "Zed.mpg"))).toBe(true);
+  const config = (await getConfig()).config;
+  expect(config.channel[1]!.loop![3]).toEqual({ type: "episode", show: "Music Videos", season: 0, episode: 2 });
+});
+
+test("an edit that adds an error is refused and changes nothing", async () => {
+  await useFixture();
+  const before = await readFile(path.join(root, "config.toml"), "utf8");
+  const off = await edit(app, { kind: "off", paths: SEASON5, off: true });
+  expect(off.statusCode).toBe(422);
+  const issues = (off.json() as { issues: Issue[] }).issues;
+  expect(issues.length).toBeGreaterThan(0);
+  expect(issues.every((i) => i.level === "error" && i.channel === 1)).toBe(true);
+  expect(existsSync(path.join(root, ".studio", "off.toml"))).toBe(false);
+  const moved = await edit(app, { kind: "move-season", paths: SEASON5, season: 6 });
+  expect(moved.statusCode).toBe(422);
+  for (const file of SEASON5) expect(existsSync(path.join(root, ...file.split("/")))).toBe(true);
+  expect(existsSync(path.join(root, "Cartoon Network", "Adventure Time", "Season 6"))).toBe(false);
+  expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
+});
+
+test("a converting file can't be edited", async () => {
+  await useFixture();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const busy = withConvert(async (_s, dst) => {
+    await gate;
+    await writeFile(dst, "new");
+  });
+  try {
+    const src = path.join(dir, "new.mkv");
+    await writeFile(src, "video");
+    await busy.inject({ method: "POST", url: "/api/import/show", payload: replaceBody(src, OLD_EPISODE) });
+    await waitFor(async () => (await jobsOf(busy)).some((j) => j.state === "running"));
+    const res = await edit(busy, { kind: "episode", path: OLD_EPISODE, title: "Renamed", season: 5, episode: 2 });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("Still converting. Try again when it's done.");
+  } finally {
+    release();
+    await busy.close();
+  }
+});
+
+test("dry run changes nothing and lists removed items", async () => {
+  await useFixture();
+  const before = await readFile(path.join(root, "config.toml"), "utf8");
+  const res = await edit(app, { kind: "off", paths: [BEN], off: true }, { dryRun: true });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().removed).toEqual([{ channel: 1, label: "S01E05 · Ben 10" }]);
+  expect(existsSync(path.join(root, ".studio", "off.toml"))).toBe(false);
+  expect(await readFile(path.join(root, "config.toml"), "utf8")).toBe(before);
+});
+
+test("delete removes the file and its direct items", async () => {
+  await useFixture();
+  const res = await edit(app, { kind: "delete", paths: [BEN] });
+  expect(res.statusCode).toBe(200);
+  expect(existsSync(path.join(root, ...BEN.split("/")))).toBe(false);
+  const items = (await getConfig()).config.channel[0]!.slot![0]!.items;
+  expect(items.some((i) => i.type === "episode")).toBe(false);
+});
+
+test("switching off keeps the file and hides it from the library", async () => {
+  await useFixture();
+  expect((await edit(app, { kind: "off", paths: [BEN], off: true })).statusCode).toBe(200);
+  expect(existsSync(path.join(root, ...BEN.split("/")))).toBe(true);
+  const library = (await app.inject({ method: "GET", url: "/api/library" })).json() as WebLibrary;
+  expect(library.show.some((s) => s.folder === "Ben 10")).toBe(false);
+  expect(library.off!.show.map((s) => s.folder)).toEqual(["Ben 10"]);
+});
+
+test("conflict on stale mtime", async () => {
+  await useFixture();
+  const res = await app.inject({ method: "POST", url: "/api/library/edit", payload: { mtimeMs: 1, action: { kind: "off", paths: [BEN], off: true } } });
+  expect(res.statusCode).toBe(409);
+});
+
 test("sched lineup through GET /api/preview", async () => {
   await useFixture();
   const res = await app.inject({ method: "GET", url: "/api/preview?channel=1&date=2026-10-20" });

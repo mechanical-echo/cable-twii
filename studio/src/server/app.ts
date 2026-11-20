@@ -20,12 +20,13 @@ import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./n
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
 import { DRIVE_PROFILE, SERVER_PROFILE, type VideoProfile } from "./videoSettings.js";
-import { SchedUsageError, STUDIO_DIR, lineup, validateCandidate, validateRoot } from "./sched.js";
+import { SchedUsageError, STUDIO_DIR, lineup, newErrors, validateCandidate, validateRoot } from "./sched.js";
+import { type EditAction, EditRefused, applyPlan, planEdit } from "./libraryEdit.js";
 import { uploadsDir } from "./serverSettings.js";
 import { clearedSessionCookie, sessionToken, Sessions } from "./session.js";
 import { type ShowMeta, ShowMetaConflictError, ShowMetaDamagedError, readShowMeta, showMetaMtime, writeShowMeta } from "./showMeta.js";
-import { atomicWriteFile, needsConversion, readSources, upsertSource } from "./sources.js";
-import type { Config, Issue, Job, SourceRecord } from "./types.js";
+import { atomicWriteFile, needsConversion, readSources, upsertSource, writeSources } from "./sources.js";
+import type { Config, Issue, Job, Library, SourceRecord } from "./types.js";
 import { shrinkCandidates } from "./shrink.js";
 import { UPLOAD_LIMIT, convertedUpload, discardUploads, isUploadPath, saveUpload, sweepUploads, uploadName, uploadSource } from "./uploads.js";
 import { parseRange, registerWiiApi } from "./wiiApi.js";
@@ -280,6 +281,26 @@ async function libraryFile(root: string, rel: unknown, extension: string): Promi
     return (await stat(real)).isFile() ? real : null;
   } catch {
     return null;
+  }
+}
+
+function mergeLibraries(library: Library, off: Library | null): Library {
+  if (off === null) return library;
+  const shows = new Map(library.show.map((s) => [`${s.channel}\0${s.folder}`, { ...s, episode: [...s.episode] }]));
+  for (const s of off.show) {
+    const key = `${s.channel}\0${s.folder}`;
+    const found = shows.get(key);
+    if (found) found.episode.push(...s.episode);
+    else shows.set(key, { ...s, episode: [...s.episode] });
+  }
+  return { ...library, ad: [...library.ad, ...off.ad], show: [...shows.values()] };
+}
+
+async function topFiles(dir: string): Promise<string[]> {
+  try {
+    return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isFile()).map((e) => e.name);
+  } catch {
+    return [];
   }
 }
 
@@ -998,6 +1019,64 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   app.post("/api/library/rebuild", async () => rebuildNow(await requireRoot()));
+
+  app.post("/api/library/edit", async (request) => {
+    const body = objectBody(request.body);
+    const mtimeMs = mtimeField(body);
+    const dryRun = body.dryRun === true;
+    const action = objectBody(body.action) as unknown as EditAction;
+    if (typeof action.kind !== "string") throw bad("action must say what to change.");
+    const root = await requireRoot();
+    return withConfigLock(async () => {
+      if ((await configMtime(root)) !== Math.trunc(mtimeMs)) throw new ConfigConflictError();
+      await flushRebuild(root);
+      const busy = new Set(queueFor(root).list().filter((j) => j.state === "queued" || j.state === "running").map((j) => j.target));
+      const { config } = await readConfig(root);
+      const off = await readOff(root);
+      const library = mergeLibraries((await readLibrary(root)) ?? (await rebuildNow(root)).library, await readLibrary(root, OFF_LIBRARY_FILE));
+      const files = new Map<string, string[]>();
+      for (const s of library.show) files.set(`${s.channel}\0${s.folder}`, await topFiles(path.join(root, s.channel, s.folder)));
+      let plan;
+      try {
+        plan = planEdit(action, { config, library, off, busy, showFiles: (ref) => files.get(`${ref.channel}\0${ref.show}`) ?? [] });
+      } catch (err) {
+        if (err instanceof EditRefused) throw new HttpError(err.status, err.message);
+        throw err;
+      }
+      const before = (await validateRoot(root, false, bin)).issues;
+      const check = async () => {
+        const candidate = await buildLibrary(root, await readSources(root), probeFn, plan.exclude);
+        return newErrors(before, (await validateCandidate(root, plan.config, bin, candidate.library)).issues);
+      };
+      if (dryRun) {
+        if (plan.moves.length > 0) throw bad("This change can't be previewed.");
+        return { mtimeMs, removed: plan.removed, issues: await check() };
+      }
+      const undo = await applyPlan(root, plan);
+      let saved = mtimeMs;
+      try {
+        const added = await check();
+        if (added.length > 0) throw new HttpError(422, "This change would break a schedule.", added);
+        if (JSON.stringify(plan.config) !== JSON.stringify(config)) saved = await writeConfig(root, plan.config, mtimeMs);
+      } catch (err) {
+        await undo();
+        throw err;
+      }
+      if (plan.deletes.length > 0 || plan.deleteDirs.length > 0) {
+        const gone = new Set(plan.deletes);
+        for (const rel of plan.deletes) await rm(path.join(root, ...rel.split("/")), { force: true });
+        for (const rel of plan.deleteDirs) {
+          const dir = path.join(root, ...rel.split("/"));
+          assertContained(root, dir);
+          await rm(dir, { recursive: true, force: true });
+        }
+        const records = await readSources(root);
+        if (records.some((r) => gone.has(r.target))) await writeSources(root, records.filter((r) => !gone.has(r.target)));
+      }
+      await rebuildNow(root);
+      return { mtimeMs: saved, removed: plan.removed, issues: [] };
+    });
+  });
 
   app.get("/api/library/notes", async () => lastBuild.get(await requireRoot()) ?? { at: null, skipped: [], warnings: [] });
 

@@ -1,6 +1,11 @@
+import { lstat, rename, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
+import { checkRename, mkdirContained } from "./contain.js";
 import { seasonlessOrder } from "./library.js";
+import { readOff, writeOff } from "./off.js";
 import { episodeFileName, fatSafe } from "./names.js";
+import { type ShowMeta, readShowMeta, writeShowMeta } from "./showMeta.js";
+import { readSources, writeSources } from "./sources.js";
 import { type ItemRef, type ShowRef, appendItems, channelFolder, channelsAiring, describeItem, itemsNaming, removeItems, renameAd, retargetEpisodes } from "./scheduleRefs.js";
 import type { Config, Item, LibEpisode, LibShow, Library } from "./types.js";
 
@@ -277,4 +282,74 @@ export function planEdit(action: EditAction, ctx: EditContext): EditPlan {
     plan.exclude = new Set([...plan.exclude].map((p) => moved.get(p) ?? p));
   }
   return plan;
+}
+
+async function exists(file: string): Promise<boolean> {
+  try {
+    await lstat(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function abs(root: string, rel: string): string {
+  return path.join(root, ...rel.split("/"));
+}
+
+export async function applyPlan(root: string, plan: EditPlan): Promise<() => Promise<void>> {
+  const undo: (() => Promise<void>)[] = [];
+  const rollback = async () => {
+    for (const step of undo.reverse()) await step();
+    undo.length = 0;
+  };
+  try {
+    for (const move of plan.moves) {
+      const from = abs(root, move.from);
+      const to = abs(root, move.to);
+      if (await exists(to)) throw new Error(`${move.to} already exists.`);
+      const dir = path.dirname(to);
+      const madeDir = !(await exists(dir));
+      mkdirContained(root, dir);
+      checkRename(root, from, to);
+      await rename(from, to);
+      undo.push(async () => {
+        await rename(to, from);
+        if (madeDir) await rmdir(dir).catch(() => undefined);
+      });
+    }
+    if (plan.moves.length > 0) {
+      const moved = new Map(plan.moves.map((m) => [m.from, m.to]));
+      const records = await readSources(root);
+      if (records.some((r) => moved.has(r.target))) {
+        await writeSources(root, records.map((r) => ({ ...r, target: moved.get(r.target) ?? r.target })));
+        undo.push(() => writeSources(root, records));
+      }
+    }
+    const off = await readOff(root);
+    if ([...off].sort().join("\n") !== [...plan.off].sort().join("\n")) {
+      const offFile = abs(root, ".studio/off.toml");
+      const hadFile = await exists(offFile);
+      await writeOff(root, plan.off);
+      undo.push(async () => (hadFile ? writeOff(root, off) : rm(offFile, { force: true })));
+    }
+    const metas = new Map<string, ShowMeta>();
+    for (const key of plan.describeKeys) {
+      const showDir = abs(root, key.showDir);
+      const meta = await readShowMeta(showDir);
+      if (!metas.has(key.showDir)) {
+        metas.set(key.showDir, meta);
+        undo.push(() => writeShowMeta(root, showDir, metas.get(key.showDir)!));
+      }
+      const text = meta.episodes[key.from];
+      if (text === undefined) continue;
+      const episodes = { ...meta.episodes, [key.to]: text };
+      delete episodes[key.from];
+      await writeShowMeta(root, showDir, { ...meta, episodes });
+    }
+  } catch (err) {
+    await rollback();
+    throw err;
+  }
+  return rollback;
 }

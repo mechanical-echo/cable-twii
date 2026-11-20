@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { EditRefused, planEdit } from "../src/server/libraryEdit.js";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { EditRefused, applyPlan, planEdit } from "../src/server/libraryEdit.js";
+import { readOff } from "../src/server/off.js";
+import { readShowMeta, writeShowMeta } from "../src/server/showMeta.js";
+import { readSources, writeSources } from "../src/server/sources.js";
 import type { Config, LibEpisode, Library } from "../src/server/types.js";
 
 const ep = (show: string, season: number, episode: number, title: string, file?: string): LibEpisode => ({
@@ -205,5 +211,82 @@ describe("channels", () => {
   it("append adds items to a loop", () => {
     const plan = planEdit({ kind: "append", number: 5, slot: null, items: [{ type: "episode", show: "Gumball", season: 2, episode: 1, from: "Cartoon Network" }] }, ctx());
     expect(plan.config.channel[1]!.loop).toHaveLength(3);
+  });
+});
+
+describe("applyPlan", () => {
+  let root = "";
+  afterEach(async () => {
+    if (root !== "") await rm(root, { recursive: true, force: true });
+  });
+
+  async function tree(): Promise<void> {
+    root = await mkdtemp(path.join(os.tmpdir(), "studio-apply-"));
+    await mkdir(path.join(root, "CN", "Gumball", "Season 1"), { recursive: true });
+    await writeFile(path.join(root, "CN", "Gumball", "Season 1", "S01E01 - One.mpg"), "one");
+    await writeFile(path.join(root, "CN", "Gumball", "Season 1", "S01E02 - Two.mpg"), "two");
+    await writeShowMeta(root, path.join(root, "CN", "Gumball"), { episodes: { S01E01: "First" } });
+    await writeSources(root, [{ target: "CN/Gumball/Season 1/S01E01 - One.mpg", source: "/src/one.mkv", size: 1, mtimeMs: 1, durationMs: 60000 }]);
+  }
+
+  const plan = (extra: Partial<Parameters<typeof applyPlan>[1]>): Parameters<typeof applyPlan>[1] => ({
+    moves: [],
+    deletes: [],
+    deleteDirs: [],
+    off: new Set(),
+    exclude: new Set(),
+    config,
+    removed: [],
+    describeKeys: [],
+    ...extra,
+  });
+
+  it("apply moves the file and its sources record", async () => {
+    await tree();
+    await applyPlan(
+      root,
+      plan({
+        moves: [{ from: "CN/Gumball/Season 1/S01E01 - One.mpg", to: "CN/Gumball/Season 2/S02E01 - One.mpg" }],
+        off: new Set(["CN/Gumball/Season 1/S01E02 - Two.mpg"]),
+        describeKeys: [{ showDir: "CN/Gumball", from: "S01E01", to: "S02E01" }],
+      }),
+    );
+    expect(await readFile(path.join(root, "CN", "Gumball", "Season 2", "S02E01 - One.mpg"), "utf8")).toBe("one");
+    expect((await readSources(root)).map((r) => r.target)).toEqual(["CN/Gumball/Season 2/S02E01 - One.mpg"]);
+    expect([...(await readOff(root))]).toEqual(["CN/Gumball/Season 1/S01E02 - Two.mpg"]);
+    expect((await readShowMeta(path.join(root, "CN", "Gumball"))).episodes).toEqual({ S02E01: "First" });
+  });
+
+  it("undo puts files, sources, off and show.toml back", async () => {
+    await tree();
+    const undo = await applyPlan(
+      root,
+      plan({
+        moves: [{ from: "CN/Gumball/Season 1/S01E01 - One.mpg", to: "CN/Gumball/Season 2/S02E01 - One.mpg" }],
+        off: new Set(["CN/Gumball/Season 1/S01E02 - Two.mpg"]),
+        describeKeys: [{ showDir: "CN/Gumball", from: "S01E01", to: "S02E01" }],
+      }),
+    );
+    await undo();
+    expect(await readFile(path.join(root, "CN", "Gumball", "Season 1", "S01E01 - One.mpg"), "utf8")).toBe("one");
+    expect((await readSources(root)).map((r) => r.target)).toEqual(["CN/Gumball/Season 1/S01E01 - One.mpg"]);
+    expect((await readOff(root)).size).toBe(0);
+    expect((await readShowMeta(path.join(root, "CN", "Gumball"))).episodes).toEqual({ S01E01: "First" });
+  });
+
+  it("a failed move puts the earlier moves back", async () => {
+    await tree();
+    await expect(
+      applyPlan(
+        root,
+        plan({
+          moves: [
+            { from: "CN/Gumball/Season 1/S01E01 - One.mpg", to: "CN/Gumball/Season 1/S01E09 - One.mpg" },
+            { from: "CN/Gumball/Season 1/S01E07 - Gone.mpg", to: "CN/Gumball/Season 1/S01E08 - Gone.mpg" },
+          ],
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(await readFile(path.join(root, "CN", "Gumball", "Season 1", "S01E01 - One.mpg"), "utf8")).toBe("one");
   });
 });
