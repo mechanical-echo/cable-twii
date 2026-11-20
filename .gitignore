@@ -10,3 +10,4 @@ build/
 samples/out/
 .tooling/
 __pycache__/
+studio/src/web/public/fonts/
