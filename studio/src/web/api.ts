@@ -2,6 +2,7 @@ import type { DriveInfo, ScanResult } from "../server/drive.js";
 import type { ImportEntry } from "../server/imports.js";
 import type { BuildResult } from "../server/library.js";
 import type { ValidateResult } from "../server/sched.js";
+import type { EditAction } from "../server/libraryEdit.js";
 import type { ShowMeta } from "../server/showMeta.js";
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
 import { streamLost } from "./jobs.js";
@@ -132,6 +133,13 @@ export const importShow = (req: ImportShowRequest) => send<ImportResult>("POST",
 export const importAds = (req: ImportAdsRequest) => send<ImportResult>("POST", "/api/import/ads", req);
 export const checkUploads = (files: { name: string; size: number }[]) =>
   send<{ added: string[] }>("POST", "/api/upload/check", { files }).then((r) => r.added);
+export interface EditResult {
+  mtimeMs: number;
+  removed: { channel: number; label: string }[];
+  issues: Issue[];
+  moves: { from: string; to: string }[];
+}
+export const editLibrary = (req: { mtimeMs: number; dryRun?: boolean; action: EditAction }) => send<EditResult>("POST", "/api/library/edit", req);
 export const getJobs = () => send<Job[]>("GET", "/api/jobs");
 export const retryJobs = () => send<{ jobs: Job[] }>("POST", "/api/jobs/retry");
 export const getShrinkCount = () => send<{ candidates: number }>("GET", "/api/library/shrink");

@@ -4,6 +4,7 @@ import { type EpisodeStatus, type PendingEpisode, episodeStatus, pendingEpisodes
 import { formatDuration } from "../format";
 import { IconImage } from "../IconImage";
 import { formatEpisodeCode } from "../preview";
+import { allShows, offPaths } from "../shows";
 import { type ShowNode, type WebLibrary, buildTree, seasonLabel } from "../tree";
 import { PillButton } from "../ui/controls";
 import { Banner, EmptyState, Panel, rowLink } from "../ui/layout";
@@ -66,7 +67,8 @@ export function ShowsTab({ folder, onAdd, onOpen }: Props) {
     timer.current = setTimeout(load, REFRESH_DELAY_MS);
   });
 
-  const shows = useMemo(() => (library === null ? [] : (buildTree(library).find((c) => c.channel === folder)?.shows ?? [])), [library, folder]);
+  const shows = useMemo(() => (library === null ? [] : (buildTree({ ...library, show: allShows(library) }).find((c) => c.channel === folder)?.shows ?? [])), [library, folder]);
+  const off = useMemo(() => (library === null ? new Set<string>() : offPaths(library)), [library]);
   const pending = useMemo(() => (library === null ? [] : pendingEpisodes(folder, library, jobs)), [library, folder, jobs]);
   const newShows = [...new Set(pending.map((p) => p.show))].filter((name) => !shows.some((node) => node.show.folder === name));
   const pendingOf = (name: string) => pending.filter((p) => p.show === name);
@@ -108,11 +110,11 @@ export function ShowsTab({ folder, onAdd, onOpen }: Props) {
             <div key={s.season} className="ui-season">
               <h3 className="ui-subhead">{seasonLabel(s.season)}</h3>
               {s.episodes.map((ep) => (
-                <div key={ep.path} {...rowLink("ui-ep", onOpen && (() => onOpen(ep.path)))}>
+                <div key={ep.path} {...rowLink(off.has(ep.path) ? "ui-ep off" : "ui-ep", onOpen && (() => onOpen(ep.path)))}>
                   <span className="ui-ep-code">{ep.season >= 1 ? formatEpisodeCode(ep.season, ep.episode) : ""}</span>
                   <span className="grow">{ep.title}</span>
                   <span className="ui-length">{formatDuration(ep.duration_ms)}</span>
-                  <StatusChip status={episodeStatus(ep.path, jobs)} />
+                  {off.has(ep.path) ? <Chip kind="warn">Off air</Chip> : <StatusChip status={episodeStatus(ep.path, jobs)} />}
                 </div>
               ))}
             </div>

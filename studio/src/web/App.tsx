@@ -89,8 +89,8 @@ export function App() {
   else if (route.page === "ads") page = <AdsPage onNavigate={navigate} />;
   else if (route.page === "shows") page = <ShowsPage onNavigate={navigate} />;
   else if (route.page === "show") page = <ShowPage key={routeHash(route)} channel={route.channel} show={route.show} onNavigate={navigate} />;
-  else if (route.page === "episode") page = <EpisodePage key={route.path} path={route.path} onNavigate={navigate} />;
-  else if (route.page === "ad") page = <AdPage key={route.path} path={route.path} onNavigate={navigate} />;
+  else if (route.page === "episode") page = <EpisodePage key={route.path} path={route.path} server={server} onNavigate={navigate} />;
+  else if (route.page === "ad") page = <AdPage key={route.path} path={route.path} server={server} onNavigate={navigate} />;
   else if (route.page === "folder") page = <FolderPage key={route.folder} folder={route.folder} onNavigate={navigate} />;
   else if (route.page === "channel") page = <ChannelPage key={route.number} number={route.number} tab={route.tab} onNavigate={navigate} onDirty={setDirty} />;
   else if (route.page === "add") page = <AddPage key={routeHash(route)} route={route} server={server} uploads={uploads} onDone={() => navigate({ page: "episodes" })} onNavigate={navigate} />;

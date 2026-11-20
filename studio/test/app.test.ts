@@ -641,6 +641,7 @@ test("renames an episode and its picks follow", async () => {
   const res = await edit(app, { kind: "episode", path: "mtv-00s/Music Videos/Artist 1 - Song 1.mpg", title: "Zed", season: null, episode: null });
   expect(res.statusCode).toBe(200);
   expect(existsSync(path.join(root, "mtv-00s", "Music Videos", "Zed.mpg"))).toBe(true);
+  expect(res.json().moves).toEqual([{ from: "mtv-00s/Music Videos/Artist 1 - Song 1.mpg", to: "mtv-00s/Music Videos/Zed.mpg" }]);
   const config = (await getConfig()).config;
   expect(config.channel[1]!.loop![3]).toEqual({ type: "episode", show: "Music Videos", season: 0, episode: 2 });
 });

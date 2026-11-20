@@ -1530,3 +1530,7 @@ button.mini {
 .ui-player-screen canvas {
   object-fit: contain;
 }
+
+.ui-ep.off {
+  opacity: 0.6;
+}

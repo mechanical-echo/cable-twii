@@ -1050,7 +1050,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       };
       if (dryRun) {
         if (plan.moves.length > 0) throw bad("This change can't be previewed.");
-        return { mtimeMs, removed: plan.removed, issues: await check() };
+        return { mtimeMs, removed: plan.removed, issues: await check(), moves: plan.moves };
       }
       const undo = await applyPlan(root, plan);
       let saved = mtimeMs;
@@ -1074,7 +1074,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
         if (records.some((r) => gone.has(r.target))) await writeSources(root, records.filter((r) => !gone.has(r.target)));
       }
       await rebuildNow(root);
-      return { mtimeMs: saved, removed: plan.removed, issues: [] };
+      return { mtimeMs: saved, removed: plan.removed, issues: [], moves: plan.moves };
     });
   });
 
