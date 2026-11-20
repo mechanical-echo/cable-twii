@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { type DriveInfo, type ModeInfo, getDrive, getMode, onUnauthorized } from "./api";
 import { LoginForm, LoginPage } from "./LoginPage";
 import { AddPage } from "./pages/AddPage";
+import { ChannelListPage } from "./pages/ChannelListPage";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
 import { EpisodesPage } from "./pages/EpisodesPage";
+import { FolderPage } from "./pages/FolderPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { PreviewPage } from "./pages/PreviewPage";
 import { SchedulePage } from "./pages/SchedulePage";
@@ -83,7 +85,9 @@ export function App() {
         </div>
       </Panel>
     );
-  else if (route.page === "channels" || route.page === "channel" || route.page === "folder") page = <ChannelsPage />;
+  else if (route.page === "channels") page = <ChannelListPage onNavigate={navigate} />;
+  else if (route.page === "folder") page = <FolderPage key={route.folder} folder={route.folder} />;
+  else if (route.page === "channel") page = <ChannelsPage />;
   else if (route.page === "schedule") page = <SchedulePage onDirty={setDirty} />;
   else if (route.page === "preview") page = <PreviewPage />;
   else if (route.page === "library") page = <LibraryPage key={session} onNavigate={navigate} />;

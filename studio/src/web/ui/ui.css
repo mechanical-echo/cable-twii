@@ -858,3 +858,55 @@ strong {
 .ui-gap {
   margin-top: 12px;
 }
+
+.ui-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 1px solid var(--pill-border);
+  border-radius: 999px;
+  background: linear-gradient(var(--pill-top), var(--pill-bottom));
+  color: var(--text-clock);
+  font-weight: 800;
+}
+
+.ui-logo {
+  display: inline-flex;
+  width: 48px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--band);
+  overflow: hidden;
+}
+
+.ui-logo .icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: contain;
+}
+
+.ui-row-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ui-row-sub {
+  color: var(--text-clock);
+  font-size: 13px;
+}
+
+.ui-row-sub b {
+  color: var(--accent-dark);
+}
+
+.ui-banner ul {
+  margin: 0;
+  padding-left: 18px;
+}
