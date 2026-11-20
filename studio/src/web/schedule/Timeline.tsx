@@ -83,7 +83,7 @@ function TimedTimeline(props: Props) {
   const blocks = useMemo(() => layoutTimed(channel, library), [channel, library]);
   if (schedule.mode !== "timed") return null;
   const slots = schedule.slots;
-  if (slots.length === 0) return <p className="muted">No slots yet. Add one to start the day.</p>;
+  if (slots.length === 0) return <p className="ui-muted">No slots yet. Add one to start the day.</p>;
   const origin = atToMs(slots[0]!.at);
   const starts = slots.map((s) => atToMs(s.at) - origin);
   const ends = starts.map((_, i) => starts[i + 1] ?? DAY_MS);

@@ -28,6 +28,17 @@
   --warn-fill: #fff1dc;
 }
 
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 @font-face {
   font-family: "Rounded Mplus 1c";
   src: url("/fonts/font_medium.ttf") format("truetype");
@@ -43,6 +54,7 @@
 }
 
 body {
+  margin: 0;
   font: 500 14px/1.45 "Rounded Mplus 1c", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   color: var(--text);
   background: repeating-linear-gradient(0deg, var(--stripe-a) 0 6px, var(--stripe-b) 6px 12px);
@@ -422,21 +434,6 @@ strong {
 
 .ui-muted {
   color: var(--text-2);
-}
-
-.ui-gallery {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 24px;
-  max-width: 980px;
-}
-
-.ui-gallery-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
 }
 
 .ui-shell {
@@ -1348,4 +1345,43 @@ button.mini {
 .ui-zoom .ui-tab {
   padding: 3px 10px;
   font-size: 12px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #14232f66;
+}
+
+.lib-body .ep {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 3px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--accent-light);
+  border-radius: 6px;
+  background: var(--row-active);
+}
+
+.lib-body .ep.ad {
+  border-color: var(--warm);
+  background: var(--warn-fill);
 }

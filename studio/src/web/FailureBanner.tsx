@@ -1,5 +1,7 @@
 import type { Issue } from "./api";
 import { CONFLICT_MESSAGE, type Failure, describeIssue } from "./failure";
+import { PillButton } from "./ui/controls";
+import { Banner } from "./ui/layout";
 
 interface Props {
   failure: Failure | null;
@@ -10,23 +12,23 @@ interface Props {
 export function FailureBanner({ failure, onReload, where }: Props) {
   if (failure === null) return null;
   return (
-    <div className="banner error">
-      {failure.conflict ? (
-        <div className="row">
-          <span className="grow">{CONFLICT_MESSAGE}</span>
-          <button onClick={onReload}>Reload</button>
-        </div>
-      ) : (
-        failure.message
+    <Banner kind="error">
+      <div className="grow">
+        {failure.conflict ? CONFLICT_MESSAGE : failure.message}
+        {failure.issues.length > 0 && (
+          <ul>
+            {failure.issues.map((issue, i) => {
+              const place = where?.(issue) ?? "";
+              return <li key={i}>{place !== "" ? `${place}: ${describeIssue(issue)}` : describeIssue(issue)}</li>;
+            })}
+          </ul>
+        )}
+      </div>
+      {failure.conflict && (
+        <PillButton small onClick={onReload}>
+          Reload
+        </PillButton>
       )}
-      {failure.issues.length > 0 && (
-        <ul>
-          {failure.issues.map((issue, i) => {
-            const place = where?.(issue) ?? "";
-            return <li key={i}>{place !== "" ? `${place}: ${describeIssue(issue)}` : describeIssue(issue)}</li>;
-          })}
-        </ul>
-      )}
-    </div>
+    </Banner>
   );
 }

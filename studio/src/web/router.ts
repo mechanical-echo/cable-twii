@@ -7,13 +7,12 @@ export type Route =
   | { page: "channel"; number: number; tab: ChannelTab }
   | { page: "folder"; folder: string }
   | { page: "ads" }
-  | { page: "server" }
-  | { page: "ui" };
+  | { page: "server" };
 
 export type TopTab = "episodes" | "channels" | "ads" | "server";
 
 const CHANNEL_TABS: readonly ChannelTab[] = ["today", "schedule", "shows", "settings"];
-const PLAIN_PAGES = ["channels", "ads", "server", "ui"] as const;
+const PLAIN_PAGES = ["channels", "ads", "server"] as const;
 const EPISODES: Route = { page: "episodes" };
 
 function channelNumber(text: string | null | undefined): number | null {

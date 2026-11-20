@@ -6,7 +6,7 @@ import { Checkbox, Select, TextField } from "../ui/controls";
 import { Panel } from "../ui/layout";
 import { Chip } from "../ui/status";
 
-export const NEW_SHOW = "\u0000show";
+const NEW_SHOW = "\u0000show";
 
 export interface GroupEdit {
   group: AddGroup;

@@ -12,7 +12,6 @@ import { routeHash } from "./router";
 import { Shell } from "./Shell";
 import { signInView } from "./signin";
 import { PillButton } from "./ui/controls";
-import { Gallery } from "./ui/Gallery";
 import { Banner, EmptyState, Panel } from "./ui/layout";
 import { useRoute } from "./useRoute";
 import { useUploads } from "./useUploads";
@@ -71,7 +70,6 @@ export function App() {
   let page;
   if (!loaded) page = <EmptyState>Loading…</EmptyState>;
   else if (route.page === "server") page = <DrivePage drive={drive} onDrive={onDrive} server={server ? { name: mode.name, onSignedOut: signedOut } : null} />;
-  else if (route.page === "ui") page = <Gallery />;
   else if (!ready)
     page = (
       <Panel>

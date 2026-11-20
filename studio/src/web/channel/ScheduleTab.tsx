@@ -203,7 +203,7 @@ export function ScheduleTab({ number, onDirty }: Props) {
     issueWhere(issue, issue.channel === channel.number ? channel.mode : null, issue.channel === channel.number ? slotAt : () => undefined);
 
   return (
-    <section className="schedule">
+    <section>
       <ScheduleToolbar
         channel={channel}
         seed={editor.config.seed}

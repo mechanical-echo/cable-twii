@@ -7,7 +7,7 @@ import { type Failure, toFailure } from "../failure";
 import { formatDuration } from "../format";
 import { IconImage } from "../IconImage";
 import { createLatest } from "../latest";
-import { type GuideRow, findShow, formatClock, formatEpisodeCode, groupAirings, localDate, localMs, nowPosition } from "../preview";
+import { type GuideRow, adBreakLabel, findShow, formatClock, formatEpisodeCode, groupAirings, localDate, localMs, nowPosition } from "../preview";
 import type { WebLibrary } from "../tree";
 import { PillButton, TextField } from "../ui/controls";
 import { Banner, EmptyState, Panel } from "../ui/layout";
@@ -81,7 +81,7 @@ export function TodayTab({ channel, library }: Props) {
   }, [lineup, isToday]);
 
   function label(row: GuideRow) {
-    if (row.kind === "ad") return <span className="grow ui-air-ad">Ad break · {row.count} {row.count === 1 ? "ad" : "ads"} · {formatDuration(row.totalMs)}</span>;
+    if (row.kind === "ad") return <span className="grow ui-air-ad">{adBreakLabel(row, formatDuration(row.totalMs))}</span>;
     if (row.kind === "upnext") return <span className="grow ui-muted">Up next</span>;
     const show = library ? findShow(library.show, folder, row.airing.show) : null;
     const code = formatEpisodeCode(row.airing.season, row.airing.episode);

@@ -43,11 +43,11 @@ Studio adds a second safety net. It refuses any drive that has a `wbfs` or `game
 3. Studio needs Node 22. If the shell says "cable-twii Studio needs Node 22", run `nvm use` inside the `studio` folder and then `npm start` again.
 4. Studio opens in your browser at http://127.0.0.1:4747/. It only runs on your Mac and is not reachable from other computers.
 
-Studio has five pages: Drive, Library, Channels, Schedule and Preview.
+Studio has four tabs along the top: **Episodes**, **Channels**, **Ads** and **Drive**. Episodes is the home page: it is where you add videos and see them convert. Each channel has its own page with Today, Schedule, Shows and Settings.
 
 ## 4. Choose and set up the drive
 
-On the **Drive** page:
+On the **Drive** tab:
 
 1. Click **Choose drive…** and pick the flash drive or SD card, or type its path (for example `/Volumes/CABLETV`) and click **Use this folder**.
 2. Studio shows the drive type, free space and whether it is set up. If it says the drive cannot be used, read the reason. For example, a drive with a `wbfs` folder is refused because it looks like your games drive, and a drive that is not FAT32 is refused.
@@ -55,32 +55,55 @@ On the **Drive** page:
 
 You can also pick a plain folder on the Mac to try things out. Studio treats it as a test area and there is nothing to eject.
 
-## 5. Add shows and ads (Library page)
+The Drive tab also has **Re-read library**. Studio re-reads the drive by itself after every change; use the button after you add or remove files by hand. It lists anything it skipped and why.
 
-- **Add show…** picks a folder of video files. Studio looks at the file names to guess season and episode numbers, lets you fix them and choose the channel, then converts the videos into the format the Wii can play and copies them onto the drive. Conversion takes a while. The **jobs panel** at the top shows progress. If a job fails, use **Retry failed**.
-- **Add ads…** does the same for ad clips. Ads belong to a channel.
-- **Edit info** on a show lets you change its name, description and icon.
-- **Rebuild** re-reads the drive and rebuilds the library. Studio lists anything it skipped and why. Use it if you changed files by hand.
+## 5. Add episodes (Episodes page)
+
+The **Episodes** page is the home page.
+
+- **Add episodes**: click **Pick a folder** and choose a folder of video files on the Mac. (On a server, drop files on the box or use the imports folder; see `docs/SERVER.md`.) The **Add episodes** page opens with one row per video:
+  - a tick box: only ticked videos are added;
+  - **▶** plays the source file in a small player, so you can check it is the right video before adding it. If the browser can't play that format it says "This browser can't preview this file";
+  - season and episode, guessed from the file name, which you can change;
+  - the title, the length and a note.
+- **They go to**: Studio guesses the channel and show from the file names and your library. Change them with the **Channel** and **Show** lists. **New channel…** and **New show…** ask for a name (a new show can have an icon). If the files look like more than one show, each show gets its own box.
+- Notes on a row:
+  - **Already on air · Replace?**: that episode is already on the channel, so the row starts unticked. Tick it to replace the old file with this one. The episode keeps its name and title, and the old file stays on air until the new one has converted. If the conversion fails, the old file is kept.
+  - **Already queued**: the same episode is already waiting to convert.
+  - **Already in this list**: another row has the same season and episode.
+  - **Already added**: this exact file was converted before.
+  - **Too short** or **Can't read this file**: Studio can't use it.
+- The bottom bar shows how many are ticked. **Add N episodes** starts converting and takes you back to the home page.
+- Back on the home page, **In progress** lists the videos converting and waiting, grouped by show and season ("Gumball S03E20–E40 · 21 waiting"). **Recent** lists what finished or failed in the last 7 days, even after Studio restarts. A failed row shows the reason. **Retry failed** tries the failed ones again. A row that says **Add the file again** failed and its source file is gone, so add it again.
 - Adding the same files again is safe. Files that are already on the drive are skipped.
 
-## 6. Set up channels (Channels page)
+## 6. Channels
 
-Click **Add channel**, fill in the form and **Save**:
+The **Channels** tab lists your channels with what is on now, the mode, how many shows and episodes they have, and any problems ("No shows yet", "Has errors"). Click a channel to open its page. **Add channel** asks for a number, name, category and mode.
 
-- **Number**: 1 to 999. Two channels cannot share a number.
-- **Name** and **Category**: shown in the Wii guide.
-- **Folder**: the channel's folder on the drive. If you leave it empty, Studio uses the name. Pick an existing folder to attach a channel to shows you already imported.
-- **Icon**: choose a picture. It is saved right away.
-- **Ads**: on or off. When off, random ads are skipped on this channel.
-- **Mode**: **timed** (a schedule with start times, like a TV station) or **looping** (a list that plays in order and repeats all day).
+Folders on the drive that have shows but no channel are listed under **Not on a channel**. Give a channel that folder in its Settings to put the shows on air.
 
-A new channel gets a placeholder schedule so it is valid straight away. Build the real schedule on the Schedule page. Edit or Delete a channel from the table. Deleting a channel keeps its files on the drive.
+Each channel page has **Add episodes** (with that channel already chosen) and four tabs:
 
-## 7. Build schedules (Schedule page)
+- **Today**: the day's lineup as the Wii will air it, with start and end times, shows, episodes and ad breaks. The airing on now is highlighted with its progress. Pick another day with the date field, and go back with **Today**. It is computed with the same engine the Wii uses, so what you see here is what airs on the Wii for the same date and time.
+- **Schedule**: the schedule editor (section 7).
+- **Shows**: the channel's shows by season, each episode with its length and status (On air, Converting, Queued or Failed). **Edit info** changes a show's name, icon and episode descriptions.
+- **Settings**:
+  - **Name** and **Category**: shown in the Wii guide. Renaming a channel keeps its folder, so its shows stay.
+  - **Number**: 1 to 999. Two channels cannot share a number.
+  - **Folder on the drive**: the channel's folder. If you leave it empty, Studio uses the name. Pick an existing folder to attach a channel to shows you already added.
+  - **Mode**: **Timed** (a schedule with start times, like a TV station) or **Looping** (a list that plays in order and repeats all day).
+  - **Ads**: on or off. When off, random ads are skipped on this channel.
+  - **Logo**: choose a picture. It is saved right away.
+  - **Save** writes the changes. **Delete channel** removes the channel but keeps its files on the drive.
 
-Pick the channel with the buttons at the top. Studio shows whether it is Timed or Looping (change that on the Channels page).
+A new channel gets a placeholder schedule so it is valid straight away. Build the real schedule on its Schedule tab.
 
-- The **timeline** shows what airs and when. **Zoom** buttons change how much of the day you see.
+## 7. Build schedules (Schedule tab)
+
+Open a channel and its **Schedule** tab. Timed channels open zoomed out to the whole day (30 px per hour); looping channels open at 120.
+
+- The **timeline** shows what airs and when. The **zoom** buttons change how much of the day you see.
 - The **library panel** on the left lists episodes and rules for this channel. **Drag** an item onto the timeline, into a slot (timed) or onto the loop (looping). Drag blocks to reorder them. Click a block to edit it on the right. **Delete** removes the selected block.
 - The ready-made rules are:
   - **Random episode**: picks random episodes (set how many with Count), without repeats inside the block.
@@ -90,7 +113,7 @@ Pick the channel with the buttons at the top. Studio shows whether it is Timed o
 - On a **timed** channel, a **slot** is a start time. A slot runs until the next slot starts. **Add slot** asks for a time as `HH:MM` (24-hour, for example `07:30` or `19:00`). Click a slot's time to rename it. Two slots cannot start at the same time.
 - A **looping** channel has no times. It plays its list in order and repeats it all day.
 - **Undo** and **Redo** step through your changes.
-- **Save** writes your changes to the drive. Studio refuses to save a schedule with errors and tells you which block to fix.
+- **Save** writes your changes to the drive. Studio refuses to save a schedule with errors and tells you which block to fix. With unsaved changes, Studio asks before you leave the tab or the page.
 - **Reshuffle** picks a new random seed so every random pick changes. Save first, because Reshuffle is disabled while there are unsaved changes.
 - If you edit the schedule in a second place (for example by hand), Studio may say "config.toml changed on disk — Reload". Click **Reload** to load the newer version. Your unsaved changes in the page are lost, so redo them afterwards.
 
@@ -98,18 +121,16 @@ Pick the channel with the buttons at the top. Studio shows whether it is Timed o
 
 A block marked with a warning and "min overlap" runs past the start of the next slot. The part that does not fit is cut off when the next slot starts. This is a warning, not an error. You can leave it, make the block shorter (for example fewer episodes) or move the next slot later. A block outlined as an error is a real problem and must be fixed before Studio will save. The message names the channel, slot and item.
 
-## 8. Preview
+## 8. Ads
 
-Open the **Preview** page, pick a channel and a date. You get a TV guide for that day: start and end times, show, season and episode, and ad breaks. The **Now** marker shows the current time when you look at today. **Refresh** reloads the guide after you save changes.
-
-Preview is computed with the same engine the Wii uses, so what you see here is what airs on the Wii for the same date and time. The Wii app was only checked against Dolphin so far, not yet on a real Wii.
+The **Ads** tab lists your ads: those for all channels first, then each channel's own. **Add ads** opens the same Add page as episodes, with a destination of **All channels** or one channel. Ad files Studio can't use (for example too short) are listed under **Skipped** with the reason.
 
 ## 9. Done, then eject
 
-When you finish, go to the **Drive** page and click **Done — safe to eject**.
+When you finish, go to the **Drive** tab and click **Done — safe to eject**.
 
 - This does not eject the drive. It finishes pending work and cleans up files the Mac leaves on FAT drives (the `._` files).
-- It refuses while videos are still converting. Wait for the jobs panel to finish and try again.
+- It refuses while videos are still converting. Wait until **In progress** on the Episodes page is empty and try again.
 - After the message says it is safe, eject the drive in Finder (right-click the drive, Eject) and then unplug it.
 
 ## 10. Put the app on the Wii's SD card
@@ -153,7 +174,7 @@ Point the Wii Remote at the screen to see the cursor. If you do not point it at 
 - Point the remote at the screen to show the **info panel**; it hides itself after a few seconds without pointer movement. While the volume panel shows, point at its **−** and **+** and press **A**.
 
 **Today's list**
-- It shows the channel's schedule for the day as Studio's Preview does: times, shows, episodes and titles, with ads grouped into breaks and what's on now in blue. On a timed channel after midnight it shows the schedule day that is still running.
+- It shows the channel's schedule for the day as a channel's Today tab in Studio does: times, shows, episodes and titles, with ads grouped into breaks and what's on now in blue. On a timed channel after midnight it shows the schedule day that is still running.
 - **D-pad up and down** or the pointer moves the highlight. On a looping channel **A** plays from the highlighted item. **B** or **1** closes it.
 
 **HOME menu**
@@ -178,7 +199,7 @@ Plug in the drive prepared with cable-twii Studio, or put a cable-twii folder on
 **There's a problem with the schedule**
 Followed by up to three lines such as "config.toml line 12: ..." or "library.toml: ..." and "Open cable-twii Studio to fix it."
 - Cause: the schedule or library file on the drive has a mistake, for example the file was edited by hand, a show was deleted, or the drive was changed after the schedule was written.
-- Fix: plug the drive into the Mac, open Studio, go to the Schedule page and fix the blocks it points to (see "In Studio" below). Save, click **Done — safe to eject**, eject and try again. If it still fails, click **Rebuild** on the Library page first.
+- Fix: plug the drive into the Mac, open Studio, open the channel's Schedule tab and fix the blocks it points to (see "In Studio" below). Save, click **Done — safe to eject**, eject and try again. If it still fails, click **Re-read library** on the Drive tab first.
 
 **The drive was disconnected**
 Plug it back in and start cable-twii again.
@@ -188,7 +209,7 @@ Plug it back in and start cable-twii again.
 On all three screens press **Back to Homebrew Channel** with the pointer and **A**.
 
 **Black screen on a channel**
-If a video file is shorter than the library says, or a file is missing, the picture stays black until the next show starts. Run **Rebuild** in Studio to check the files.
+If a video file is shorter than the library says, or a file is missing, the picture stays black until the next show starts. Click **Re-read library** on Studio's Drive tab to check the files.
 
 **The Wii shows the wrong show or the wrong time**
 Check the Wii clock (section 12).
@@ -198,7 +219,7 @@ Point the remote at the screen and move it. Check the sensor bar is on.
 
 ### In Studio
 
-**Drive messages (Drive page)**
+**Drive messages (Drive tab)**
 - "That folder doesn't exist." The path you typed is wrong. Use **Choose drive…** instead.
 - "Pick the drive itself, not a folder inside it." Choose the drive's top level (for example `/Volumes/CABLETV`).
 - "Choose your media drive or a test folder, not a system folder." Pick the flash drive or SD card.
@@ -220,7 +241,7 @@ Studio refuses to save when there is an error, and the Wii shows these same prob
 - `fill_in_loop`: a Fill slot block is in a looping channel. Remove it or change the channel to timed.
 - `no_slots`: a timed channel has no slots. Add a slot.
 - `empty_pool`: a random or Fill slot block names a show or season with no episodes. Choose another season or show.
-- `missing_file`: a file listed in the library is not on the drive. Re-add the show or click **Rebuild**.
+- `missing_file`: a file listed in the library is not on the drive. Re-add the show or click **Re-read library** on the Drive tab.
 
 **Warnings (shown but not blocking)**
 - `cut`: an episode or ad is cut off when the next slot starts (the red overlap).
@@ -229,11 +250,11 @@ Studio refuses to save when there is an error, and the Wii shows these same prob
 
 **Other**
 - "config.toml changed on disk — Reload": the file changed outside the page. Click **Reload**, then redo your edits.
-- "Unsaved changes": you have not clicked **Save** on the Schedule page. Studio asks before you leave the channel.
+- "Unsaved changes": you have not clicked **Save** on the Schedule tab. Studio asks before you leave it.
 - "Skipped ...: already on the drive": the file was imported earlier. Nothing to do.
-- "Could not read the library": click **Rebuild** on the Library page, or check the drive is connected.
-- A job in the jobs panel fails: click **Retry failed**. If it keeps failing, check the source video plays on the Mac and that the drive has free space.
-- "Done" will not finish: videos are still converting. Wait for the jobs panel to finish.
+- "Could not read the library": click **Re-read library** on the Drive tab, or check the drive is connected.
+- A video in Recent says Failed: click **Retry failed**. If it keeps failing, check the source video plays on the Mac (use **▶** on the Add page) and that the drive has free space.
+- "Done" will not finish: videos are still converting. Wait until **In progress** on the Episodes page is empty.
 
 ## 15. Play from a server
 
