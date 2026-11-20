@@ -1,32 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type Config, type WebBuildResult, getConfig, getLibrary, mediaUrl, pickSource, rebuildLibrary } from "../api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { type WebBuildResult, getLibrary, mediaUrl, rebuildLibrary } from "../api";
 import { baseName, formatDuration } from "../format";
-import { AddVideosDialog, type Picked } from "../library/AddVideosDialog";
-import { ImportAdsDialog } from "../library/ImportAdsDialog";
-import { ImportShowDialog } from "../library/ImportShowDialog";
-import { JobsPanel } from "../library/JobsPanel";
 import { ShowMetaDialog } from "../library/ShowMetaDialog";
-import { channelChoices } from "../channels";
+import type { Route } from "../router";
 import { type ShowNode, type WebLibrary, buildTree, seasonLabel } from "../tree";
 
-type Target = "show" | "ads";
-type Dialog = { kind: "add"; target: Target } | { kind: Target; picked: Picked } | { kind: "meta"; node: ShowNode } | null;
-
-const REFRESH_DELAY_MS = 2600;
-
 interface Props {
-  server: boolean;
-  session: number;
+  onNavigate: (route: Route) => void;
 }
 
-export function LibraryPage({ server, session }: Props) {
+export function LibraryPage({ onNavigate }: Props) {
   const [library, setLibrary] = useState<WebLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [config, setConfig] = useState<Config | null>(null);
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialog, setDialog] = useState<{ kind: "meta"; node: ShowNode } | null>(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Pick<WebBuildResult, "skipped" | "warnings"> | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback(() => {
     getLibrary()
@@ -34,38 +22,9 @@ export function LibraryPage({ server, session }: Props) {
       .catch((err: Error) => setError(err.message));
   }, []);
 
-  const refreshSoon = useCallback(() => {
-    clearTimeout(timer.current);
-    timer.current = setTimeout(load, REFRESH_DELAY_MS);
-  }, [load]);
-
-  useEffect(() => {
-    load();
-    return () => clearTimeout(timer.current);
-  }, [load]);
-
-  useEffect(() => {
-    getConfig()
-      .then((res) => setConfig(res.config))
-      .catch(() => setConfig(null));
-  }, [session]);
+  useEffect(load, [load]);
 
   const tree = useMemo(() => (library ? buildTree(library) : []), [library]);
-  const channels = useMemo(() => channelChoices(config, tree.map((c) => c.channel)), [config, tree]);
-
-  async function pick(kind: Target) {
-    setError(null);
-    if (server) {
-      setDialog({ kind: "add", target: kind });
-      return;
-    }
-    try {
-      const picked = await pickSource();
-      if (picked) setDialog({ kind, picked });
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
 
   async function rebuild() {
     setBusy(true);
@@ -85,10 +44,10 @@ export function LibraryPage({ server, session }: Props) {
     <section>
       <div className="row">
         <h2 className="grow">Library</h2>
-        <button className="primary" onClick={() => pick("show")}>
+        <button className="primary" onClick={() => onNavigate({ page: "add", to: "episodes", channel: null })}>
           Add show…
         </button>
-        <button onClick={() => pick("ads")}>Add ads…</button>
+        <button onClick={() => onNavigate({ page: "add", to: "ads", channel: null })}>Add ads…</button>
         <button disabled={busy} onClick={rebuild}>
           Rebuild
         </button>
@@ -109,7 +68,6 @@ export function LibraryPage({ server, session }: Props) {
           </ul>
         </div>
       )}
-      <JobsPanel key={session} onFinished={refreshSoon} />
       {library !== null && tree.length === 0 && <p className="muted">The library is empty. Add a show to get started.</p>}
       {tree.map((ch) => (
         <div key={ch.channel} className="card">
@@ -161,15 +119,6 @@ export function LibraryPage({ server, session }: Props) {
           )}
         </div>
       ))}
-      {dialog?.kind === "add" && (
-        <AddVideosDialog onPicked={(picked) => setDialog({ kind: dialog.target, picked })} onClose={() => setDialog(null)} />
-      )}
-      {dialog?.kind === "show" && (
-        <ImportShowDialog dir={dialog.picked.dir} files={dialog.picked.files} uploaded={dialog.picked.uploaded === true} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
-      )}
-      {dialog?.kind === "ads" && (
-        <ImportAdsDialog dir={dialog.picked.dir} files={dialog.picked.files} uploaded={dialog.picked.uploaded === true} channels={channels} onClose={() => setDialog(null)} onImported={refreshSoon} />
-      )}
       {dialog?.kind === "meta" && <ShowMetaDialog node={dialog.node} onClose={() => setDialog(null)} onSaved={setLibrary} />}
     </section>
   );

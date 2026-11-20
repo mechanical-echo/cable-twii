@@ -25,14 +25,6 @@ export function batches<T>(items: readonly T[], size: number): T[][] {
   return out;
 }
 
-export function rejectedLine(rejected: { name: string; reason: string }): string {
-  return `${rejected.name}: ${rejected.reason.split("\n")[0]}`;
-}
-
-export function tickedFiles<T>(files: T[], ticked: boolean[]): T[] {
-  return files.filter((_, i) => ticked[i] === true);
-}
-
 export function uploadGroups(sources: string[]): { dir: string; names: string[] }[] {
   const groups = new Map<string, string[]>();
   for (const source of sources) {
