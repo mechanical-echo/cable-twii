@@ -24,4 +24,4 @@ export interface LineupResult { channel: number; date: string; hash: string; air
 
 export type JobState = "queued" | "running" | "done" | "failed";
 export type JobKind = "convert" | "shrink";
-export interface Job { id: string; kind?: JobKind; source: string; target: string; aspect: "16:9" | "4:3"; state: JobState; progress: number; error?: string }
+export interface Job { id: string; kind?: JobKind; source: string; target: string; aspect: "16:9" | "4:3"; state: JobState; progress: number; error?: string; finishedAt?: number; missing?: boolean }

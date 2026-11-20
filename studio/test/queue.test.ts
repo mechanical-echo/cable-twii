@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { stringify } from "smol-toml";
 import { spawnSync } from "node:child_process";
+import { HISTORY_MS } from "../src/server/history.js";
 import { ConversionQueue } from "../src/server/queue.js";
 import { readSources, writeSources } from "../src/server/sources.js";
 import { convert as realConvert } from "../src/server/ffmpeg.js";
@@ -233,6 +234,78 @@ test("retryFailed requeues failed jobs", async () => {
   ]);
   await idle(q, 2);
   expect(q.list().map((j) => j.state)).toEqual(["done", "done"]);
+  expect(q.retryFailed()).toEqual([]);
+  await q.stop();
+});
+
+test("keeps finished jobs across a restart", async () => {
+  const convertFn: typeof convert = async (_s, dst) => {
+    await sleep(5);
+    if (dst.endsWith("b.mpg")) throw new Error("boom");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+  q.start();
+  q.enqueue(srcFile, "a.mpg", "4:3");
+  q.enqueue(srcFile, "b.mpg", "4:3");
+  await idle(q, 2);
+  await q.stop();
+  const again = new ConversionQueue(dir, { convertFn, probeFn });
+  const jobs = again.list();
+  expect(jobs.map((j) => [j.target, j.state])).toEqual([
+    ["a.mpg", "done"],
+    ["b.mpg", "failed"],
+  ]);
+  expect(jobs[1].error).toBe("boom");
+  for (const job of jobs) expect(typeof job.finishedAt).toBe("number");
+  await again.stop();
+});
+
+test("drops history older than seven days", async () => {
+  const t = 1_800_000_000_000;
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn: quick, probeFn, now: () => t });
+  q.start();
+  q.enqueue(srcFile, "a.mpg", "4:3");
+  await idle(q, 1);
+  await q.stop();
+  expect(q.list()[0].finishedAt).toBe(t);
+  const kept = new ConversionQueue(dir, { convertFn: quick, probeFn, now: () => t + HISTORY_MS });
+  expect(kept.list()).toHaveLength(1);
+  const later = new ConversionQueue(dir, { convertFn: quick, probeFn, now: () => t + HISTORY_MS + 1 });
+  expect(later.list()).toEqual([]);
+});
+
+test("requeued job is not also in history", async () => {
+  let block = false;
+  const convertFn: typeof convert = (_s, _d, _a, _p, signal) =>
+    block
+      ? new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new Error("conversion aborted")));
+        })
+      : Promise.reject(new Error("boom"));
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+  q.start();
+  const job = q.enqueue(srcFile, "a.mpg", "4:3");
+  await idle(q, 1);
+  block = true;
+  q.retryFailed();
+  await until(q, (jobs) => jobs[0].state === "running");
+  await q.stop();
+  const again = new ConversionQueue(dir, { convertFn: quick, probeFn });
+  expect(again.list().map((j) => [j.id, j.state])).toEqual([[job.id, "queued"]]);
+  await again.stop();
+});
+
+test("failed job with a gone source is missing and not retried", async () => {
+  const convertFn: typeof convert = async () => {
+    throw new Error("boom");
+  };
+  const q = new ConversionQueue(dir, { concurrency: 1, convertFn, probeFn });
+  q.start();
+  q.enqueue(srcFile, "a.mpg", "4:3");
+  await idle(q, 1);
+  expect(q.list()[0].missing).toBeUndefined();
+  await rm(srcFile);
+  expect(q.list()[0].missing).toBe(true);
   expect(q.retryFailed()).toEqual([]);
   await q.stop();
 });

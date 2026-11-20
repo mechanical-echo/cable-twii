@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { readFileSync, realpathSync, renameSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, renameSync, statSync } from "node:fs";
 import { rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse, stringify } from "smol-toml";
 import { convert, probe } from "./ffmpeg.js";
 import { assertContained, atomicWriteContained, checkRename, mkdirContained, prepareScratchFile } from "./contain.js";
+import { HISTORY_MS } from "./history.js";
 import { DRIVE_PROFILE, FRAME_SIZE, type VideoProfile } from "./videoSettings.js";
 import { needsShrink } from "./shrink.js";
 import { upsertSource } from "./sources.js";
@@ -20,6 +21,7 @@ export interface QueueOptions {
   convertFn?: typeof convert;
   probeFn?: typeof probe;
   profile?: VideoProfile;
+  now?: () => number;
 }
 
 type Aspect = "16:9" | "4:3";
@@ -52,6 +54,7 @@ export class ConversionQueue extends EventEmitter {
   private readonly convertFn: typeof convert;
   private readonly probeFn: typeof probe;
   private readonly profile: VideoProfile;
+  private readonly now: () => number;
   private started = false;
   private stopping = false;
   private paused = false;
@@ -66,13 +69,56 @@ export class ConversionQueue extends EventEmitter {
     this.convertFn = opts.convertFn ?? convert;
     this.probeFn = opts.probeFn ?? probe;
     this.profile = opts.profile ?? DRIVE_PROFILE;
+    this.now = opts.now ?? Date.now;
     this.load();
+    this.loadHistory();
     const pending = this.loadErrors;
     queueMicrotask(() => pending.forEach((e) => this.emit("error", e)));
   }
 
   private queueFile(): string {
     return path.join(this.root, ".studio", "queue.toml");
+  }
+
+  private historyFile(): string {
+    return path.join(this.root, ".studio", "history.toml");
+  }
+
+  private loadHistory(): void {
+    let text: string;
+    try {
+      text = readFileSync(this.historyFile(), "utf8");
+    } catch {
+      return;
+    }
+    let doc: Record<string, unknown>;
+    try {
+      doc = parse(text);
+    } catch {
+      this.loadErrors.push(new Error("history.toml is damaged; the list of finished conversions starts empty"));
+      return;
+    }
+    if (doc.version !== 1 || !Array.isArray(doc.job)) return;
+    const since = this.now() - HISTORY_MS;
+    for (const raw of doc.job as Record<string, unknown>[]) {
+      if (
+        typeof raw.id !== "string" || typeof raw.source !== "string" || typeof raw.target !== "string" ||
+        (raw.aspect !== "16:9" && raw.aspect !== "4:3") || (raw.state !== "done" && raw.state !== "failed") ||
+        typeof raw.finishedAt !== "number" || raw.finishedAt < since || this.jobs.has(raw.id)
+      ) {
+        continue;
+      }
+      let rel: string;
+      try {
+        rel = normaliseTarget(this.root, raw.target);
+      } catch {
+        continue;
+      }
+      const job: Job = { id: raw.id, source: raw.source, target: rel, aspect: raw.aspect, state: raw.state, progress: raw.state === "done" ? 1 : 0, finishedAt: raw.finishedAt };
+      if (raw.kind === "shrink") job.kind = "shrink";
+      if (raw.state === "failed" && typeof raw.error === "string") job.error = raw.error;
+      this.jobs.set(job.id, job);
+    }
   }
 
   private load(): void {
@@ -160,7 +206,7 @@ export class ConversionQueue extends EventEmitter {
   }
 
   list(): Job[] {
-    return [...this.jobs.values()].map((j) => ({ ...j }));
+    return [...this.jobs.values()].map((j) => (j.state === "failed" && !existsSync(j.source) ? { ...j, missing: true } : { ...j }));
   }
 
   isPaused(): boolean {
@@ -179,16 +225,18 @@ export class ConversionQueue extends EventEmitter {
     for (const job of this.jobs.values()) if (job.state === "queued" || job.state === "running") active.add(job.target);
     const retried: Job[] = [];
     for (const job of this.jobs.values()) {
-      if (job.state !== "failed" || active.has(job.target)) continue;
+      if (job.state !== "failed" || active.has(job.target) || !existsSync(job.source)) continue;
       job.state = "queued";
       job.progress = 0;
       delete job.error;
+      delete job.finishedAt;
       active.add(job.target);
       retried.push(job);
     }
     if (retried.length === 0) return [];
     const copies = retried.map((j) => ({ ...j }));
     this.persist();
+    this.persistHistory();
     for (const job of retried) this.emitChange(job);
     this.pump();
     return copies;
@@ -234,6 +282,40 @@ export class ConversionQueue extends EventEmitter {
     this.writeChain = this.writeChain.then(() => atomicWriteContained(this.root, this.queueFile(), text)).catch((err) => {
       this.emit("error", err);
     });
+  }
+
+  private persistHistory(): void {
+    if (this.paused) return;
+    const since = this.now() - HISTORY_MS;
+    const stored = [];
+    for (const j of this.jobs.values()) {
+      if (j.state !== "done" && j.state !== "failed") continue;
+      if (j.finishedAt === undefined || j.finishedAt < since) {
+        if (j.finishedAt !== undefined) this.jobs.delete(j.id);
+        continue;
+      }
+      stored.push({
+        id: j.id,
+        ...(j.kind === "shrink" ? { kind: j.kind } : {}),
+        source: j.source,
+        target: j.target,
+        aspect: j.aspect,
+        state: j.state,
+        ...(j.error !== undefined ? { error: j.error } : {}),
+        finishedAt: j.finishedAt,
+      });
+    }
+    const text = stringify({ version: 1, job: stored });
+    this.writeChain = this.writeChain.then(() => atomicWriteContained(this.root, this.historyFile(), text)).catch((err) => {
+      this.emit("error", err);
+    });
+  }
+
+  private finish(job: Job): void {
+    job.finishedAt = this.now();
+    this.persist();
+    this.persistHistory();
+    this.emitChange(job);
   }
 
   private pump(): void {
@@ -283,8 +365,7 @@ export class ConversionQueue extends EventEmitter {
           ended = true;
           job.state = "done";
           job.progress = 1;
-          this.persist();
-          this.emitChange(job);
+          this.finish(job);
           return;
         }
         sourceDurationMs = current.durationMs;
@@ -329,8 +410,7 @@ export class ConversionQueue extends EventEmitter {
       ended = true;
       job.state = "done";
       job.progress = 1;
-      this.persist();
-      this.emitChange(job);
+      this.finish(job);
       if (rec) this.emit("converted", rec);
     } catch (err) {
       ended = true;
@@ -344,6 +424,8 @@ export class ConversionQueue extends EventEmitter {
       } else {
         job.state = "failed";
         job.error = err instanceof Error ? err.message : String(err);
+        this.finish(job);
+        return;
       }
       this.persist();
       this.emitChange(job);
