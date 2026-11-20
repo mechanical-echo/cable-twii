@@ -153,3 +153,20 @@ describe("iconPath for drafts", () => {
     expect(iconPath({ ...draftFromChannel(cn), name: " CN ", folder: " x " })).toBe("x/channel.png");
   });
 });
+
+describe("rename", () => {
+  it("rename keeps the old folder", () => {
+    const next = applyEdit(config, 1, { ...draftFromChannel(cn), name: "CN" });
+    expect(next.channel.find((c) => c.number === 1)).toMatchObject({ name: "CN", folder: "Cartoon Network" });
+  });
+
+  it("rename with explicit folder keeps it", () => {
+    const next = applyEdit(config, 2, { ...draftFromChannel(mtv), name: "MTV Classic" });
+    expect(next.channel.find((c) => c.number === 2)).toMatchObject({ name: "MTV Classic", folder: "mtv-00s" });
+  });
+
+  it("a new channel gets no folder", () => {
+    const next = applyEdit(config, null, { ...newDraft(config.channel), name: "Boomerang", category: "Kids" });
+    expect(next.channel.find((c) => c.name === "Boomerang")?.folder).toBeUndefined();
+  });
+});

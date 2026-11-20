@@ -114,7 +114,10 @@ export function toChannel(draft: ChannelDraft): Channel {
 }
 
 export function applyEdit(config: Config, editing: number | null, draft: ChannelDraft): Config {
-  const channel = toChannel(draft);
+  const old = editing === null ? undefined : config.channel.find((c) => c.number === editing);
+  const implicit = old !== undefined && (old.folder?.trim() ?? "") === "" && draft.folder.trim() === "";
+  const renamed = implicit && draft.name.trim() !== old.name.trim();
+  const channel = toChannel(renamed ? { ...draft, folder: old.name.trim() } : draft);
   const rest = config.channel.filter((c) => c.number !== editing);
   return { ...config, channel: sortChannels([...rest, channel]) };
 }
