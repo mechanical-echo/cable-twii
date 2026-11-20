@@ -1,3 +1,5 @@
+import { fatSafe } from "../server/names.js";
+
 export const UPLOAD_BATCH_FILES = 50;
 
 export function uploadRatio(loaded: number, total: number): number {
@@ -39,4 +41,18 @@ export function uploadGroups(sources: string[]): { dir: string; names: string[] 
     groups.set(dir, [...(groups.get(dir) ?? []), source.slice(cut + 1)]);
   }
   return [...groups].map(([dir, names]) => ({ dir, names }));
+}
+
+export function storedUploadName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? `${fatSafe(name.slice(0, dot))}${fatSafe(name.slice(dot))}` : fatSafe(name);
+}
+
+export function spreadLoaded(sizes: number[], loaded: number): number[] {
+  let left = Math.max(0, loaded);
+  return sizes.map((size) => {
+    const part = Math.min(size, left);
+    left -= part;
+    return part;
+  });
 }

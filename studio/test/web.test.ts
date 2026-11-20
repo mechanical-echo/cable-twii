@@ -3,7 +3,7 @@ import { baseName, formatBytes, formatDuration } from "../src/web/format.js";
 import { describeRejected, isUsable } from "../src/web/importing.js";
 import { buildTree, descriptionKey, seasonLabel, type WebLibrary } from "../src/web/tree.js";
 import { channelChoices } from "../src/web/channels.js";
-import { batches, crumbs, joinRel, rejectedLine, tickedFiles, uploadGroups, uploadRatio } from "../src/web/uploading.js";
+import { batches, crumbs, joinRel, rejectedLine, spreadLoaded, storedUploadName, tickedFiles, uploadGroups, uploadRatio } from "../src/web/uploading.js";
 import type { Config } from "../src/server/types.js";
 
 const ep = (season: number, episode: number, title: string) => ({ season, episode, title, description: "", path: `C/S/${title}.mpg`, duration_ms: 30000 });
@@ -182,5 +182,20 @@ describe("uploadGroups", () => {
       { dir: "/lib/.uploads/a", names: ["x.mp4", "z.mp4"] },
       { dir: "/lib/.uploads/b", names: ["y.mp4"] },
     ]);
+  });
+});
+
+describe("storedUploadName", () => {
+  it("matches the name the server stores an upload under", () => {
+    expect(storedUploadName("Ep 1: Pilot?.mp4")).toBe("Ep 1- Pilot.mp4");
+    expect(storedUploadName("Gumball.S03E19.The.Pest.mkv")).toBe("Gumball.S03E19.The.Pest.mkv");
+  });
+});
+
+describe("spreadLoaded", () => {
+  it("fills files in the order they are sent", () => {
+    expect(spreadLoaded([100, 50, 10], 0)).toEqual([0, 0, 0]);
+    expect(spreadLoaded([100, 50, 10], 120)).toEqual([100, 20, 0]);
+    expect(spreadLoaded([100, 50, 10], 500)).toEqual([100, 50, 10]);
   });
 });

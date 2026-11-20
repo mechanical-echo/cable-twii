@@ -3,6 +3,7 @@ import { type DriveInfo, type ModeInfo, getDrive, getMode, onUnauthorized } from
 import { LoginForm, LoginPage } from "./LoginPage";
 import { ChannelsPage } from "./pages/ChannelsPage";
 import { DrivePage } from "./pages/DrivePage";
+import { EpisodesPage } from "./pages/EpisodesPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { PreviewPage } from "./pages/PreviewPage";
 import { SchedulePage } from "./pages/SchedulePage";
@@ -12,6 +13,7 @@ import { PillButton } from "./ui/controls";
 import { Gallery } from "./ui/Gallery";
 import { Banner, EmptyState, Panel } from "./ui/layout";
 import { useRoute } from "./useRoute";
+import { useUploads } from "./useUploads";
 
 export function App() {
   const [mode, setMode] = useState<ModeInfo | null>(null);
@@ -22,6 +24,7 @@ export function App() {
   const [lost, setLost] = useState(false);
   const [session, setSession] = useState(0);
   const [route, navigate] = useRoute(dirty);
+  const uploads = useUploads();
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -81,7 +84,9 @@ export function App() {
   else if (route.page === "channels" || route.page === "channel" || route.page === "folder") page = <ChannelsPage />;
   else if (route.page === "schedule") page = <SchedulePage onDirty={setDirty} />;
   else if (route.page === "preview") page = <PreviewPage />;
-  else page = <LibraryPage server={server} session={session} />;
+  else if (route.page === "library") page = <LibraryPage server={server} session={session} />;
+  else if (route.page === "add") page = <EmptyState>Adding episodes arrives in the next step.</EmptyState>;
+  else page = <EpisodesPage key={session} server={server} uploads={uploads} onNavigate={navigate} />;
 
   return (
     <Shell server={server} route={route} onNavigate={navigate}>

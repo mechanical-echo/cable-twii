@@ -74,13 +74,13 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
       </Panel>
       {queued !== null && shrinkable === 0 && (
         <Banner kind="ok">
-          {queued} {queued === 1 ? "video" : "videos"} queued. See Conversions on the Library page.
+          {queued} {queued === 1 ? "video" : "videos"} queued. Their progress is on the Episodes page.
         </Banner>
       )}
       {shrinkable > 0 && (
         <Panel title="Make older videos smaller for Wi-Fi">
           <p>
-            {shrinkable} {shrinkable === 1 ? "video is" : "videos are"} too big to stream reliably over Wi-Fi. They are converted again in place; the Conversions list on the Library page shows the progress.
+            {shrinkable} {shrinkable === 1 ? "video is" : "videos are"} too big to stream reliably over Wi-Fi. They are converted again in place; the Episodes page shows the progress.
           </p>
           <PillButton disabled={busy} onClick={shrink}>
             Make smaller
