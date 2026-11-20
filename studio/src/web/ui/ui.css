@@ -1417,3 +1417,79 @@ button.mini {
   border-radius: 4px;
   box-shadow: 0 0 0 3px var(--ring);
 }
+
+.ui-player {
+  margin-bottom: 14px;
+}
+
+.ui-player-screen {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  max-width: 640px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #111;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.ui-player-screen.wide {
+  aspect-ratio: 16 / 9;
+  max-width: 760px;
+}
+
+.ui-player-screen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ui-player-start {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: #00000055;
+  color: #fff;
+  font-size: 48px;
+  cursor: pointer;
+}
+
+.ui-player-failed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #222;
+  color: #aaa;
+}
+
+.ui-player-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 760px;
+  margin-top: 8px;
+}
+
+.ui-player-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  box-shadow: inset 0 1px 1px var(--track-inset);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ui-player-track > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(var(--accent-light), var(--accent));
+}
+
+.ui-player-time {
+  color: var(--text-clock);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
