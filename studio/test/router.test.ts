@@ -17,7 +17,6 @@ describe("parseRoute", () => {
     expect(parseRoute("#/folders/Old%20Channel")).toEqual({ page: "folder", folder: "Old Channel" });
     expect(parseRoute("#/ads")).toEqual({ page: "ads" });
     expect(parseRoute("#/server")).toEqual({ page: "server" });
-    expect(parseRoute("#/schedule")).toEqual({ page: "schedule" });
     expect(parseRoute("#/ui")).toEqual({ page: "ui" });
   });
 
@@ -25,6 +24,7 @@ describe("parseRoute", () => {
     expect(parseRoute("#/nope")).toEqual({ page: "episodes" });
     expect(parseRoute("#/library")).toEqual({ page: "episodes" });
     expect(parseRoute("#/preview")).toEqual({ page: "episodes" });
+    expect(parseRoute("#/schedule")).toEqual({ page: "episodes" });
     expect(parseRoute("")).toEqual({ page: "episodes" });
     expect(parseRoute("#/channels/x")).toEqual({ page: "episodes" });
     expect(parseRoute("#/channels/0")).toEqual({ page: "episodes" });
@@ -53,7 +53,6 @@ describe("routeHash", () => {
       { page: "folder", folder: "Tom & Jerry Old" },
       { page: "ads" },
       { page: "server" },
-      { page: "schedule" },
       { page: "ui" },
     ];
     for (const route of routes) expect(parseRoute(routeHash(route))).toEqual(route);

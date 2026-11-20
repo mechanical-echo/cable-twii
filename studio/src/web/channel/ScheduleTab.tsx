@@ -16,7 +16,6 @@ import { FailureBanner } from "../FailureBanner";
 import {
   type DropTarget,
   type ItemRef,
-  UNSAVED_PROMPT,
   addSlot,
   deleteItem,
   dropsBefore,
@@ -41,6 +40,9 @@ import { AddSlotDialog } from "../schedule/SlotHeader";
 import { Timeline, type SlotDropData } from "../schedule/Timeline";
 import type { BlockDragData } from "../schedule/TimelineBlock";
 import { useScheduleEditor } from "../schedule/useScheduleEditor";
+import { defaultZoom } from "../schedule/zoom";
+import { PillButton } from "../ui/controls";
+import { Banner, EmptyState } from "../ui/layout";
 
 type DragData = LibraryDragData | BlockDragData | SlotDropData;
 
@@ -59,13 +61,15 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 interface Props {
+  number: number;
   onDirty: (dirty: boolean) => void;
 }
 
-export function SchedulePage({ onDirty }: Props) {
-  const editor = useScheduleEditor();
+export function ScheduleTab({ number, onDirty }: Props) {
+  const editor = useScheduleEditor(number);
   const { channel, schedule, library, dirty, busy } = editor;
-  const [pxPerHour, setPxPerHour] = useState<number>(120);
+  const [zoom, setZoom] = useState<number | null>(null);
+  const pxPerHour = zoom ?? (channel ? defaultZoom(channel.mode) : 120);
   const [selected, setSelected] = useState<ItemRef | null>(null);
   const [dragLabel, setDragLabel] = useState<string | null>(null);
   const [hint, setHint] = useState<DropTarget | null>(null);
@@ -122,14 +126,6 @@ export function SchedulePage({ onDirty }: Props) {
     setSlotError(null);
     if (step === "undo") editor.undo();
     else editor.redo();
-  }
-
-  function switchChannel(number: number) {
-    if (channel?.number === number) return;
-    if (dirty && !window.confirm(UNSAVED_PROMPT)) return;
-    setSelected(null);
-    setSlotError(null);
-    editor.selectChannel(number);
   }
 
   function target(event: DragMoveEvent | DragEndEvent): DropTarget | null {
@@ -191,14 +187,16 @@ export function SchedulePage({ onDirty }: Props) {
 
   if (editor.loadError !== null) {
     return (
-      <div className="banner error row">
+      <Banner kind="error">
         <span className="grow">{editor.loadError}</span>
-        <button onClick={editor.load}>Retry</button>
-      </div>
+        <PillButton small onClick={editor.load}>
+          Retry
+        </PillButton>
+      </Banner>
     );
   }
-  if (!editor.config) return <p className="muted">Loading…</p>;
-  if (!channel || !schedule || !view) return <div className="card">No channels yet. Add one on the Channels page.</div>;
+  if (!editor.config) return <EmptyState>Loading…</EmptyState>;
+  if (!channel || !schedule || !view) return <EmptyState>This channel no longer exists.</EmptyState>;
 
   const slotAt = (index: number) => (schedule.mode === "timed" ? schedule.slots[index]?.at : undefined);
   const where = (issue: Parameters<typeof issueWhere>[0]) =>
@@ -207,7 +205,6 @@ export function SchedulePage({ onDirty }: Props) {
   return (
     <section className="schedule">
       <ScheduleToolbar
-        channels={editor.channels}
         channel={channel}
         seed={editor.config.seed}
         dirty={dirty}
@@ -215,25 +212,24 @@ export function SchedulePage({ onDirty }: Props) {
         canUndo={editor.canUndo}
         canRedo={editor.canRedo}
         pxPerHour={pxPerHour}
-        onChannel={switchChannel}
         onUndo={() => history("undo")}
         onRedo={() => history("redo")}
         onAddSlot={() => setAddingSlot(true)}
-        onZoom={setPxPerHour}
+        onZoom={setZoom}
         onReshuffle={() => void editor.shuffle()}
         onSave={() => void editor.save()}
       />
-      {editor.libraryError !== null && <div className="banner warn">Could not read the library: {editor.libraryError}</div>}
-      {slotError !== null && <div className="banner error">{slotError}</div>}
+      {editor.libraryError !== null && <Banner kind="warn">Could not read the library: {editor.libraryError}</Banner>}
+      {slotError !== null && <Banner kind="error">{slotError}</Banner>}
       <FailureBanner failure={failure} onReload={editor.load} where={where} />
       {editor.warnings.length > 0 && (
-        <div className="banner warn">
+        <Banner kind="warn">
           <ul>
             {editor.warnings.map((issue, i) => (
               <li key={i}>{where(issue) !== "" ? `${where(issue)}: ${issue.message}` : issue.message}</li>
             ))}
           </ul>
-        </div>
+        </Banner>
       )}
       <DndContext
         sensors={sensors}

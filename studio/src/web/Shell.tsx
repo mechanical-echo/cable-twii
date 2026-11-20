@@ -19,7 +19,6 @@ export function Shell({ server, route, onNavigate, children }: Props) {
   const tabs: TabLink[] = [
     { label: "Episodes", route: { page: "episodes" }, active: top === "episodes" },
     { label: "Channels", route: { page: "channels" }, active: top === "channels" },
-    { label: "Schedule", route: { page: "schedule" }, active: route.page === "schedule" },
     { label: server ? "Server" : "Drive", route: { page: "server" }, active: top === "server" },
   ];
   return (
@@ -43,7 +42,7 @@ export function Shell({ server, route, onNavigate, children }: Props) {
           ))}
         </nav>
       </header>
-      <main className={route.page === "schedule" ? "ui-main wide" : "ui-main"}>{children}</main>
+      <main className={route.page === "channel" && route.tab === "schedule" ? "ui-main wide" : "ui-main"}>{children}</main>
     </div>
   );
 }

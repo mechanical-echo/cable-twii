@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Config, getConfig, getLibrary, mediaUrl } from "../api";
+import { ScheduleTab } from "../channel/ScheduleTab";
 import { SettingsTab } from "../channel/SettingsTab";
 import { TodayTab } from "../channel/TodayTab";
 import { ShowsTab } from "../channel/ShowsTab";
@@ -8,7 +9,7 @@ import { IconImage } from "../IconImage";
 import type { ChannelTab, Route } from "../router";
 import type { WebLibrary } from "../tree";
 import { PillButton } from "../ui/controls";
-import { Banner, EmptyState, Panel } from "../ui/layout";
+import { Banner, EmptyState } from "../ui/layout";
 import { Tabs } from "../ui/Tabs";
 
 interface Props {
@@ -25,7 +26,7 @@ const TABS: { id: ChannelTab; label: string }[] = [
   { id: "settings", label: "Settings" },
 ];
 
-export function ChannelPage({ number, tab, onNavigate }: Props) {
+export function ChannelPage({ number, tab, onNavigate, onDirty }: Props) {
   const [config, setConfig] = useState<Config | null>(null);
   const [library, setLibrary] = useState<WebLibrary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,23 +92,7 @@ export function ChannelPage({ number, tab, onNavigate }: Props) {
       </header>
       <Tabs tabs={TABS} active={tab} onChange={(next) => onNavigate({ page: "channel", number, tab: next })} />
       {tab === "today" && <TodayTab key={number} channel={channel} library={library} />}
-      {tab === "schedule" && (
-        <Panel>
-          <EmptyState>
-            The schedule editor moves here in the next stage. For now it is on the{" "}
-            <a
-              href="#/schedule"
-              onClick={(e) => {
-                e.preventDefault();
-                onNavigate({ page: "schedule" });
-              }}
-            >
-              Schedule page
-            </a>
-            .
-          </EmptyState>
-        </Panel>
-      )}
+      {tab === "schedule" && <ScheduleTab number={number} onDirty={onDirty} />}
       {tab === "shows" && <ShowsTab folder={effectiveFolder(channel)} onAdd={() => onNavigate({ page: "add", to: "episodes", channel: channel.number })} />}
       {tab === "settings" && (
         <SettingsTab

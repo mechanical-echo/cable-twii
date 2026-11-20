@@ -8,13 +8,12 @@ export type Route =
   | { page: "folder"; folder: string }
   | { page: "ads" }
   | { page: "server" }
-  | { page: "schedule" }
   | { page: "ui" };
 
 export type TopTab = "episodes" | "channels" | "ads" | "server";
 
 const CHANNEL_TABS: readonly ChannelTab[] = ["today", "schedule", "shows", "settings"];
-const PLAIN_PAGES = ["channels", "ads", "server", "schedule", "ui"] as const;
+const PLAIN_PAGES = ["channels", "ads", "server", "ui"] as const;
 const EPISODES: Route = { page: "episodes" };
 
 function channelNumber(text: string | null | undefined): number | null {

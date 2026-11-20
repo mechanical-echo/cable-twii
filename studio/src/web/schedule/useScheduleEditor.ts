@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type Config, type Issue, getConfig, getLibrary, putConfig, reshuffle } from "../api";
-import { sortChannels } from "../channels";
 import { type Failure, toFailure } from "../failure";
 import type { WebLibrary } from "../tree";
 import { type Schedule, applySchedule, sameSchedule, scheduleOf } from "./editing";
@@ -12,13 +11,12 @@ export interface SaveFailure extends Failure {
   schedule: Schedule;
 }
 
-export function useScheduleEditor() {
+export function useScheduleEditor(number: number) {
   const [config, setConfig] = useState<Config | null>(null);
   const [mtimeMs, setMtimeMs] = useState(0);
   const [library, setLibrary] = useState<WebLibrary>(EMPTY_LIBRARY);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
   const [histories, setHistories] = useState<Record<number, History<Schedule>>>({});
   const [failure, setFailure] = useState<SaveFailure | null>(null);
   const [warnings, setWarnings] = useState<Issue[]>([]);
@@ -46,8 +44,7 @@ export function useScheduleEditor() {
 
   useEffect(load, [load]);
 
-  const channels = useMemo(() => (config ? sortChannels(config.channel) : []), [config]);
-  const channel = channels.find((c) => c.number === selected) ?? channels[0] ?? null;
+  const channel = useMemo(() => config?.channel.find((c) => c.number === number) ?? null, [config, number]);
   const saved = useMemo(() => (channel ? scheduleOf(channel) : null), [channel]);
   const history = channel ? histories[channel.number] ?? (saved ? createHistory(saved) : null) : null;
   const schedule = history?.present ?? null;
@@ -62,16 +59,6 @@ export function useScheduleEditor() {
   );
 
   const edit = useCallback((next: Schedule) => setHistory((h) => pushHistory(h, next)), [setHistory]);
-
-  function selectChannel(number: number) {
-    if (channel && saved && dirty) {
-      const current = channel.number;
-      setHistories((all) => ({ ...all, [current]: createHistory(saved) }));
-    }
-    setFailure(null);
-    setWarnings([]);
-    setSelected(number);
-  }
 
   async function save() {
     if (!config || !channel || !schedule) return;
@@ -110,7 +97,6 @@ export function useScheduleEditor() {
     library,
     loadError,
     libraryError,
-    channels,
     channel,
     schedule,
     dirty,
@@ -119,7 +105,6 @@ export function useScheduleEditor() {
     warnings,
     load,
     edit,
-    selectChannel,
     save,
     shuffle,
     canUndo: history !== null && canUndo(history),
