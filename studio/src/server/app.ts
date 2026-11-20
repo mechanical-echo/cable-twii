@@ -612,12 +612,12 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   }
 
   app.addHook("onClose", async () => {
+    await Promise.allSettled([...queues.values()].map((q) => q.stop()));
+    await Promise.allSettled([...retiring]);
     if (!server) {
       for (const timer of rebuildTimers.values()) clearTimeout(timer);
       rebuildTimers.clear();
     }
-    await Promise.allSettled([...queues.values()].map((q) => q.stop()));
-    await Promise.allSettled([...retiring]);
     if (server) await Promise.all([...rebuildTimers.keys()].map((root) => flushRebuild(root).catch((err: unknown) => app.log.warn(err))));
     await Promise.allSettled([...rebuildChains.values()]);
   });

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -497,6 +498,27 @@ test("failed replace keeps the old file", async () => {
   } finally {
     await replacing.close();
   }
+});
+
+test("no rebuild runs after close", async () => {
+  await useFixture();
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const closing = withConvert(async (_s, dst) => {
+    await gate;
+    await writeFile(dst, "converted");
+  });
+  const src = path.join(dir, "late.mkv");
+  await writeFile(src, "video");
+  const episodes = [{ source: src, season: 1, episode: 9, title: "Late", description: "", aspect: "4:3" }];
+  expect((await closing.inject({ method: "POST", url: "/api/import/show", payload: { channelFolder: "Cartoon Network", showFolder: "Late Show", episodes } })).statusCode).toBe(200);
+  await waitFor(async () => (await jobsOf(closing)).some((j) => j.state === "running"));
+  const closed = closing.close();
+  release();
+  await closed;
+  await rm(path.join(root, "library.toml"), { force: true });
+  await sleep(150);
+  expect(existsSync(path.join(root, "library.toml"))).toBe(false);
 });
 
 test("sched lineup through GET /api/preview", async () => {
