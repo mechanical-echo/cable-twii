@@ -418,8 +418,7 @@ test("a converted upload is recorded and recognised under its stored name", asyn
 test("upload check finds earlier uploads", async () => {
   const first = await upload({ name: "a.mp4", data: Buffer.from("video") });
   expect((await importShow(first.json().files[0].source)).statusCode).toBe(200);
-  await waitFor(async () => (await jobs()).every((j) => j.state === "done"));
-  await waitFor(async () => (await readSources(root)).length > 0);
+  await waitFor(async () => (await readSources(root)).some((r) => r.source === "upload:a.mp4"));
   const res = await send({ method: "POST", url: "/api/upload/check", payload: { files: [{ name: "a.mp4", size: 5 }, { name: "b.mp4", size: 1 }, { name: "a.mp4", size: 6 }] } });
   expect(res.statusCode).toBe(200);
   expect(res.json()).toEqual({ added: ["a.mp4"] });
