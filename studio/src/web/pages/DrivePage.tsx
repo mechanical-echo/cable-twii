@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type DriveInfo, driveDone, getShrinkCount, initDrive, logout, pickDrive, setDrive, startShrink } from "../api";
+import { type DriveInfo, driveDone, getNotes, getShrinkCount, initDrive, logout, pickDrive, rebuildLibrary, setDrive, startShrink } from "../api";
 import { formatBytes } from "../format";
 import { PillButton, TextField } from "../ui/controls";
 import { Banner, EmptyState, PageHead, Panel } from "../ui/layout";
@@ -13,6 +13,70 @@ interface Props {
   drive: DriveInfo | null;
   onDrive: (info: DriveInfo | null) => void;
   server: ServerInfo | null;
+}
+
+interface Notes {
+  at: number | null;
+  skipped: { path: string; reason: string }[];
+  warnings: string[];
+}
+
+function LibraryCheck() {
+  const [notes, setNotes] = useState<Notes | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getNotes()
+      .then(setNotes)
+      .catch(() => setNotes(null));
+  }, []);
+
+  async function reread() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await rebuildLibrary();
+      setNotes({ at: Date.now(), skipped: result.skipped, warnings: result.warnings });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const problems = notes === null ? 0 : notes.skipped.length + notes.warnings.length;
+  return (
+    <Panel
+      title="Library"
+      actions={
+        <PillButton disabled={busy} onClick={() => void reread()}>
+          {busy ? "Reading…" : "Re-read library"}
+        </PillButton>
+      }
+    >
+      <p className="ui-muted">
+        Studio re-reads the library by itself after every change. Re-read it after adding or removing files outside Studio.
+        {notes?.at != null && ` Last read ${new Date(notes.at).toLocaleString()}.`}
+      </p>
+      {error !== null && <Banner kind="error">{error}</Banner>}
+      {notes !== null && problems === 0 && notes.at !== null && <Banner kind="ok">Every file was read.</Banner>}
+      {notes !== null && problems > 0 && (
+        <Banner kind="warn">
+          <ul>
+            {notes.skipped.map((s) => (
+              <li key={s.path}>
+                Skipped {s.path}: {s.reason}
+              </li>
+            ))}
+            {notes.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
+    </Panel>
+  );
 }
 
 export function DrivePage({ drive, onDrive, server }: Props) {
@@ -72,6 +136,7 @@ function ServerPage({ drive, server }: { drive: DriveInfo | null; server: Server
           Sign out
         </PillButton>
       </Panel>
+      <LibraryCheck />
       {queued !== null && shrinkable === 0 && (
         <Banner kind="ok">
           {queued} {queued === 1 ? "video" : "videos"} queued. Their progress is on the Episodes page.
@@ -181,6 +246,7 @@ function DriveSetup({ drive, onDrive }: Pick<Props, "drive" | "onDrive">) {
           )}
         </Panel>
       )}
+      {drive !== null && drive.usable && drive.hasRoot && <LibraryCheck key={drive.path} />}
     </section>
   );
 }

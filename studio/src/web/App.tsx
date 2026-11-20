@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type DriveInfo, type ModeInfo, getDrive, getMode, onUnauthorized } from "./api";
 import { LoginForm, LoginPage } from "./LoginPage";
 import { AddPage } from "./pages/AddPage";
+import { AdsPage } from "./pages/AdsPage";
 import { ChannelListPage } from "./pages/ChannelListPage";
 import { ChannelPage } from "./pages/ChannelPage";
 import { DrivePage } from "./pages/DrivePage";
@@ -83,6 +84,7 @@ export function App() {
       </Panel>
     );
   else if (route.page === "channels") page = <ChannelListPage onNavigate={navigate} />;
+  else if (route.page === "ads") page = <AdsPage onNavigate={navigate} />;
   else if (route.page === "folder") page = <FolderPage key={route.folder} folder={route.folder} />;
   else if (route.page === "channel") page = <ChannelPage key={route.number} number={route.number} tab={route.tab} onNavigate={navigate} onDirty={setDirty} />;
   else if (route.page === "add") page = <AddPage key={routeHash(route)} route={route} server={server} uploads={uploads} onDone={() => navigate({ page: "episodes" })} />;
