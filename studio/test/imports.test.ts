@@ -356,6 +356,10 @@ test("source preview needs a session", async () => {
   expect((await anonymous({ method: "GET", url: "/api/import/file", query: { path: file } })).statusCode).toBe(401);
 });
 
+test("play needs a session", async () => {
+  expect((await anonymous({ method: "GET", url: "/api/media/play", query: { path: "ads/a.mpg" } })).statusCode).toBe(401);
+});
+
 test("import scan takes one folder", async () => {
   await put(imports, "b.mp4");
   await put(imports, "a/x.mp4");

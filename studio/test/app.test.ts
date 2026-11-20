@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import sharp from "sharp";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FastifyInstance, InjectOptions } from "fastify";
@@ -542,6 +543,78 @@ test("notes keep the last automatic rebuild", async () => {
   });
   expect(typeof notes.at).toBe("number");
   expect(notes.skipped).toContainEqual({ path: "ads/short-x.mpg", reason: "duration 500 ms is under 1000 ms" });
+});
+
+const EPISODE = "Cartoon Network/Adventure Time/Season 5/S05E02 - Time 2.mpg";
+
+function fakeRemux() {
+  const calls: { file: string; start: number; stopped: boolean }[] = [];
+  const remuxFn = (file: string, start: number) => {
+    const call = { file, start, stopped: false };
+    calls.push(call);
+    return { stream: Readable.from([Buffer.from("ts")]), stop: () => (call.stopped = true) };
+  };
+  return { calls, remuxFn };
+}
+
+test("play streams the remux of a library file", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  try {
+    const res = await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe("ts");
+    expect(res.headers["content-type"]).toBe("video/mp2t");
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0]).toMatchObject({ file: await realpath(path.join(root, ...EPISODE.split("/"))), start: 0 });
+  } finally {
+    await playing.close();
+  }
+});
+
+test("play passes the start time", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  try {
+    expect((await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE, start: "95" } })).statusCode).toBe(200);
+    expect(fake.calls[0]!.start).toBe(95);
+    for (const start of ["-1", "x", "1.5"]) {
+      expect((await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE, start } })).statusCode, start).toBe(400);
+    }
+  } finally {
+    await playing.close();
+  }
+});
+
+test("play refuses paths outside the library", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  const outside = path.join(dir, "outside.mpg");
+  await writeFile(outside, "video");
+  await symlink(outside, path.join(root, "ads", "link.mpg"));
+  try {
+    for (const rel of ["../outside.mpg", "ads/link.mpg", "config.toml", "Cartoon Network/missing.mpg", ""]) {
+      expect((await playing.inject({ method: "GET", url: "/api/media/play", query: { path: rel } })).statusCode, rel).toBe(404);
+    }
+    expect(fake.calls).toEqual([]);
+  } finally {
+    await playing.close();
+  }
+});
+
+test("play stops ffmpeg when the response closes", async () => {
+  await useFixture();
+  const fake = fakeRemux();
+  const playing = make({ remuxFn: fake.remuxFn });
+  try {
+    await playing.inject({ method: "GET", url: "/api/media/play", query: { path: EPISODE } });
+    expect(fake.calls[0]!.stopped).toBe(true);
+  } finally {
+    await playing.close();
+  }
 });
 
 test("sched lineup through GET /api/preview", async () => {

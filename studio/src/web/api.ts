@@ -238,6 +238,10 @@ export function sourceUrl(path: string): string {
   return `/api/import/file?path=${encodeURIComponent(path)}`;
 }
 
+export function playUrl(path: string, start: number): string {
+  return `/api/media/play?path=${encodeURIComponent(path)}&start=${Math.max(0, Math.floor(start))}`;
+}
+
 export function mediaUrl(rel: string): string {
   return `/media/${rel.split("/").map(encodeURIComponent).join("/")}`;
 }

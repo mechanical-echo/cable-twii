@@ -10,7 +10,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ConfigConflictError, ConfigShapeError, configMtime, randomSeed, readConfig, toConfig, writeConfig } from "./config.js";
 import { type DriveDeps, type DriveInfo, type ScanResult, dotClean, initRoot, inspectDrive, scanSource } from "./drive.js";
-import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
+import { isTooShort, MIN_DURATION_MS, probe, remux } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { isAllowedSource, listImports, resolveImportsDir } from "./imports.js";
@@ -42,6 +42,7 @@ export interface AppOptions {
   settingsPath?: string;
   inspectDeps?: DriveDeps;
   probeFn?: typeof probe;
+  remuxFn?: typeof remux;
   pickFolderFn?: (prompt: string) => Promise<string | null>;
   rebuildDelayMs?: number;
   webDir?: string;
@@ -269,6 +270,18 @@ async function isShowEpisode(root: string, showRel: string, rel: string): Promis
   }
 }
 
+async function libraryFile(root: string, rel: unknown, extension: string): Promise<string | null> {
+  if (typeof rel !== "string" || rel === "" || !rel.toLowerCase().endsWith(extension)) return null;
+  try {
+    const realRoot = await realpath(root);
+    const real = await realpath(path.resolve(realRoot, rel));
+    if (!contained(realRoot, real) || !real.toLowerCase().endsWith(extension)) return null;
+    return (await stat(real)).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
 async function isDirectory(p: string): Promise<boolean> {
   try {
     return (await stat(p)).isDirectory();
@@ -325,6 +338,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const settingsPath = opts.settingsPath ?? DEFAULT_SETTINGS;
   const deps = opts.inspectDeps ?? {};
   const probeFn = opts.probeFn ?? probe;
+  const remuxFn = opts.remuxFn ?? remux;
   const pick = opts.pickFolderFn ?? ((prompt: string) => pickFolderNative(prompt));
   const rebuildDelay = opts.rebuildDelayMs ?? REBUILD_DELAY_MS;
   const webDir = opts.webDir ?? DEFAULT_WEB_DIR;
@@ -1080,6 +1094,18 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     await makeIcon(root, file, dst);
     scheduleRebuild(root);
     return { path: parts.join("/") };
+  });
+
+  app.get("/api/media/play", async (request, reply) => {
+    const root = await requireRoot();
+    const query = request.query as Record<string, unknown>;
+    const start = query.start ?? "0";
+    if (typeof start !== "string" || !/^\d+$/.test(start)) throw bad("start must be a whole number of seconds.");
+    const file = await libraryFile(root, query.path, ".mpg");
+    if (file === null) return reply.code(404).send({ error: "Not found" });
+    const { stream, stop } = remuxFn(file, Number(start));
+    reply.raw.on("close", stop);
+    return reply.type("video/mp2t").header("cache-control", "no-cache").send(stream);
   });
 
   app.get("/media/*", async (request, reply) => {
