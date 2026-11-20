@@ -138,6 +138,7 @@ export const getShrinkCount = () => send<{ candidates: number }>("GET", "/api/li
 export const startShrink = () => send<{ queued: number }>("POST", "/api/library/shrink");
 export const getLibrary = () => send<WebLibrary>("GET", "/api/library");
 export const rebuildLibrary = () => send<WebBuildResult>("POST", "/api/library/rebuild");
+export const getNotes = () => send<{ at: number | null; skipped: { path: string; reason: string }[]; warnings: string[] }>("GET", "/api/library/notes");
 export const getConfig = () => send<{ config: Config; mtimeMs: number }>("GET", "/api/config");
 export const putConfig = (config: Config, mtimeMs: number) =>
   send<{ mtimeMs: number; issues: Issue[] }>("PUT", "/api/config", { config, mtimeMs });

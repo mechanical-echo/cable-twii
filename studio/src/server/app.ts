@@ -14,7 +14,7 @@ import { isTooShort, MIN_DURATION_MS, probe } from "./ffmpeg.js";
 import { ContainmentError, assertContained, contained } from "./contain.js";
 import { makeIcon, NotImageError } from "./icons.js";
 import { isAllowedSource, listImports, resolveImportsDir } from "./imports.js";
-import { type BuildResult, buildLibrary, readLibrary, writeLibrary } from "./library.js";
+import { type BuildResult, type SkippedFile, buildLibrary, readLibrary, writeLibrary } from "./library.js";
 import { episodeFileName, fatSafe, fileStem, isVideoFile, uniqueName } from "./names.js";
 import { pickFolderNative } from "./picker.js";
 import { ConversionQueue } from "./queue.js";
@@ -338,6 +338,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   jobEvents.setMaxListeners(0);
   const queues = new Map<string, ConversionQueue>();
   const previewDirs = new Set<string>();
+  const lastBuild = new Map<string, { at: number; skipped: SkippedFile[]; warnings: string[] }>();
   const rebuildTimers = new Map<string, NodeJS.Timeout>();
   const rebuildChains = new Map<string, Promise<unknown>>();
   const streams = new Set<{ raw: ServerResponse; cleanup: () => void }>();
@@ -394,6 +395,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     const run = async (): Promise<BuildResult> => {
       const result = await buildLibrary(root, await readSources(root), probeFn);
       await writeLibrary(root, result.library);
+      lastBuild.set(root, { at: Date.now(), skipped: result.skipped, warnings: result.warnings });
       return result;
     };
     const next = previous.then(run, run);
@@ -978,6 +980,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   app.post("/api/library/rebuild", async () => rebuildNow(await requireRoot()));
+
+  app.get("/api/library/notes", async () => lastBuild.get(await requireRoot()) ?? { at: null, skipped: [], warnings: [] });
 
   app.get("/api/show-meta", async (request) => {
     const query = request.query as Record<string, unknown>;

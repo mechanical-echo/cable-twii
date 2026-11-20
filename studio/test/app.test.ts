@@ -521,6 +521,29 @@ test("no rebuild runs after close", async () => {
   expect(existsSync(path.join(root, "library.toml"))).toBe(false);
 });
 
+test("notes start empty", async () => {
+  await useFixture();
+  const res = await app.inject({ method: "GET", url: "/api/library/notes" });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ at: null, skipped: [], warnings: [] });
+});
+
+test("notes keep the last automatic rebuild", async () => {
+  await useFixture();
+  await writeFile(path.join(root, "ads", "short-x.mpg"), "tiny");
+  const src = path.join(dir, "new.mkv");
+  await writeFile(src, "video");
+  const episodes = [{ source: src, season: 1, episode: 1, title: "New", description: "", aspect: "4:3" }];
+  expect((await app.inject({ method: "POST", url: "/api/import/show", payload: { channelFolder: "Cartoon Network", showFolder: "Noted", episodes } })).statusCode).toBe(200);
+  let notes: { at: number | null; skipped: { path: string; reason: string }[] } = { at: null, skipped: [] };
+  await waitFor(async () => {
+    notes = (await app.inject({ method: "GET", url: "/api/library/notes" })).json();
+    return notes.at !== null;
+  });
+  expect(typeof notes.at).toBe("number");
+  expect(notes.skipped).toContainEqual({ path: "ads/short-x.mpg", reason: "duration 500 ms is under 1000 ms" });
+});
+
 test("sched lineup through GET /api/preview", async () => {
   await useFixture();
   const res = await app.inject({ method: "GET", url: "/api/preview?channel=1&date=2026-10-20" });
