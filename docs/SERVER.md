@@ -374,6 +374,8 @@ Uploads can be up to 20 GB per file. Upload problems (too short, unreadable) sho
 
 An uploaded video that is not waiting to be converted, for example because its conversion failed, is deleted when the server starts once it is more than a day old. Its row on the home page then says **Add the file again**. To free the space sooner, stop the server and delete what is inside the `.uploads` folder in the library folder by hand.
 
+**Changing episodes while the Wii plays.** Renames, switching off, deleting and Airs on changes reach a Wii playing from the server when its guide opens, at midnight, or with Reload channels in HOME. Until then a switched-off episode may still air and a renamed or deleted one is skipped.
+
 **Two people editing.** If someone saves a show or the schedule while you are editing it, your save is refused and the page asks you to reload. For a show it says "show.toml was changed somewhere else. Reload it and try again." The first person's changes are kept.
 
 ## 7. Telling the Wii where the server is

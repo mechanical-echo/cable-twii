@@ -43,7 +43,7 @@ Studio adds a second safety net. It refuses any drive that has a `wbfs` or `game
 3. Studio needs Node 22. If the shell says "cable-twii Studio needs Node 22", run `nvm use` inside the `studio` folder and then `npm start` again.
 4. Studio opens in your browser at http://127.0.0.1:4747/. It only runs on your Mac and is not reachable from other computers.
 
-Studio has four tabs along the top: **Episodes**, **Channels**, **Ads** and **Drive**. Episodes is the home page: it is where you add videos and see them convert. Each channel has its own page with Today, Schedule, Shows and Settings.
+Studio has five tabs along the top: **Episodes**, **Channels**, **Shows**, **Ads** and **Drive**. Episodes is the home page: it is where you add videos and see them convert. Each channel has its own page with Today, Schedule, Shows and Settings, and every show, episode and ad has a page of its own.
 
 ## 4. Choose and set up the drive
 
@@ -99,6 +99,26 @@ Each channel page has **Add episodes** (with that channel already chosen) and fo
 
 A new channel gets a placeholder schedule so it is valid straight away. Build the real schedule on its Schedule tab.
 
+### Shows, episodes and ads
+
+The **Shows** tab lists every show, grouped by the channel folder it is stored in, with how many seasons and episodes it has and the channels it airs on. Click a show to open its page.
+
+- **Show page:**
+  - **Airs on** has one tick box per channel. Tick a channel to put the show on it: a looping channel gets a "Random episode ×1" rule at the end of its loop, and a timed channel asks which slot it goes into. Tune the rule in that channel's schedule editor. Untick a channel to take the show off it; Studio lists the schedule items that go before it removes them. The files never move.
+  - Tick episodes to work on several at once: **Move to** a season (they are numbered after its last episode), **Add to a channel…** (they play there in the order shown, at the end of the loop or of a slot you pick), **Switch off**, **Switch on** or **Delete**.
+  - **Edit info** changes the show's name, icon and episode descriptions. **Delete show** deletes the show and all its files.
+- **Episode page:** click any episode (on a show page, a channel's Shows or Today tab, or a finished row on the Episodes page). It has:
+  - a player that plays the converted file as the Wii gets it. Click the bar to jump. If the browser can't play it, it says "Can't play this file here";
+  - the channels it airs on;
+  - **Title**, **Season**, **Episode** and **Description**. Changing the title or number renames the file, and schedules that name the episode follow it. A number already used in the show is refused. In a show without seasons only the title can change;
+  - **On air / Off air**. An episode switched off stays on the drive but the Wii doesn't play it on any channel. If a schedule names it directly, Studio lists those items and removes them. Switching it back on doesn't put them back;
+  - **Delete episode**, which can't be undone.
+- **Ad page:** click an ad on the Ads tab. It has the same player, **Name**, **Plays on** (all channels or one channel), On air / Off air and Delete.
+
+Studio refuses a change that would break a schedule (for example switching off every episode a rule can pick) and says which channel to fix first. Errors that were already there don't block. A file that is still converting can't be changed until it is done.
+
+In server mode a Wii playing from the server picks up these changes when its guide opens, at midnight, or with Reload channels in HOME. Until then a switched-off episode may still air, and a renamed or deleted one is skipped.
+
 ## 7. Build schedules (Schedule tab)
 
 Open a channel and its **Schedule** tab. Timed channels open zoomed out to the whole day (30 px per hour); looping channels open at 120.
@@ -123,7 +143,7 @@ A block marked with a warning and "min overlap" runs past the start of the next 
 
 ## 8. Ads
 
-The **Ads** tab lists your ads: those for all channels first, then each channel's own. **Add ads** opens the same Add page as episodes, with a destination of **All channels** or one channel. Ad files Studio can't use (for example too short) are listed under **Skipped** with the reason.
+The **Ads** tab lists your ads: those for all channels first, then each channel's own. Click an ad to play it, rename it, move it or switch it off. **Add ads** opens the same Add page as episodes, with a destination of **All channels** or one channel. Ad files Studio can't use (for example too short) are listed under **Skipped** with the reason.
 
 ## 9. Done, then eject
 
@@ -249,6 +269,10 @@ Studio refuses to save when there is an error, and the Wii shows these same prob
 - `loop_empty`: a looping channel played nothing, for example it has only ads and ads are off. The day shows as "Up next".
 
 **Other**
+- "Still converting. Try again when it's done.": the episode or ad is waiting to convert or converting. Wait until it is done on the Episodes page.
+- "This change would break a schedule.": the listed channels would have errors afterwards, for example a rule with nothing left to pick. Change those rules first, or pick fewer episodes.
+- "S01E05 already exists": another episode of the show has that number. Pick another number or renumber the other episode first.
+- "Can't play this file here": the browser couldn't play the file. The Wii may still play it; check on the TV.
 - "config.toml changed on disk — Reload": the file changed outside the page. Click **Reload**, then redo your edits.
 - "Unsaved changes": you have not clicked **Save** on the Schedule tab. Studio asks before you leave it.
 - "Skipped ...: already on the drive": the file was imported earlier. Nothing to do.
