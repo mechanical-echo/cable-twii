@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLibrary, mediaUrl } from "../api";
-import { type EpisodeStatus, episodeStatus } from "../channelList";
+import { type EpisodeStatus, type PendingEpisode, episodeStatus, pendingEpisodes } from "../channelList";
 import { formatDuration } from "../format";
 import { IconImage } from "../IconImage";
 import { formatEpisodeCode } from "../preview";
@@ -23,6 +23,23 @@ function StatusChip({ status }: { status: EpisodeStatus }) {
   if (status.state === "queued") return <Chip>Queued</Chip>;
   if (status.state === "failed") return <Chip kind="error">Failed</Chip>;
   return <Chip kind="ok">On air</Chip>;
+}
+
+function PendingRows({ rows, jobs }: { rows: PendingEpisode[]; jobs: Parameters<typeof episodeStatus>[1] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="ui-season">
+      <h3 className="ui-subhead">Being added</h3>
+      {rows.map((ep) => (
+        <div key={ep.path} className="ui-ep">
+          <span className="ui-ep-code">{ep.episode !== null ? formatEpisodeCode(ep.season, ep.episode) : ""}</span>
+          <span className="grow">{ep.title}</span>
+          <span className="ui-length">—</span>
+          <StatusChip status={episodeStatus(ep.path, jobs)} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function ShowsTab({ folder, onAdd }: Props) {
@@ -49,12 +66,15 @@ export function ShowsTab({ folder, onAdd }: Props) {
   });
 
   const shows = useMemo(() => (library === null ? [] : (buildTree(library).find((c) => c.channel === folder)?.shows ?? [])), [library, folder]);
+  const pending = useMemo(() => (library === null ? [] : pendingEpisodes(folder, library, jobs)), [library, folder, jobs]);
+  const newShows = [...new Set(pending.map((p) => p.show))].filter((name) => !shows.some((node) => node.show.folder === name));
+  const pendingOf = (name: string) => pending.filter((p) => p.show === name);
 
   return (
     <>
       {error !== null && <Banner kind="error">{error}</Banner>}
       {library === null && error === null && <EmptyState>Loading…</EmptyState>}
-      {library !== null && shows.length === 0 && (
+      {library !== null && shows.length === 0 && newShows.length === 0 && (
         <Panel>
           <EmptyState>
             <p>No shows yet.</p>
@@ -96,6 +116,12 @@ export function ShowsTab({ folder, onAdd }: Props) {
               ))}
             </div>
           ))}
+          <PendingRows rows={pendingOf(node.show.folder)} jobs={jobs} />
+        </Panel>
+      ))}
+      {newShows.map((name) => (
+        <Panel key={name} title={name}>
+          <PendingRows rows={pendingOf(name)} jobs={jobs} />
         </Panel>
       ))}
       {editing !== null && (

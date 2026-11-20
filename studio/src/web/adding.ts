@@ -1,11 +1,12 @@
 import type { ScanResult } from "../server/drive.js";
-import { cleanTitle, episodeMatch, guessEpisode, stripExtension } from "../server/names.js";
+import { cleanTitle, episodeMatch, fatSafe, guessEpisode, isVideoFile, stripExtension } from "../server/names.js";
 import type { Config, Job } from "../server/types.js";
 import { effectiveFolder } from "./channels.js";
 import { describeTarget } from "./episodes.js";
 import type { WebLibrary } from "./tree.js";
+import { storedUploadName } from "./uploading.js";
 
-export type RowNote = "added" | "on-air" | "in-batch" | "too-short" | "unreadable" | null;
+export type RowNote = "added" | "on-air" | "in-batch" | "same-name" | "too-short" | "unreadable" | null;
 
 export interface AddRow {
   id: string;
@@ -19,6 +20,7 @@ export interface AddRow {
   description: string;
   show: string;
   ticked: boolean;
+  held: boolean;
   note: RowNote;
   replaces: string | null;
   source: string | null;
@@ -48,11 +50,19 @@ function baseName(source: string): string {
   return source.slice(Math.max(source.lastIndexOf("/"), source.lastIndexOf("\\")) + 1);
 }
 
+export function videoFiles(files: File[]): { videos: File[]; skipped: number } {
+  const videos = files.filter((f) => isVideoFile(f.name));
+  return { videos, skipped: files.length - videos.length };
+}
+
 export function rowsFromFiles(files: File[], added: string[]): AddRow[] {
   const known = new Set(added);
+  const stored = new Set<string>();
   return files.map((file, i) => {
     const guess = guessEpisode(file.name);
-    const note: RowNote = known.has(file.name) ? "added" : null;
+    const key = storedUploadName(file.name).toLowerCase();
+    const note: RowNote = stored.has(key) ? "same-name" : known.has(file.name) ? "added" : null;
+    stored.add(key);
     return {
       id: `file:${i}:${file.name}`,
       name: file.name,
@@ -65,6 +75,7 @@ export function rowsFromFiles(files: File[], added: string[]): AddRow[] {
       description: "",
       show: guessShow(file.name),
       ticked: note === null,
+      held: false,
       note,
       replaces: null,
       source: null,
@@ -89,6 +100,7 @@ export function rowsFromScan(scan: ScanResult[]): AddRow[] {
       description: "",
       show: guessShow(name),
       ticked: note === null,
+      held: false,
       note,
       replaces: null,
       source: entry.source,
@@ -139,28 +151,75 @@ export function groupRows(rows: AddRow[], fallbackShow: string, library: WebLibr
 
 const OWN_NOTES: RowNote[] = [null, "on-air", "in-batch"];
 
-export function markExisting(group: AddGroup, library: WebLibrary, jobs: Job[]): AddGroup {
-  const { channel, show } = group.dest;
-  const onAir = library.show.find((s) => s.channel === channel && s.folder === show)?.episode ?? [];
-  const busy = jobs
-    .filter((j) => j.state === "queued" || j.state === "running")
-    .map((j) => describeTarget(j.target))
-    .filter((t) => t.channel === channel && t.show === show && t.episode !== null);
-  const seen = new Set<string>();
-  const rows = group.rows.map((row): AddRow => {
-    if (!OWN_NOTES.includes(row.note)) return row;
-    const next: AddRow = { ...row, note: null, replaces: null };
-    if (row.episode === null) return next;
-    const season = row.season ?? 0;
-    const key = `${season}x${row.episode}`;
-    const existing = onAir.find((e) => e.season === season && e.episode === row.episode);
-    if (existing !== undefined) return { ...next, ticked: false, note: "on-air", replaces: existing.path };
-    if (busy.some((t) => (t.season ?? 0) === season && t.episode === row.episode)) return { ...next, ticked: false, note: "on-air" };
-    if (seen.has(key)) return { ...next, ticked: false, note: "in-batch" };
-    seen.add(key);
-    return next;
+export function canTick(row: Pick<AddRow, "note" | "replaces">): boolean {
+  return row.note === null || (row.note === "on-air" && row.replaces !== null);
+}
+
+function destKey(dest: Destination): string {
+  return `${dest.channel}\0${dest.show}`.toLowerCase();
+}
+
+export function markAll(groups: AddGroup[], library: WebLibrary, jobs: Job[]): AddGroup[] {
+  const seenByDest = new Map<string, Set<string>>();
+  return groups.map((group) => {
+    const { channel, show } = group.dest;
+    const onAir = library.show.find((s) => s.channel === channel && s.folder === show)?.episode ?? [];
+    const busy = jobs
+      .filter((j) => j.state === "queued" || j.state === "running")
+      .map((j) => describeTarget(j.target))
+      .filter((t) => t.channel === channel && t.show === show && t.episode !== null);
+    const seen = seenByDest.get(destKey(group.dest)) ?? new Set<string>();
+    seenByDest.set(destKey(group.dest), seen);
+    const rows = group.rows.map((row): AddRow => {
+      if (!OWN_NOTES.includes(row.note)) return row;
+      const key = row.episode === null ? null : `${row.season ?? 0}x${row.episode}`;
+      let note: RowNote = null;
+      let replaces: string | null = null;
+      if (key !== null) {
+        const season = row.season ?? 0;
+        const existing = row.season !== null && row.season >= 1 ? onAir.find((e) => e.season === season && e.episode === row.episode) : undefined;
+        if (seen.has(key)) note = "in-batch";
+        else if (busy.some((t) => (t.season ?? 0) === season && t.episode === row.episode)) note = "on-air";
+        else if (existing !== undefined) {
+          note = "on-air";
+          replaces = existing.path;
+        }
+      }
+      let { ticked, held } = row;
+      if (note === null) {
+        if (held) ticked = true;
+        held = false;
+      } else if (note !== row.note || replaces !== row.replaces) {
+        held = held || ticked;
+        ticked = false;
+      }
+      if (!canTick({ note, replaces })) ticked = false;
+      if (ticked && key !== null) seen.add(key);
+      return { ...row, note, replaces, ticked, held };
+    });
+    return { ...group, rows };
   });
-  return { ...group, rows };
+}
+
+export function markExisting(group: AddGroup, library: WebLibrary, jobs: Job[]): AddGroup {
+  return markAll([group], library, jobs)[0]!;
+}
+
+export function folderProblem(name: string): string | null {
+  const trimmed = name.trim();
+  if (trimmed === "") return "Give it a name.";
+  if (/[/\\]/.test(name)) return "A name can't contain / or \\.";
+  const safe = fatSafe(trimmed);
+  if (safe === "" || safe.startsWith(".")) return "A name can't start with a dot.";
+  if (safe.toLowerCase() === "ads") return "“Ads” is kept for ads. Pick another name.";
+  return null;
+}
+
+export function showNameFor(dest: Destination, library: WebLibrary): string {
+  if (!dest.isNewShow) return "";
+  const wanted = dest.show.trim().toLowerCase();
+  const existing = library.show.some((s) => s.channel === dest.channel && s.folder.toLowerCase() === wanted);
+  return existing ? "" : dest.show.trim();
 }
 
 export function summary(rows: AddRow[]): { ticked: number; total: number; bytes: number } {

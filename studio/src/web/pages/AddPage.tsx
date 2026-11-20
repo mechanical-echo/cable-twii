@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { type AddGroup, type AddRow, commonShow, groupRows, markExisting, rowsFromFiles, rowsFromScan, summary } from "../adding";
+import { type AddGroup, type AddRow, commonShow, folderProblem, groupRows, markAll, rowsFromFiles, rowsFromScan, showNameFor, summary, videoFiles } from "../adding";
 import { type Config, type Job, type ScanResult, checkUploads, getConfig, getJobs, getLibrary, pickSource, putConfig, sourceUrl } from "../api";
 import { NEW_CHANNEL, applyEdit, channelChoices, effectiveFolder, newDraft, validateDraft } from "../channels";
 import { baseName, formatBytes } from "../format";
@@ -51,10 +51,6 @@ function readDuration(file: File): Promise<number | null> {
   });
 }
 
-function rearm(rows: AddRow[]): AddRow[] {
-  return rows.map((r) => ((r.note === "on-air" || r.note === "in-batch") && !r.ticked ? { ...r, ticked: true } : r));
-}
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -70,6 +66,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<{ src: string; title: string; objectUrl: boolean } | null>(null);
   const [over, setOver] = useState(false);
+  const [skipped, setSkipped] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
 
@@ -94,14 +91,16 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
     return channel === undefined ? null : effectiveFolder(channel);
   };
 
-  function mark(group: AddGroup, b: Base): AddGroup {
-    return ads ? group : markExisting({ ...group, rows: rearm(group.rows) }, b.library, b.jobs);
+  function remark(next: GroupEdit[], b: Base): GroupEdit[] {
+    if (ads) return next;
+    const groups = markAll(next.map((e) => e.group), b.library, b.jobs);
+    return next.map((e, i) => ({ ...e, group: groups[i]! }));
   }
 
   function show(rows: AddRow[], fallback: string, b: Base) {
     const groups: AddGroup[] = ads
       ? [{ show: "", rows, dest: { channel: preselected(b.config) ?? "", show: "", isNewShow: false } }]
-      : groupRows(rows, fallback, b.library, b.config, route.channel).map((g) => markExisting(g, b.library, b.jobs));
+      : markAll(groupRows(rows, fallback, b.library, b.config, route.channel), b.library, b.jobs);
     setEdits(groups.map((group) => ({ group, newChannel: "", icon: null })));
     setStep("rows");
     void loadDurations(rows);
@@ -116,10 +115,16 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
     }
   }
 
-  async function takeFiles(files: File[], b: Base) {
-    if (files.length === 0) return;
-    setBusy(true);
+  async function takeFiles(picked: File[], b: Base) {
+    if (picked.length === 0) return;
+    const { videos: files, skipped: others } = videoFiles(picked);
+    setSkipped(others);
     setError(null);
+    if (files.length === 0) {
+      setError("None of these files are videos.");
+      return;
+    }
+    setBusy(true);
     try {
       const added = await checkUploads(files.map((f) => ({ name: f.name, size: f.size })));
       if (!alive.current) return;
@@ -163,15 +168,14 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
     else if (start.from === "pick") void pickFolder(base);
   }, [base]);
 
-  function patchRow(id: string, change: Partial<AddRow>, remark: boolean) {
-    setEdits((prev) =>
-      prev.map((edit) => {
+  function patchRow(id: string, change: Partial<AddRow>, again: boolean) {
+    setEdits((prev) => {
+      const next = prev.map((edit) => {
         if (!edit.group.rows.some((r) => r.id === id)) return edit;
-        const rows = edit.group.rows.map((r) => (r.id === id ? { ...r, ...change } : r));
-        const group = { ...edit.group, rows };
-        return { ...edit, group: remark && base !== null ? mark(group, base) : group };
-      }),
-    );
+        return { ...edit, group: { ...edit.group, rows: edit.group.rows.map((r) => (r.id === id ? { ...r, ...change } : r)) } };
+      });
+      return again && base !== null ? remark(next, base) : next;
+    });
   }
 
   function onRow(id: string, change: Partial<AddRow>) {
@@ -182,12 +186,13 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
       const old = base.library.show.flatMap((s) => s.episode).find((e) => e.path === row.replaces);
       if (old !== undefined) change = { ...change, title: old.title };
     }
-    patchRow(id, change, "season" in change || "episode" in change);
+    if (change.ticked !== undefined) change = { ...change, held: false };
+    patchRow(id, change, "season" in change || "episode" in change || "ticked" in change);
   }
 
   function patchGroup(index: number, change: (edit: GroupEdit, b: Base) => GroupEdit) {
     if (base === null) return;
-    setEdits((prev) => prev.map((edit, i) => (i === index ? change(edit, base) : edit)));
+    setEdits((prev) => remark(prev.map((edit, i) => (i === index ? change(edit, base) : edit)), base));
   }
 
   function onChannel(index: number, channel: string) {
@@ -196,12 +201,12 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
       const wanted = [group.dest.show.toLowerCase(), group.show.toLowerCase()];
       const match = b.library.show.find((s) => s.channel === channel && (wanted.includes(s.folder.toLowerCase()) || wanted.includes(s.name.toLowerCase())));
       const dest = match !== undefined ? { channel, show: match.folder, isNewShow: false } : { channel, show: group.dest.isNewShow ? group.dest.show : group.show, isNewShow: true };
-      return { ...edit, group: mark({ ...group, dest }, b) };
+      return { ...edit, group: { ...group, dest } };
     });
   }
 
   function onShow(index: number, showName: string, isNew: boolean) {
-    patchGroup(index, (edit, b) => ({ ...edit, group: mark({ ...edit.group, dest: { ...edit.group.dest, show: showName, isNewShow: isNew } }, b) }));
+    patchGroup(index, (edit) => ({ ...edit, group: { ...edit.group, dest: { ...edit.group.dest, show: showName, isNewShow: isNew } } }));
   }
 
   function openPreview(row: AddRow) {
@@ -217,15 +222,21 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
   const allRows = edits.flatMap((e) => e.group.rows);
   const totals = summary(allRows);
   const live = edits.filter((e) => e.group.rows.some((r) => r.ticked));
-  const ready =
-    base !== null &&
-    !busy &&
-    totals.ticked > 0 &&
-    live.every((e) => {
-      const { dest } = e.group;
-      if (dest.channel === NEW_CHANNEL) return e.newChannel.trim() !== "";
-      return ads || (dest.channel !== "" && dest.show.trim() !== "");
-    });
+  const problems = edits.map((e) => {
+    const { dest } = e.group;
+    const found: string[] = [];
+    if (dest.channel === NEW_CHANNEL) {
+      const problem = folderProblem(e.newChannel);
+      if (problem !== null) found.push(`Channel: ${problem}`);
+    }
+    if (!ads && dest.isNewShow) {
+      const problem = folderProblem(dest.show);
+      if (problem !== null) found.push(`Show: ${problem}`);
+    }
+    if (!ads && dest.channel === "") found.push("Pick a channel.");
+    return found;
+  });
+  const ready = base !== null && !busy && totals.ticked > 0 && live.every((e) => problems[edits.indexOf(e)]!.length === 0);
 
   async function submit() {
     if (base === null || !ready) return;
@@ -249,7 +260,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
         const { dest, rows } = edit.group;
         const channelFolder = dest.channel === NEW_CHANNEL ? made.get(edit.newChannel.trim().toLowerCase())! : dest.channel;
         if (ads) return { kind: "ads", channelFolder, rows };
-        const showName = dest.isNewShow ? dest.show.trim() : "";
+        const showName = showNameFor(dest, base.library);
         return { kind: "show", channelFolder, showFolder: dest.show.trim(), showName, icon: dest.isNewShow ? edit.icon : null, rows };
       });
       uploads.start(plans);
@@ -300,6 +311,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
         }
       />
       {error !== null && <Banner kind="error">{error}</Banner>}
+      {skipped > 0 && <Banner kind="warn">Left out {skipped} {skipped === 1 ? "file that isn't a video" : "files that aren't videos"}.</Banner>}
       {base === null && error === null && <EmptyState>Loading…</EmptyState>}
       {base !== null && step === "choose" && (
         <Panel>
@@ -380,6 +392,7 @@ export function AddPage({ route, server, uploads, onDone }: Props) {
               onIcon={(icon) => patchGroup(i, (e) => ({ ...e, icon }))}
               onRow={onRow}
               onPreview={openPreview}
+              problems={problems[i]!}
             />
           ))}
           <div className="ui-foot">

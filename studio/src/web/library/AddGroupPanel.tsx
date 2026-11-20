@@ -1,9 +1,9 @@
 import { useState } from "react";
-import type { AddGroup, AddRow, RowNote } from "../adding";
+import { type AddGroup, type AddRow, type RowNote, canTick } from "../adding";
 import { NEW_CHANNEL } from "../channels";
 import { formatDuration } from "../format";
 import { Checkbox, Select, TextField } from "../ui/controls";
-import { Panel } from "../ui/layout";
+import { Banner, Panel } from "../ui/layout";
 import { Chip } from "../ui/status";
 
 const NEW_SHOW = "\u0000show";
@@ -25,12 +25,14 @@ interface Props {
   onIcon: (icon: File | null) => void;
   onRow: (id: string, change: Partial<AddRow>) => void;
   onPreview: (row: AddRow) => void;
+  problems: string[];
 }
 
 function noteChip(row: AddRow): { text: string; kind: "warn" | "error" | "neutral" } | null {
   const notes: Record<Exclude<RowNote, null>, { text: string; kind: "warn" | "error" | "neutral" }> = {
     "on-air": { text: row.replaces !== null ? "Already on air · Replace?" : "Already queued", kind: "warn" },
     "in-batch": { text: "Already in this list", kind: "warn" },
+    "same-name": { text: "Same file name as another row", kind: "warn" },
     added: { text: "Already added", kind: "neutral" },
     "too-short": { text: "Too short", kind: "error" },
     unreadable: { text: "Can't read this file", kind: "error" },
@@ -67,7 +69,7 @@ function Row({ row, ads, onRow, onPreview }: { row: AddRow; ads: boolean; onRow:
     <>
       <tr className={row.ticked ? undefined : "off"}>
         <td>
-          <Checkbox checked={row.ticked} ariaLabel={`Add ${row.name}`} onChange={(ticked) => onRow(row.id, { ticked })} />
+          <Checkbox checked={row.ticked} disabled={!canTick(row)} ariaLabel={`Add ${row.name}`} onChange={(ticked) => onRow(row.id, { ticked })} />
         </td>
         <td>
           <button className="ui-thumb" aria-label={`Preview ${row.name}`} onClick={() => onPreview(row)} />
@@ -107,7 +109,7 @@ function Row({ row, ads, onRow, onPreview }: { row: AddRow; ads: boolean; onRow:
   );
 }
 
-export function AddGroupPanel({ edit, ads, channels, shows, onChannel, onShow, onNewChannel, onIcon, onRow, onPreview }: Props) {
+export function AddGroupPanel({ edit, ads, channels, shows, onChannel, onShow, onNewChannel, onIcon, onRow, onPreview, problems }: Props) {
   const { group } = edit;
   const { dest } = group;
   const showValue = dest.isNewShow ? NEW_SHOW : dest.show;
@@ -123,7 +125,7 @@ export function AddGroupPanel({ edit, ads, channels, shows, onChannel, onShow, o
               label="Show"
               value={showValue}
               options={[...shows, { value: NEW_SHOW, label: "New show…" }]}
-              onChange={(value) => (value === NEW_SHOW ? onShow(dest.show, true) : onShow(value, false))}
+              onChange={(value) => (value === NEW_SHOW ? onShow(dest.isNewShow ? dest.show : "", true) : onShow(value, false))}
             />
             {dest.isNewShow && (
               <>
@@ -155,7 +157,15 @@ export function AddGroupPanel({ edit, ads, channels, shows, onChannel, onShow, o
         </tbody>
       </table>
       {group.rows.some((r) => r.replaces !== null && r.ticked) && <p className="ui-muted">Ticked “Replace” rows keep the episode's file name and title; the old file stays on air until the new one is converted.</p>}
-      {dest.isNewShow && dest.show.trim() === "" && <p className="ui-muted">Give the new show a name.</p>}
+      {problems.length > 0 && group.rows.some((r) => r.ticked) && (
+        <Banner kind="warn">
+          <ul>
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
     </Panel>
   );
 }

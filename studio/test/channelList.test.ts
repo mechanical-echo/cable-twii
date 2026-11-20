@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Airing, Channel, Config, Issue, Job, LibShow, LineupResult } from "../src/server/types.js";
-import { channelSummaries, episodeStatus, nowLine, orphanFolders } from "../src/web/channelList.js";
+import { channelSummaries, episodeStatus, nowLine, orphanFolders, pendingEpisodes } from "../src/web/channelList.js";
 import type { WebLibrary } from "../src/web/tree.js";
 
 const cn: Channel = { number: 1, name: "Cartoon Network", category: "Kids", ads: true, mode: "looping", loop: [] };
@@ -91,5 +91,28 @@ describe("episodeStatus", () => {
     expect(episodeStatus(path, [job("done", { finishedAt: 1 }), job("failed", { error: "boom", finishedAt: 2 })])).toEqual({ state: "failed", error: "boom" });
     expect(episodeStatus(path, [job("failed", { error: "boom", finishedAt: 1 }), job("done", { finishedAt: 2 })])).toEqual({ state: "on-air" });
     expect(episodeStatus("Other/x.mpg", [job("queued")])).toEqual({ state: "on-air" });
+  });
+});
+
+describe("pendingEpisodes", () => {
+  const job = (id: string, target: string, state: Job["state"], extra: Partial<Job> = {}): Job => ({ id, source: "/x.mkv", target, aspect: "4:3", state, progress: 0, ...extra });
+
+  it("lists episodes not in the library yet", () => {
+    const jobs = [
+      job("a", "Cartoon Network/Gumball/Season 3/S03E20 - The Sale.mpg", "queued"),
+      job("b", "Cartoon Network/Daria/Season 1/S01E01 - Esteemsters.mpg", "running", { progress: 0.5 }),
+      job("c", "Cartoon Network/Gumball/Season 1/S01E01 - E.mpg", "queued"),
+      job("d", "Cartoon Network/Gumball/Season 3/S03E21 - Done.mpg", "done", { finishedAt: 1 }),
+      job("e", "Cartoon Network/Gumball/Season 3/S03E22 - Broke.mpg", "failed", { error: "boom", finishedAt: 2 }),
+      job("f", "mtv-00s/Music Videos/New Song.mpg", "queued"),
+      job("g", "Cartoon Network/ads/Cola.mpg", "queued"),
+      job("h", "Cartoon Network/Shorts/Gamma.mpg", "queued"),
+    ];
+    expect(pendingEpisodes("Cartoon Network", library, jobs)).toEqual([
+      { show: "Daria", season: 1, episode: 1, title: "Esteemsters", path: "Cartoon Network/Daria/Season 1/S01E01 - Esteemsters.mpg" },
+      { show: "Gumball", season: 3, episode: 20, title: "The Sale", path: "Cartoon Network/Gumball/Season 3/S03E20 - The Sale.mpg" },
+      { show: "Gumball", season: 3, episode: 22, title: "Broke", path: "Cartoon Network/Gumball/Season 3/S03E22 - Broke.mpg" },
+      { show: "Shorts", season: 0, episode: null, title: "Gamma", path: "Cartoon Network/Shorts/Gamma.mpg" },
+    ]);
   });
 });

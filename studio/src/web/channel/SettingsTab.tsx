@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Config, type Issue, getConfig, getLibrary, mediaUrl, putConfig, uploadIcon } from "../api";
-import { type ChannelDraft, applyDelete, applyEdit, draftFolder, draftFromChannel, folderSuggestions, iconPath, setMode, validateDraft } from "../channels";
+import { type ChannelDraft, applyDelete, applyEdit, draftFolder, draftFromChannel, editedDraft, folderSuggestions, iconPath, setMode, validateDraft } from "../channels";
 import { FailureBanner } from "../FailureBanner";
 import { type Failure, toFailure } from "../failure";
 import { IconImage } from "../IconImage";
@@ -71,8 +71,8 @@ export function SettingsTab({ number, onDeleted, onSaved }: Props) {
   }
 
   async function chooseIcon(file: File | undefined) {
-    if (file === undefined || draft === null) return;
-    const folder = draftFolder(draft);
+    if (file === undefined || draft === null || config === null) return;
+    const folder = draftFolder(editedDraft(config, number, draft));
     if (folder === "") {
       setIconError("Enter a name or folder first.");
       return;
@@ -96,6 +96,8 @@ export function SettingsTab({ number, onDeleted, onSaved }: Props) {
   if (draft === null) return <EmptyState>This channel no longer exists.</EmptyState>;
   const original = config.channel.find((c) => c.number === number);
   const patch = (change: Partial<ChannelDraft>) => setDraft({ ...draft, ...change });
+  const saving = editedDraft(config, number, draft);
+  const folder = draftFolder(saving);
 
   return (
     <>
@@ -106,7 +108,7 @@ export function SettingsTab({ number, onDeleted, onSaved }: Props) {
           <TextField label="Category" value={draft.category} onChange={(category) => patch({ category })} width="full" />
           <label className="ui-field full">
             <span className="ui-label">Folder on the drive</span>
-            <input className="ui-input full" list="channel-folders" placeholder={draft.name.trim()} value={draft.folder} onChange={(e) => patch({ folder: e.target.value })} />
+            <input className="ui-input full" list="channel-folders" placeholder={folder} value={draft.folder} onChange={(e) => patch({ folder: e.target.value })} />
             <datalist id="channel-folders">
               {folders.map((folder) => (
                 <option key={folder} value={folder} />
@@ -129,14 +131,14 @@ export function SettingsTab({ number, onDeleted, onSaved }: Props) {
           <div className="ui-field full">
             <span className="ui-label">Logo</span>
             <div className="ui-line">
-              {draftFolder(draft) !== "" && (
+              {folder !== "" && (
                 <span className="ui-logo">
-                  <IconImage src={`${mediaUrl(iconPath(draft))}?v=${iconStamp}`} />
+                  <IconImage src={`${mediaUrl(iconPath(saving))}?v=${iconStamp}`} />
                 </span>
               )}
               <input className="ui-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/tiff,image/heif,image/avif" disabled={busy} onChange={(e) => void chooseIcon(e.target.files?.[0])} />
             </div>
-            <span className="ui-muted">Saved right away as {draftFolder(draft) || "<folder>"}/channel.png</span>
+            <span className="ui-muted">Saved right away as {folder || "<folder>"}/channel.png</span>
           </div>
         </div>
         {iconError !== null && <Banner kind="error">{iconError}</Banner>}

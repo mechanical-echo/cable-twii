@@ -15,7 +15,7 @@ interface Props {
   onNavigate: (route: Route) => void;
 }
 
-function AddChannelDialog({ config, mtimeMs, onAdded, onCancel }: { config: Config; mtimeMs: number; onAdded: (number: number) => void; onCancel: () => void }) {
+function AddChannelDialog({ config, mtimeMs, onAdded, onCancel, onReload }: { config: Config; mtimeMs: number; onAdded: (number: number) => void; onCancel: () => void; onReload: () => void }) {
   const [draft, setDraft] = useState(() => newDraft(config.channel));
   const [errors, setErrors] = useState<string[]>([]);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -73,7 +73,7 @@ function AddChannelDialog({ config, mtimeMs, onAdded, onCancel }: { config: Conf
               </ul>
             </Banner>
           )}
-          <FailureBanner failure={failure} onReload={onCancel} />
+          <FailureBanner failure={failure} onReload={onReload} />
         </div>
         <div className="ui-dialog-actions">
           <PillButton onClick={onCancel}>Cancel</PillButton>
@@ -177,6 +177,10 @@ export function ChannelListPage({ onNavigate }: Props) {
           config={config.config}
           mtimeMs={config.mtimeMs}
           onCancel={() => setAdding(false)}
+          onReload={() => {
+            setAdding(false);
+            load();
+          }}
           onAdded={(number) => onNavigate({ page: "channel", number, tab: "settings" })}
         />
       )}

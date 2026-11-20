@@ -3,6 +3,7 @@ import {
   applyDelete,
   applyEdit,
   draftFromChannel,
+  editedDraft,
   effectiveFolder,
   folderSuggestions,
   iconPath,
@@ -168,5 +169,17 @@ describe("rename", () => {
   it("a new channel gets no folder", () => {
     const next = applyEdit(config, null, { ...newDraft(config.channel), name: "Boomerang", category: "Kids" });
     expect(next.channel.find((c) => c.name === "Boomerang")?.folder).toBeUndefined();
+  });
+});
+
+describe("editedDraft", () => {
+  it("pins the old folder before save, so the logo goes there", () => {
+    const draft = editedDraft(config, 1, { ...draftFromChannel(cn), name: "CN" });
+    expect(draft.folder).toBe("Cartoon Network");
+    expect(iconPath(draft)).toBe("Cartoon Network/channel.png");
+  });
+
+  it("leaves an unchanged name alone", () => {
+    expect(editedDraft(config, 1, draftFromChannel(cn)).folder).toBe("");
   });
 });

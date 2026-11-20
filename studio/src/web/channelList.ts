@@ -1,5 +1,6 @@
 import type { Config, Issue, Job, LineupResult } from "../server/types.js";
 import { effectiveFolder, iconPath, sortChannels } from "./channels.js";
+import { describeTarget } from "./episodes.js";
 import { describeIssue } from "./failure.js";
 import { formatEpisodeCode } from "./preview.js";
 import type { WebLibrary } from "./tree.js";
@@ -67,4 +68,27 @@ export function episodeStatus(path: string, jobs: Job[]): EpisodeStatus {
   const lastDone = Math.max(-Infinity, ...own.filter((j) => j.state === "done").map((j) => j.finishedAt ?? 0));
   const failed = own.filter((j) => j.state === "failed" && (j.finishedAt ?? 0) > lastDone).pop();
   return failed !== undefined ? { state: "failed", error: failed.error ?? "Conversion failed" } : { state: "on-air" };
+}
+
+export interface PendingEpisode {
+  show: string;
+  season: number;
+  episode: number | null;
+  title: string;
+  path: string;
+}
+
+export function pendingEpisodes(folder: string, library: WebLibrary, jobs: Job[]): PendingEpisode[] {
+  const known = new Set(library.show.flatMap((s) => s.episode.map((e) => e.path)));
+  const seen = new Set<string>();
+  const pending: PendingEpisode[] = [];
+  for (const job of jobs) {
+    if (job.kind === "shrink" || known.has(job.target) || seen.has(job.target)) continue;
+    const info = describeTarget(job.target);
+    if (info.ad || info.show === null || info.channel !== folder) continue;
+    if (episodeStatus(job.target, jobs).state === "on-air") continue;
+    seen.add(job.target);
+    pending.push({ show: info.show, season: info.season ?? 0, episode: info.episode, title: info.name.replace(/^S\d+E\d+ - /, ""), path: job.target });
+  }
+  return pending.sort((a, b) => a.show.localeCompare(b.show) || a.path.localeCompare(b.path));
 }
